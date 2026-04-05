@@ -25,13 +25,15 @@ function initApp() {
     registerContract(function() {
         loadIdentity(function() {
             loadWalletKeys(function() {
+                loadMaximaIdentity(function() {
                 initDB(function() {
-                    MDS.log("Wager v0.1.0 ready. Contract=" + WAGER_SCRIPT_ADDRESS + " Keys=" + Object.keys(MY_KEYS).length);
+                    MDS.log("Wager v0.1.0 ready. Contract=" + WAGER_SCRIPT_ADDRESS + " Keys=" + Object.keys(MY_KEYS).length + " Mx=" + (MY_MXKEY ? MY_MXKEY.substring(0,20)+"..." : "none"));
                     logActivity("Wager ready", "info");
                     refreshBalance();
                     refreshBets(function() {
                         renderCurrentView();
                     });
+                });
                 });
             });
         });
@@ -190,7 +192,8 @@ function renderBetCard(bet, role) {
         html += '<button class="btn btn--ghost btn--sm" onclick="event.stopPropagation(); doResolve(\'' + bet.coinid + '\', 2)">Void</button>';
     }
     if (!isOpen && !bet.isMyArb && (bet.isMine || bet.isMyCounter)) {
-        html += '<span class="status--wait">Awaiting arbiter resolution</span>';
+        html += '<button class="btn btn--yes btn--sm" onclick="event.stopPropagation(); doPropose(\'' + bet.coinid + '\', 1)">Propose: Back Won</button> ';
+        html += '<button class="btn btn--no btn--sm" onclick="event.stopPropagation(); doPropose(\'' + bet.coinid + '\', 0)">Propose: Lay Won</button>';
     }
     html += '</div>';
 
@@ -265,6 +268,10 @@ function renderPostView(el) {
     html += '<label>Arbiter Address</label>';
     html += '<input type="text" id="betArbAddr" placeholder="0x... (arbiter fee address)" />';
     html += '</div>';
+    html += '<div class="form-group">';
+    html += '<label>Arbiter Maxima Key (for ChainMail notifications)</label>';
+    html += '<input type="text" id="betArbMxKey" placeholder="Mx..." />';
+    html += '</div>';
 
     html += '<div class="form-group">';
     html += '<label>Timeout (blocks — arbiter must resolve within this)</label>';
@@ -325,6 +332,7 @@ function doPost() {
     var wantstake = document.getElementById("betWantStake").value.trim();
     var arbpk = document.getElementById("betArbPk").value.trim();
     var arbaddr = document.getElementById("betArbAddr").value.trim();
+    var arbmxkey = document.getElementById("betArbMxKey").value.trim();
     var timeout = document.getElementById("betTimeout").value;
     var statusEl = document.getElementById("postStatus");
 
@@ -347,10 +355,18 @@ function doPost() {
         arbpk: arbpk,
         arbaddr: arbaddr,
         arbname: "",
+        arbitermxkey: arbmxkey,
+        ownermxkey: MY_MXKEY,
         timeout: parseInt(timeout)
     }, function(ok, err) {
         if (ok) {
             showStatus(statusEl, "Bet posted! Waiting for confirmation...", "ok");
+            // Notify arbiter via ChainMail
+            if (arbmxkey) {
+                notifyArbiter("", arbmxkey, market, stake, function() {
+                    showStatus(statusEl, "Bet posted + arbiter notified!", "ok");
+                });
+            }
             setTimeout(function() { refreshBets(renderCurrentView); }, 2000);
         } else {
             showStatus(statusEl, err || "Failed to post bet", "err");
@@ -416,6 +432,65 @@ function doResolve(coinid, outcome) {
     });
 }
 
+function doPropose(coinid, outcome) {
+    var bet = MATCHED_BETS.find(function(b) { return b.coinid === coinid; });
+    if (!bet) return;
+
+    var label = outcome === 1 ? "BACK" : "LAY";
+    if (!confirm("Propose " + label + " as the winner?\nIf your counterparty agrees: 0% fee!\nIf they reject: goes to arbiter (10% fee).")) return;
+
+    MDS.notify("Building settlement proposal...");
+    selfSettle(coinid, outcome, function(ok, err, txnHex) {
+        if (ok && txnHex) {
+            // Find counter's Mx key to send proposal
+            var counterMxKey = bet.isMine ? bet.countermxkey : bet.ownermxkey;
+            if (!counterMxKey) {
+                // Try loading from DB
+                loadBet(bet.coinid, function(dbBet) {
+                    var mx = dbBet ? (bet.isMine ? dbBet.COUNTERMXKEY : dbBet.OWNERMXKEY) : null;
+                    if (mx) {
+                        sendSettlePropose(mx, coinid, outcome, txnHex, function() {
+                            MDS.notify("Settlement proposed — waiting for counterparty");
+                        });
+                    } else {
+                        MDS.notify("Signed — but no Mx key for counterparty. Share the tx hex manually.");
+                        MDS.log("Self-settle txnHex: " + txnHex);
+                    }
+                });
+            } else {
+                sendSettlePropose(counterMxKey, coinid, outcome, txnHex, function() {
+                    MDS.notify("Settlement proposed — waiting for counterparty");
+                });
+            }
+        } else {
+            MDS.notify("Proposal failed: " + (err || "unknown"));
+        }
+    });
+}
+
+function doAcceptProposal(txnHex, betid, proposerMxKey) {
+    if (!confirm("Accept this settlement? The bet will be resolved at 0% fee.")) return;
+    MDS.notify("Co-signing settlement...");
+    cosignAndPost(txnHex, function(ok, err) {
+        if (ok) {
+            MDS.notify("Bet settled — 0% fee!");
+            if (proposerMxKey) sendSettleAccept(proposerMxKey, betid);
+            refreshBets(renderCurrentView);
+        } else {
+            MDS.notify("Co-sign failed: " + (err || "unknown"));
+        }
+    });
+}
+
+function doRejectProposal(betid, proposerMxKey, arbMxKey) {
+    if (!confirm("Reject this settlement? The bet will go to the arbiter (10% fee for loser).")) return;
+    MDS.notify("Rejecting and escalating to arbiter...");
+    sendSettleReject(proposerMxKey, arbMxKey, betid, function() {
+        MDS.notify("Dispute sent to arbiter");
+        refreshBets(renderCurrentView);
+    });
+}
+
 function doTimeout(coinid) {
     if (!confirm("Trigger timeout refund? Both sides get their stakes back.")) return;
     MDS.notify("Triggering timeout refund...");
@@ -470,10 +545,11 @@ function renderArbiterView(el) {
     if (arbBets.length === 0) {
         html += '<div class="empty">No bets pending your resolution</div>';
         html += '<div class="card">';
-        html += '<p>Share your public key and address with bettors to be selected as an arbiter. You earn 3% of the winner\'s profit on every resolution.</p>';
+        html += '<p>Share your details with bettors to be selected as an arbiter. You earn 10% of the winner\'s profit on every dispute resolution.</p>';
         html += '<div class="betcard__grid">';
         html += '<dl><dt>Your Public Key</dt><dd class="mono" style="font-size:11px;word-break:break-all">' + esc(MY_PUBKEY) + '</dd></dl>';
         html += '<dl><dt>Your Address</dt><dd class="mono" style="font-size:11px;word-break:break-all">' + esc(MY_HEX_ADDR) + '</dd></dl>';
+        html += '<dl><dt>Your Maxima Key (for ChainMail)</dt><dd class="mono" style="font-size:11px;word-break:break-all">' + esc(MY_MXKEY) + '</dd></dl>';
         html += '</div></div>';
     } else {
         html += '<p>' + arbBets.length + ' bet(s) awaiting your resolution. You earn 3% of the winner\'s profit.</p>';

@@ -12,6 +12,8 @@
 
 // -- Constants --
 var ESCROW_RATE = 0.25; // 25% escrow insurance on top of bet
+var MY_MXKEY = "";      // This node's Maxima public key
+var MY_MXNAME = "";     // This node's Maxima name
 
 // -- Identity --
 var MY_PUBKEY = "";
@@ -74,6 +76,17 @@ function fetchAndStoreIdentity(callback) {
                 MDS.keypair.set("wager_miniaddr", MY_ADDR, function() { callback(); });
             });
         });
+    });
+}
+
+function loadMaximaIdentity(callback) {
+    getMyMaximaInfo(function(info) {
+        if (info) {
+            MY_MXKEY = info.mxpublickey;
+            MY_MXNAME = info.name;
+            MDS.log("Maxima identity: " + MY_MXNAME + " (" + MY_MXKEY.substring(0, 20) + "...)");
+        }
+        if (callback) callback();
     });
 }
 
@@ -702,6 +715,79 @@ function calcOdds(myStake, counterStake) {
 function calcCounterOdds(myStake, counterStake) {
     var total = parseFloat(myStake) + parseFloat(counterStake);
     return (total / parseFloat(counterStake)).toFixed(2);
+}
+
+// -- ChainMail Messaging --
+
+function notifyArbiter(betid, arbMxKey, market, stake, callback) {
+    if (!arbMxKey) { if (callback) callback(false); return; }
+    sendChainMail(arbMxKey, {
+        type: "BET_CREATED",
+        betid: betid,
+        market: market,
+        stake: stake,
+        sender_name: MY_MXNAME,
+        sender_mxkey: MY_MXKEY
+    }, function(ok) { if (callback) callback(ok); });
+}
+
+function notifyBetMatched(betid, pot, ownerMxKey, arbMxKey, callback) {
+    var payload = {
+        type: "BET_MATCHED",
+        betid: betid,
+        pot: pot,
+        counter_mxkey: MY_MXKEY,
+        owner_mxkey: ownerMxKey,
+        sender_name: MY_MXNAME
+    };
+    var sent = 0, total = 0;
+    function done() { sent++; if (sent >= total && callback) callback(true); }
+
+    if (ownerMxKey) { total++; sendChainMail(ownerMxKey, payload, done); }
+    if (arbMxKey) { total++; sendChainMail(arbMxKey, payload, done); }
+    if (total === 0 && callback) callback(true);
+}
+
+function sendSettlePropose(counterMxKey, betid, outcome, txnHex, callback) {
+    if (!counterMxKey) { if (callback) callback(false, "No counter Mx key"); return; }
+    sendChainMail(counterMxKey, {
+        type: "SETTLE_PROPOSE",
+        betid: betid,
+        outcome: outcome,
+        txnhex: txnHex,
+        sender_name: MY_MXNAME,
+        sender_mxkey: MY_MXKEY
+    }, function(ok, err) { if (callback) callback(ok, err); });
+}
+
+function sendSettleAccept(proposerMxKey, betid, callback) {
+    if (!proposerMxKey) { if (callback) callback(false); return; }
+    sendChainMail(proposerMxKey, {
+        type: "SETTLE_ACCEPT",
+        betid: betid,
+        sender_name: MY_MXNAME
+    }, function(ok) { if (callback) callback(ok); });
+}
+
+function sendSettleReject(proposerMxKey, arbMxKey, betid, callback) {
+    var payload = {
+        type: "SETTLE_REJECT",
+        betid: betid,
+        sender_name: MY_MXNAME
+    };
+    if (proposerMxKey) sendChainMail(proposerMxKey, payload);
+
+    // Also notify arbiter of dispute
+    if (arbMxKey) {
+        sendChainMail(arbMxKey, {
+            type: "DISPUTE",
+            betid: betid,
+            sender_name: MY_MXNAME,
+            sender_mxkey: MY_MXKEY
+        }, function(ok) { if (callback) callback(ok); });
+    } else {
+        if (callback) callback(true);
+    }
 }
 
 // -- Escrow Helpers --

@@ -38,8 +38,11 @@ function createTables(callback) {
         "  `counterstake` varchar(80)," +
         "  `ownerpk` varchar(512)," +
         "  `owneraddr` varchar(256)," +
+        "  `ownermxkey` varchar(1024)," +
         "  `counterpk` varchar(512)," +
         "  `counteraddr` varchar(256)," +
+        "  `countermxkey` varchar(1024)," +
+        "  `arbitermxkey` varchar(1024)," +
         "  `phase` int NOT NULL," +
         "  `outcome` int," +
         "  `timeout` int NOT NULL," +
@@ -62,7 +65,20 @@ function createTables(callback) {
                 "  `msg` varchar(512) NOT NULL," +
                 "  `type` varchar(10) NOT NULL," +
                 "  `timestamp` bigint NOT NULL" +
+                ")", function() {
+            MDS.sql(
+                "CREATE TABLE IF NOT EXISTS `messages` (" +
+                "  `id` bigint auto_increment," +
+                "  `randomid` varchar(128) NOT NULL," +
+                "  `betid` varchar(160)," +
+                "  `type` varchar(64) NOT NULL," +
+                "  `sender_mxkey` varchar(1024)," +
+                "  `sender_name` varchar(256)," +
+                "  `data` clob," +
+                "  `direction` varchar(16)," +
+                "  `created` bigint NOT NULL" +
                 ")", function() { if (callback) callback(); });
+        });
         });
     });
 }
@@ -72,8 +88,8 @@ function createTables(callback) {
 function insertBet(bet, callback) {
     MDS.sql(
         "INSERT INTO bets (betid, coinid, market, arbpk, arbaddr, arbname, side, " +
-        "ownerstake, counterstake, ownerpk, owneraddr, counterpk, counteraddr, " +
-        "phase, outcome, timeout, myrole, status, created) VALUES (" +
+        "ownerstake, counterstake, ownerpk, owneraddr, ownermxkey, counterpk, counteraddr, " +
+        "countermxkey, arbitermxkey, phase, outcome, timeout, myrole, status, created) VALUES (" +
         "'" + sqlEsc(bet.betid) + "', " +
         "'" + sqlEsc(bet.coinid || "") + "', " +
         "'" + sqlEsc(bet.market) + "', " +
@@ -85,8 +101,11 @@ function insertBet(bet, callback) {
         "'" + sqlEsc(bet.counterstake || "") + "', " +
         "'" + sqlEsc(bet.ownerpk || "") + "', " +
         "'" + sqlEsc(bet.owneraddr || "") + "', " +
+        "'" + sqlEsc(bet.ownermxkey || "") + "', " +
         "'" + sqlEsc(bet.counterpk || "") + "', " +
         "'" + sqlEsc(bet.counteraddr || "") + "', " +
+        "'" + sqlEsc(bet.countermxkey || "") + "', " +
+        "'" + sqlEsc(bet.arbitermxkey || "") + "', " +
         bet.phase + ", " +
         (bet.outcome != null ? bet.outcome : "NULL") + ", " +
         bet.timeout + ", " +
@@ -165,6 +184,41 @@ function logActivity(msg, type) {
 
 function loadActivity(callback) {
     MDS.sql("SELECT * FROM activity ORDER BY timestamp DESC LIMIT 200", function(res) {
+        callback(res.status ? (res.rows || []) : []);
+    });
+}
+
+// -- Mx Keys --
+
+function updateBetMxKeys(betid, field, mxkey, callback) {
+    MDS.sql("UPDATE bets SET " + field + "='" + sqlEsc(mxkey) + "' WHERE betid='" + sqlEsc(betid) + "'", callback);
+}
+
+// -- Messages --
+
+function insertMessage(msg, callback) {
+    MDS.sql(
+        "INSERT INTO messages (randomid, betid, type, sender_mxkey, sender_name, data, direction, created) VALUES (" +
+        "'" + sqlEsc(msg.randomid) + "', " +
+        "'" + sqlEsc(msg.betid || "") + "', " +
+        "'" + sqlEsc(msg.type) + "', " +
+        "'" + sqlEsc(msg.sender_mxkey || "") + "', " +
+        "'" + sqlEsc(msg.sender_name || "") + "', " +
+        "'" + sqlEsc(msg.data || "") + "', " +
+        "'" + sqlEsc(msg.direction || "received") + "', " +
+        Date.now() + ")",
+        callback
+    );
+}
+
+function messageExists(randomid, callback) {
+    MDS.sql("SELECT * FROM messages WHERE randomid='" + sqlEsc(randomid) + "'", function(res) {
+        callback(res.status && res.rows && res.rows.length > 0);
+    });
+}
+
+function loadPendingProposals(callback) {
+    MDS.sql("SELECT * FROM messages WHERE type='SETTLE_PROPOSE' AND direction='received' ORDER BY created DESC LIMIT 50", function(res) {
         callback(res.status ? (res.rows || []) : []);
     });
 }
