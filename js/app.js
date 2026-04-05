@@ -199,14 +199,61 @@ function renderBetCard(bet, role) {
 // -- Markets View --
 
 function renderMarketsView(el) {
-    var html = '<h2>Open Bets</h2>';
+    var html = '<h2>Open Markets</h2>';
     if (OPEN_BETS.length === 0) {
         html += '<div class="empty">No open bets — be the first to post one</div>';
     } else {
+        // Group by proposition to show two-sided markets
+        var markets = {};
         OPEN_BETS.forEach(function(bet) {
-            var role = bet.isMine ? "yours" : bet.isMyArb ? "arbiter" : null;
-            html += renderBetCard(bet, role);
+            var key = bet.proposition || bet.coinid;
+            if (!markets[key]) markets[key] = { prop: bet.proposition, forBets: [], againstBets: [] };
+            if (bet.side === 1) markets[key].forBets.push(bet);
+            else markets[key].againstBets.push(bet);
         });
+
+        var keys = Object.keys(markets);
+        for (var k = 0; k < keys.length; k++) {
+            var m = markets[keys[k]];
+            if (m.prop) {
+                html += '<div class="market">';
+                html += '<div class="market__title">' + esc(m.prop) + '</div>';
+                html += '<div class="market__sides">';
+
+                // FOR column
+                html += '<div class="market__col"><div class="market__colhead side--yes">FOR</div>';
+                if (m.forBets.length === 0) {
+                    html += '<div class="market__empty">No FOR bets</div>';
+                } else {
+                    m.forBets.forEach(function(bet) {
+                        var role = bet.isMine ? "yours" : null;
+                        html += renderBetCard(bet, role);
+                    });
+                }
+                html += '</div>';
+
+                // AGAINST column
+                html += '<div class="market__col"><div class="market__colhead side--no">AGAINST</div>';
+                if (m.againstBets.length === 0) {
+                    html += '<div class="market__empty">No AGAINST bets</div>';
+                } else {
+                    m.againstBets.forEach(function(bet) {
+                        var role = bet.isMine ? "yours" : null;
+                        html += renderBetCard(bet, role);
+                    });
+                }
+                html += '</div>';
+
+                html += '</div></div>';
+            } else {
+                // No proposition — show individually
+                var allBets = m.forBets.concat(m.againstBets);
+                allBets.forEach(function(bet) {
+                    var role = bet.isMine ? "yours" : bet.isMyArb ? "arbiter" : null;
+                    html += renderBetCard(bet, role);
+                });
+            }
+        }
     }
 
     var myMatched = MATCHED_BETS.filter(function(b) { return b.isMine || b.isMyCounter || b.isMyArb; });
@@ -436,9 +483,9 @@ function showCounterModal() {
         '<div class="form-group">' +
         '<label>Your Odds</label>' +
         '<div class="counter__slider">' +
-        '<button class="btn btn--ghost btn--sm" onclick="adjustCounterOdds(-0.5)">&#9664;</button>' +
-        '<input type="range" id="counterOddsSlider" min="0.5" max="10" step="0.5" value="' + origOddsRatio.toFixed(1) + '" oninput="updateCounterPreview()" />' +
-        '<button class="btn btn--ghost btn--sm" onclick="adjustCounterOdds(0.5)">&#9654;</button>' +
+        '<button class="btn btn--ghost btn--sm" onclick="adjustCounterOdds(-0.1)">&#9664;</button>' +
+        '<input type="range" id="counterOddsSlider" min="0.1" max="10" step="0.1" value="' + origOddsRatio.toFixed(1) + '" oninput="updateCounterPreview()" />' +
+        '<button class="btn btn--ghost btn--sm" onclick="adjustCounterOdds(0.1)">&#9654;</button>' +
         '<span class="counter__oddsLabel" id="counterOddsLabel">' + origOddsRatio.toFixed(1) + ':1</span>' +
         '</div>' +
         '</div>' +
@@ -465,8 +512,8 @@ function closeCounterModal() {
 
 function adjustCounterOdds(delta) {
     var slider = document.getElementById("counterOddsSlider");
-    var val = parseFloat(slider.value) + delta;
-    if (val < 0.5) val = 0.5;
+    var val = Math.round((parseFloat(slider.value) + delta) * 10) / 10;
+    if (val < 0.1) val = 0.1;
     if (val > 10) val = 10;
     slider.value = val;
     updateCounterPreview();
@@ -490,10 +537,11 @@ function updateCounterPreview() {
     var totalPot = myLock + theirLock;
 
     preview.innerHTML =
-        'You risk: <strong>' + stake.toFixed(2) + '</strong> (lock ' + myLock.toFixed(2) + ' incl. escrow)<br/>' +
-        'You win: <strong>' + wantFromCounter.toFixed(2) + '</strong> if right<br/>' +
-        'Counter must lock: ' + theirLock.toFixed(2) + '<br/>' +
-        'Total pot: ' + totalPot.toFixed(2) + ' MINIMA<br/>' +
+        '<strong>Your bet: ' + stake.toFixed(2) + ' MINIMA</strong> at <strong>' + oddsRatio.toFixed(1) + ':1</strong><br/>' +
+        'If you win: +' + wantFromCounter.toFixed(2) + ' profit<br/>' +
+        'If you lose: -' + stake.toFixed(2) + ' (or -' + myLock.toFixed(2) + ' if arbiter needed)<br/>' +
+        'You lock: ' + myLock.toFixed(2) + ' (bet + ' + (myEscrow).toFixed(2) + ' escrow)<br/>' +
+        'Taker must lock: ' + theirLock.toFixed(2) + '<br/>' +
         '<span class="muted">Agree: 0% fee | Arbiter: 10%, loser forfeits 125%</span>';
 }
 
