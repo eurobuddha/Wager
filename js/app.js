@@ -280,15 +280,6 @@ function renderPostView(el) {
     html += '</div>';
     el.innerHTML = html;
 
-    // Apply pre-fill if coming from Counter
-    if (PREFILL) {
-        if (PREFILL.market) document.getElementById("betMarket").value = PREFILL.market;
-        if (PREFILL.side !== undefined) pickSide(PREFILL.side);
-        if (PREFILL.arbpk) document.getElementById("betArbPk").value = PREFILL.arbpk;
-        if (PREFILL.arbaddr) document.getElementById("betArbAddr").value = PREFILL.arbaddr;
-        if (PREFILL.arbmxkey) document.getElementById("betArbMxKey").value = PREFILL.arbmxkey;
-        PREFILL = null;
-    }
 }
 
 var SELECTED_SIDE = 1;
@@ -393,19 +384,155 @@ function doFill(coinid) {
     });
 }
 
+// -- Counter Modal --
+
+var COUNTER_BET = null;
+
 function doCounter(coinid) {
     var bet = OPEN_BETS.find(function(b) { return b.coinid === coinid; });
     if (!bet) return;
+    COUNTER_BET = bet;
+    showCounterModal();
+}
 
-    // Pre-fill the post form with opposite side, same proposition + arbiter
-    PREFILL = {
+function showCounterModal() {
+    var bet = COUNTER_BET;
+    if (!bet) return;
+
+    var mySide = bet.side === 1 ? "AGAINST" : "FOR";
+    var origOddsRatio = parseFloat(bet.wantstake) / parseFloat(bet.amount);
+    var origBet = parseFloat(bet.amount) / (1 + ESCROW_RATE);
+    var origWant = parseFloat(bet.wantstake) / (1 + ESCROW_RATE);
+
+    var modal = document.getElementById("counterModal");
+    if (!modal) {
+        modal = document.createElement("div");
+        modal.id = "counterModal";
+        modal.className = "modal";
+        document.body.appendChild(modal);
+    }
+
+    modal.innerHTML =
+        '<div class="modal__overlay" onclick="closeCounterModal()"></div>' +
+        '<div class="modal__content">' +
+        '<div class="modal__header">' +
+        '<h3>Counter Bet</h3>' +
+        '<span class="modal__close" onclick="closeCounterModal()">&times;</span>' +
+        '</div>' +
+
+        '<div class="modal__prop">' + esc(bet.proposition || "Unknown proposition") + '</div>' +
+
+        '<div class="modal__info">' +
+        '<div class="modal__row"><span class="muted">Original bet</span><span>' + (bet.side === 1 ? "FOR" : "AGAINST") + ' at ' + calcOdds(bet.amount, bet.wantstake) + '</span></div>' +
+        '<div class="modal__row"><span class="muted">Your side</span><span class="' + (mySide === "FOR" ? "side--yes" : "side--no") + '"><strong>' + mySide + '</strong></span></div>' +
+        '<div class="modal__row"><span class="muted">Arbiter</span><span class="mono" style="font-size:11px">' + esc((bet.arbpk || "").substring(0, 24)) + '...</span></div>' +
+        '</div>' +
+
+        '<div class="form-group">' +
+        '<label>Your Stake (MINIMA)</label>' +
+        '<input type="number" id="counterStake" min="0.01" step="1" value="' + origWant.toFixed(2) + '" oninput="updateCounterPreview()" />' +
+        '</div>' +
+
+        '<div class="form-group">' +
+        '<label>Your Odds</label>' +
+        '<div class="counter__slider">' +
+        '<button class="btn btn--ghost btn--sm" onclick="adjustCounterOdds(-0.5)">&#9664;</button>' +
+        '<input type="range" id="counterOddsSlider" min="0.5" max="10" step="0.5" value="' + origOddsRatio.toFixed(1) + '" oninput="updateCounterPreview()" />' +
+        '<button class="btn btn--ghost btn--sm" onclick="adjustCounterOdds(0.5)">&#9654;</button>' +
+        '<span class="counter__oddsLabel" id="counterOddsLabel">' + origOddsRatio.toFixed(1) + ':1</span>' +
+        '</div>' +
+        '</div>' +
+
+        '<div class="counter__preview" id="counterPreview"></div>' +
+
+        '<div class="modal__actions">' +
+        '<button class="btn btn--accent" onclick="submitCounter()">Post Counter Bet</button>' +
+        '<button class="btn btn--ghost" onclick="closeCounterModal()">Cancel</button>' +
+        '</div>' +
+
+        '<div id="counterStatus" class="status"></div>' +
+        '</div>';
+
+    modal.style.display = "flex";
+    updateCounterPreview();
+}
+
+function closeCounterModal() {
+    var modal = document.getElementById("counterModal");
+    if (modal) modal.style.display = "none";
+    COUNTER_BET = null;
+}
+
+function adjustCounterOdds(delta) {
+    var slider = document.getElementById("counterOddsSlider");
+    var val = parseFloat(slider.value) + delta;
+    if (val < 0.5) val = 0.5;
+    if (val > 10) val = 10;
+    slider.value = val;
+    updateCounterPreview();
+}
+
+function updateCounterPreview() {
+    var stake = parseFloat(document.getElementById("counterStake").value) || 0;
+    var oddsRatio = parseFloat(document.getElementById("counterOddsSlider").value) || 1;
+    var label = document.getElementById("counterOddsLabel");
+    var preview = document.getElementById("counterPreview");
+
+    label.innerText = oddsRatio.toFixed(1) + ":1";
+
+    if (stake <= 0) { preview.innerHTML = "Enter your stake"; return; }
+
+    var wantFromCounter = stake * oddsRatio;
+    var myEscrow = stake * ESCROW_RATE;
+    var theirEscrow = wantFromCounter * ESCROW_RATE;
+    var myLock = stake + myEscrow;
+    var theirLock = wantFromCounter + theirEscrow;
+    var totalPot = myLock + theirLock;
+
+    preview.innerHTML =
+        'You risk: <strong>' + stake.toFixed(2) + '</strong> (lock ' + myLock.toFixed(2) + ' incl. escrow)<br/>' +
+        'You win: <strong>' + wantFromCounter.toFixed(2) + '</strong> if right<br/>' +
+        'Counter must lock: ' + theirLock.toFixed(2) + '<br/>' +
+        'Total pot: ' + totalPot.toFixed(2) + ' MINIMA<br/>' +
+        '<span class="muted">Agree: 0% fee | Arbiter: 10%, loser forfeits 125%</span>';
+}
+
+function submitCounter() {
+    var bet = COUNTER_BET;
+    if (!bet) return;
+
+    var stake = parseFloat(document.getElementById("counterStake").value) || 0;
+    var oddsRatio = parseFloat(document.getElementById("counterOddsSlider").value) || 1;
+    var statusEl = document.getElementById("counterStatus");
+
+    if (stake < 0.01) { showStatus(statusEl, "Minimum bet is 0.01", "err"); return; }
+
+    var wantFromCounter = stake * oddsRatio;
+    var lockAmt = (stake * (1 + ESCROW_RATE)).toFixed(8);
+    var wantLock = (wantFromCounter * (1 + ESCROW_RATE)).toFixed(8);
+    var mySide = bet.side === 1 ? 0 : 1;
+
+    showStatus(statusEl, "Posting counter bet...", "warn");
+
+    postBet({
         market: bet.proposition || "",
-        side: bet.side === 1 ? 0 : 1,  // opposite side
+        side: mySide,
+        stake: lockAmt,
+        wantstake: wantLock,
         arbpk: bet.arbpk || "",
         arbaddr: bet.arbaddr || "",
-        arbmxkey: ""
-    };
-    showView("post");
+        arbname: "",
+        arbitermxkey: "",
+        ownermxkey: MY_MXKEY,
+        timeout: bet.timeout || 5000
+    }, function(ok, err) {
+        if (ok) {
+            showStatus(statusEl, "Counter bet posted!", "ok");
+            setTimeout(function() { closeCounterModal(); refreshBets(renderCurrentView); }, 1500);
+        } else {
+            showStatus(statusEl, err || "Failed", "err");
+        }
+    });
 }
 
 function doCancel(coinid) {
