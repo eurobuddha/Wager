@@ -15,6 +15,26 @@ var ESCROW_RATE = 0.25; // 25% escrow insurance on top of bet
 var MY_MXKEY = "";      // This node's Maxima public key
 var MY_MXNAME = "";     // This node's Maxima name
 
+// -- Hex encode/decode for proposition text (state port 12) --
+
+function strToHex(str) {
+    var hex = "0x";
+    for (var i = 0; i < str.length; i++) {
+        hex += str.charCodeAt(i).toString(16).padStart(2, "0");
+    }
+    return hex;
+}
+
+function hexToStr(hex) {
+    if (!hex) return "";
+    if (hex.startsWith("0x")) hex = hex.substring(2);
+    var str = "";
+    for (var i = 0; i < hex.length; i += 2) {
+        str += String.fromCharCode(parseInt(hex.substring(i, i + 2), 16));
+    }
+    return str;
+}
+
 // -- Identity --
 var MY_PUBKEY = "";
 var MY_HEX_ADDR = "";
@@ -136,13 +156,15 @@ function postBet(params, callback) {
             "4": "0",
             "5": "" + params.timeout,
             "6": "" + params.side,
-            "7": "" + params.wantstake
+            "7": "" + params.wantstake,
+            "12": strToHex(params.market || "")
         });
 
         var cmd = "send amount:" + params.stake + " address:" + WAGER_SCRIPT_ADDRESS + " state:" + stateObj;
 
         MDS.log("POST BET: " + cmd);
-        logActivity("Posting " + (params.side === 1 ? "BACK" : "LAY") + " bet — " + params.stake + " MINIMA at " + calcOdds(params.stake, params.wantstake) + "x", "info");
+        var sideLabel = params.side === 1 ? "FOR" : "AGAINST";
+        logActivity("Posting " + sideLabel + ": " + (params.market || "") + " — " + params.stake + " MINIMA at " + calcOdds(params.stake, params.wantstake), "info");
 
         MDS.cmd(cmd, function(res) {
             releaseTxnLock();
@@ -267,7 +289,8 @@ function setFillState(txid, bet, callback) {
         7: getStateVal(bet, 7),         // wantstake
         8: MY_PUBKEY,                    // counterpk
         9: MY_HEX_ADDR,                 // counteraddr
-        10: ownerStake                   // ownerstake (= @AMOUNT at fill time)
+        10: ownerStake,                  // ownerstake (= @AMOUNT at fill time)
+        12: getStateVal(bet, 12)         // proposition text (preserved)
     };
     setTxnState(txid, states, callback);
 }
@@ -648,6 +671,7 @@ function parseBetCoin(coin) {
         counterpk: getStateVal(coin, 8),
         counteraddr: getStateVal(coin, 9),
         ownerstake: getStateVal(coin, 10),
+        proposition: hexToStr(getStateVal(coin, 12)),
         isMine: isMyKey(getStateVal(coin, 0)),
         isMyCounter: isMyKey(getStateVal(coin, 8)),
         isMyArb: isMyKey(getStateVal(coin, 2)),
@@ -707,14 +731,19 @@ function cleanupTxn(txid) {
     MDS.cmd("txndelete id:" + txid);
 }
 
+// Traditional fractional odds: "how much I win per 1 unit staked"
+// If I stake 10 and want 15 from counter, my odds are 1.5:1 (I win 1.5 for every 1 risked)
 function calcOdds(myStake, counterStake) {
-    var total = parseFloat(myStake) + parseFloat(counterStake);
-    return (total / parseFloat(myStake)).toFixed(2);
+    var my = parseFloat(myStake);
+    var cs = parseFloat(counterStake);
+    if (my <= 0) return "—";
+    var ratio = cs / my;
+    if (ratio === Math.floor(ratio)) return ratio + ":1";
+    return ratio.toFixed(1) + ":1";
 }
 
 function calcCounterOdds(myStake, counterStake) {
-    var total = parseFloat(myStake) + parseFloat(counterStake);
-    return (total / parseFloat(counterStake)).toFixed(2);
+    return calcOdds(counterStake, myStake);
 }
 
 // -- ChainMail Messaging --

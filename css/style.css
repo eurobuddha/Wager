@@ -252,9 +252,10 @@ input::placeholder { color: var(--text2); opacity: 0.5; }
     user-select: none;
 }
 
-.betcard__side { font-size: 13px; min-width: 42px; }
-.betcard__stake { font-family: var(--mono); font-weight: 600; font-size: 14px; }
-.betcard__odds { font-size: 14px; }
+.betcard__prop { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.betcard__side { font-size: 12px; min-width: 52px; text-align: center; }
+.betcard__stake { font-family: var(--mono); font-weight: 600; font-size: 13px; }
+.betcard__odds { font-size: 13px; }
 .betcard__role {
     font-size: 11px;
     text-transform: uppercase;
@@ -286,6 +287,16 @@ input::placeholder { color: var(--text2); opacity: 0.5; }
     max-height: 600px;
     padding: 0 14px 14px;
     border-top: 1px solid var(--border);
+}
+
+.betcard__proposition {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    padding: 12px 0 8px;
+    line-height: 1.4;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 10px;
 }
 
 .betcard__grid {

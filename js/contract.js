@@ -8,12 +8,13 @@
  *   Port 3  = arbaddr        (arbiter's payout address — receives 10% of winner's profit on dispute)
  *   Port 4  = phase          (0=open order, 1=matched bet)
  *   Port 5  = timeout        (blocks before arbiter timeout in phase 1)
- *   Port 6  = side           (1=YES, 0=NO — owner's side)
+ *   Port 6  = side           (1=FOR, 0=AGAINST — owner's side)
  *   Port 7  = wantstake      (amount counter must put up)
  *   Port 8  = counterpk      (counter's signing public key — set at fill)
  *   Port 9  = counteraddr    (counter's payout address — set at fill)
  *   Port 10 = ownerstake     (enforced = @AMOUNT at fill time)
- *   Port 11 = outcome        (set by arbiter: 1=YES, 0=NO)
+ *   Port 11 = outcome        (set by arbiter: 1=FOR/won, 0=AGAINST/lost, 2=VOID)
+ *   Port 12 = proposition    (hex-encoded event description text)
  *
  * Paths:
  *   Phase 0, SIGNEDBY(owner)        → Cancel (owner reclaims)
