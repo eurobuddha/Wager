@@ -1,0 +1,355 @@
+/* Wager — Prediction Market Styles */
+
+:root {
+    --bg: #0a0a0f;
+    --bg2: #12121a;
+    --bg3: #1a1a26;
+    --border: #2a2a3a;
+    --text: #e0ddd6;
+    --text2: #9a9688;
+    --accent: #6366f1;
+    --accent2: #818cf8;
+    --yes: #22c55e;
+    --yes-bg: rgba(34, 197, 94, 0.1);
+    --no: #ef4444;
+    --no-bg: rgba(239, 68, 68, 0.1);
+    --warn: #f59e0b;
+    --radius: 8px;
+    --mono: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+}
+
+/* -- Nav -- */
+.nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.nav__brand {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.nav__tabs {
+    display: flex;
+    gap: 4px;
+}
+
+.nav__tab {
+    padding: 6px 14px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text2);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.nav__tab:hover { color: var(--text); background: var(--bg3); }
+.nav__tab.active { color: var(--accent2); background: var(--bg3); }
+
+.nav__info {
+    font-size: 12px;
+    color: var(--text2);
+    font-family: var(--mono);
+}
+
+/* -- Layout -- */
+.main { max-width: 900px; margin: 0 auto; padding: 20px 16px; }
+
+h2 { font-size: 18px; font-weight: 600; margin-bottom: 12px; }
+h3 { font-size: 15px; font-weight: 600; margin: 16px 0 8px; color: var(--text2); }
+
+/* -- Card -- */
+.card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 12px;
+}
+
+.card--compact { padding: 10px 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.card__pot { font-size: 20px; font-weight: 700; font-family: var(--mono); margin-bottom: 8px; }
+.card__parties { font-size: 13px; color: var(--text2); margin-bottom: 12px; font-family: var(--mono); }
+.card__actions { display: flex; gap: 8px; }
+
+/* -- Book (Order Book) -- */
+.book { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 16px; }
+
+.book__header {
+    display: grid;
+    grid-template-columns: 60px 100px 100px 70px 1fr 100px;
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg3);
+}
+
+.book__row {
+    display: grid;
+    grid-template-columns: 60px 100px 100px 70px 1fr 100px;
+    padding: 10px 12px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    transition: background 0.1s;
+}
+
+.book__row:last-child { border-bottom: none; }
+.book__row:hover { background: var(--bg3); }
+
+/* -- Side Tags -- */
+.side--yes { color: var(--yes); font-weight: 700; }
+.side--no { color: var(--no); font-weight: 700; }
+.side--arb { color: var(--accent2); font-weight: 700; }
+
+.odds { font-family: var(--mono); font-weight: 600; }
+.arb { font-size: 11px; font-family: var(--mono); color: var(--text2); }
+.muted { color: var(--text2); font-size: 12px; }
+.mono { font-family: var(--mono); font-size: 12px; word-break: break-all; }
+
+/* -- Buttons -- */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 16px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.btn--sm { padding: 4px 10px; font-size: 12px; }
+
+.btn--accent { background: var(--accent); color: #fff; }
+.btn--accent:hover { background: var(--accent2); }
+
+.btn--yes { background: var(--yes); color: #fff; }
+.btn--yes:hover { opacity: 0.85; }
+
+.btn--no { background: var(--no); color: #fff; }
+.btn--no:hover { opacity: 0.85; }
+
+.btn--ghost { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+.btn--ghost:hover { color: var(--text); border-color: var(--text2); }
+
+/* -- Side Picker -- */
+.side-picker { display: flex; gap: 4px; }
+.side-picker .btn { flex: 1; opacity: 0.5; }
+.side-picker .btn.active { opacity: 1; }
+
+/* -- Form -- */
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+input[type="text"], input[type="number"], select {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 14px;
+    font-family: var(--mono);
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+input:focus, select:focus { border-color: var(--accent); }
+input::placeholder { color: var(--text2); opacity: 0.5; }
+
+.odds-preview {
+    padding: 10px 14px;
+    background: var(--bg3);
+    border-radius: var(--radius);
+    font-size: 13px;
+    color: var(--text2);
+    margin-bottom: 14px;
+    font-family: var(--mono);
+}
+
+/* -- Status -- */
+.status { padding: 8px 12px; border-radius: var(--radius); font-size: 13px; margin-bottom: 12px; }
+.status--ok { background: var(--yes-bg); color: var(--yes); }
+.status--err { background: var(--no-bg); color: var(--no); }
+.status--warn { background: rgba(245, 158, 11, 0.1); color: var(--warn); }
+.status--wait { color: var(--warn); font-size: 12px; }
+.status--info { color: var(--text2); }
+
+/* -- Empty State -- */
+.empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text2);
+    font-size: 14px;
+}
+
+/* -- Activity Log -- */
+.log { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+
+.log__row {
+    padding: 6px 12px;
+    font-size: 12px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+}
+
+.log__row:last-child { border-bottom: none; }
+.log__time { color: var(--text2); margin-right: 8px; }
+.log__ok { color: var(--yes); }
+.log__err { color: var(--no); }
+.log__warn { color: var(--warn); }
+.log__info { color: var(--text2); }
+
+/* -- Expandable Bet Card -- */
+.betcard {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 8px;
+    overflow: hidden;
+    transition: border-color 0.15s;
+}
+
+.betcard:hover { border-color: var(--accent); }
+
+.betcard__summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.betcard__side { font-size: 13px; min-width: 42px; }
+.betcard__stake { font-family: var(--mono); font-weight: 600; font-size: 14px; }
+.betcard__odds { font-size: 14px; }
+.betcard__role {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--accent2);
+    background: rgba(99, 102, 241, 0.1);
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-left: auto;
+}
+
+.betcard__chevron {
+    font-size: 12px;
+    color: var(--text2);
+    transition: transform 0.2s;
+    margin-left: 4px;
+}
+
+.betcard.expanded .betcard__chevron { transform: rotate(180deg); }
+
+.betcard__detail {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease;
+    padding: 0 14px;
+}
+
+.betcard.expanded .betcard__detail {
+    max-height: 600px;
+    padding: 0 14px 14px;
+    border-top: 1px solid var(--border);
+}
+
+.betcard__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+    margin-bottom: 10px;
+    padding-top: 12px;
+}
+
+.betcard__grid dl { margin: 0; }
+.betcard__grid dt { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); margin-bottom: 2px; }
+.betcard__grid dd { font-size: 14px; font-weight: 600; font-family: var(--mono); margin: 0; }
+
+.betcard__payouts {
+    background: var(--bg3);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 12px;
+    margin-bottom: 10px;
+    line-height: 1.8;
+}
+
+.betcard__arbiter {
+    margin-bottom: 10px;
+}
+
+.betcard__arbiter dt {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text2);
+    margin-bottom: 4px;
+}
+
+.betcard__arbiter dd {
+    font-size: 11px;
+    margin: 0;
+    line-height: 1.6;
+}
+
+.betcard__parties {
+    font-size: 12px;
+    line-height: 1.8;
+    margin-bottom: 10px;
+}
+
+.betcard__coinid {
+    font-size: 10px;
+    margin-bottom: 10px;
+    word-break: break-all;
+}
+
+.betcard__actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding-top: 4px;
+}
+
+/* -- Responsive -- */
+@media (max-width: 640px) {
+    .book__header, .book__row { grid-template-columns: 50px 80px 80px 60px 1fr 80px; font-size: 12px; }
+    .form-row { grid-template-columns: 1fr; }
+    .nav__tabs { gap: 2px; }
+    .nav__tab { padding: 4px 8px; font-size: 12px; }
+}
