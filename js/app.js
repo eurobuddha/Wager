@@ -110,8 +110,8 @@ function initApp() {
                 loadMaximaIdentity(function() {
                 notify("Initializing database...", "info");
                 initDB(function() {
-                    MDS.log("Wager v0.6.4 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
-                    notify("Wager v0.6.4 ready", "ok");
+                    MDS.log("Wager v0.6.5 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    notify("Wager v0.6.5 ready", "ok");
                     refreshBalance();
                     refreshBetsAndProposals(function() { renderCurrentView(); });
                 });
@@ -211,9 +211,19 @@ function renderBetCard(bet, role) {
     var sideClass = bet.side === 1 ? "side--yes" : "side--no";
     // Show bet amounts (without escrow) — escrow is implementation detail
     var locked = parseFloat(bet.amount);
-    var betAmt = locked / (1 + ESCROW_RATE);
-    var wantLocked = parseFloat(bet.wantstake || "0");
-    var wantBet = wantLocked / (1 + ESCROW_RATE);
+    var betAmt, wantBet, forAmt, againstAmt;
+    if (isOpen) {
+        betAmt = locked / (1 + ESCROW_RATE);
+        wantBet = parseFloat(bet.wantstake || "0") / (1 + ESCROW_RATE);
+    } else {
+        // Matched: amount = total locked, ownerstake = owner's locked
+        var osLock = parseFloat(bet.ownerstake || "0");
+        var csLock = locked - osLock;
+        forAmt = (bet.side === 1 ? osLock : csLock) / (1 + ESCROW_RATE);
+        againstAmt = (bet.side === 1 ? csLock : osLock) / (1 + ESCROW_RATE);
+        betAmt = forAmt;
+        wantBet = againstAmt;
+    }
     var odds = calcOdds(betAmt, wantBet);
     var prop = bet.proposition || "";
     var propShort = prop.length > 40 ? prop.substring(0, 40) + "..." : prop;
@@ -242,7 +252,11 @@ function renderBetCard(bet, role) {
         html += '<span class="betcard__prop">' + esc(propShort) + '</span>';
     }
     html += '<span class="betcard__tile ' + sideClass + ' betcard__side">' + sideLabel + '</span>';
-    html += '<span class="betcard__tile betcard__stake">' + betAmt.toFixed(0) + ' wants ' + wantBet.toFixed(0) + '</span>';
+    if (isOpen) {
+        html += '<span class="betcard__tile betcard__stake">' + betAmt.toFixed(0) + ' wants ' + wantBet.toFixed(0) + '</span>';
+    } else {
+        html += '<span class="betcard__tile betcard__stake">' + forAmt.toFixed(0) + ' vs ' + againstAmt.toFixed(0) + '</span>';
+    }
     html += '<span class="betcard__tile betcard__mult">' + multiplier + '</span>';
     html += '<span class="betcard__tile betcard__odds">' + odds + '</span>';
     html += '<span class="betcard__tile betcard__want">' + Math.min(betAmt, wantBet).toFixed(0) + '</span>';
