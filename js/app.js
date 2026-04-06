@@ -135,11 +135,7 @@ function renderBetCard(bet, role) {
     html += '<span class="betcard__tile betcard__stake">' + betAmt.toFixed(0) + ' wants ' + wantBet.toFixed(0) + '</span>';
     html += '<span class="betcard__tile betcard__mult">' + multiplier + '</span>';
     html += '<span class="betcard__tile betcard__odds">' + odds + '</span>';
-    if (bestCounter > 0) {
-        html += '<span class="betcard__tile betcard__ask">' + wantBet.toFixed(0) + '</span>';
-        html += '<span class="betcard__tile betcard__market">' + bestCounter.toFixed(0) + '–' + wantBet.toFixed(0) + '</span>';
-        html += '<span class="betcard__tile betcard__counter">' + bestCounter.toFixed(0) + '</span>';
-    }
+    html += '<span class="betcard__tile betcard__want">' + wantBet.toFixed(0) + '</span>';
     if (role) html += '<span class="betcard__role">' + role + '</span>';
     html += '<span class="betcard__chevron">&#9662;</span>';
     html += '</div>';
@@ -240,28 +236,37 @@ function renderMarketsView(el) {
         for (var k = 0; k < keys.length; k++) {
             var m = markets[keys[k]];
             if (m.prop) {
-                // Calculate best odds on each side for the two-way price display
-                var bestFor = null, bestAgainst = null;
+                // Find best ask on each side for the market spread
+                var bestForAsk = 0, bestAgainstAsk = 0;
                 m.forBets.forEach(function(b) {
-                    var r = parseFloat(b.wantstake) / parseFloat(b.amount);
-                    if (!bestFor || r < bestFor.ratio) bestFor = { ratio: r, odds: calcOdds(b.amount, b.wantstake) };
+                    var wnt = parseFloat(b.wantstake || "0") / (1 + ESCROW_RATE);
+                    if (wnt > bestForAsk || bestForAsk === 0) bestForAsk = wnt;
                 });
                 m.againstBets.forEach(function(b) {
-                    var r = parseFloat(b.wantstake) / parseFloat(b.amount);
-                    if (!bestAgainst || r < bestAgainst.ratio) bestAgainst = { ratio: r, odds: calcOdds(b.amount, b.wantstake) };
+                    var wnt = parseFloat(b.wantstake || "0") / (1 + ESCROW_RATE);
+                    if (wnt > bestAgainstAsk || bestAgainstAsk === 0) bestAgainstAsk = wnt;
+                });
+                // Best counter amounts (what each side is actually offering)
+                var bestForBet = 0, bestAgainstBet = 0;
+                m.forBets.forEach(function(b) {
+                    var bt = parseFloat(b.amount) / (1 + ESCROW_RATE);
+                    if (bt > bestForBet) bestForBet = bt;
+                });
+                m.againstBets.forEach(function(b) {
+                    var bt = parseFloat(b.amount) / (1 + ESCROW_RATE);
+                    if (bt > bestAgainstBet) bestAgainstBet = bt;
                 });
 
-                var priceDisplay = '';
-                if (bestFor && bestAgainst) {
-                    priceDisplay = '<span class="market__spread"><span class="side--yes">FOR ' + bestFor.odds + '</span> / <span class="side--no">AGAINST ' + bestAgainst.odds + '</span></span>';
-                } else if (bestFor) {
-                    priceDisplay = '<span class="market__spread"><span class="side--yes">FOR ' + bestFor.odds + '</span> / <span class="muted">no AGAINST</span></span>';
-                } else if (bestAgainst) {
-                    priceDisplay = '<span class="market__spread"><span class="muted">no FOR</span> / <span class="side--no">AGAINST ' + bestAgainst.odds + '</span></span>';
+                // Market spread: what FOR wants vs what AGAINST is offering
+                var spreadHtml = '';
+                if (m.forBets.length > 0 && m.againstBets.length > 0) {
+                    var lo = bestAgainstBet;  // best counter offer
+                    var hi = bestForAsk;      // what FOR is asking
+                    spreadHtml = '<div class="market__midspread"><span class="market__midtile">' + lo.toFixed(0) + '–' + hi.toFixed(0) + '</span></div>';
                 }
 
                 html += '<div class="market">';
-                html += '<div class="market__title">' + esc(m.prop) + priceDisplay + '</div>';
+                html += '<div class="market__title">' + esc(m.prop) + '</div>';
                 html += '<div class="market__sides">';
 
                 // FOR column
@@ -275,6 +280,9 @@ function renderMarketsView(el) {
                     });
                 }
                 html += '</div>';
+
+                // Market spread connecting tile
+                html += spreadHtml;
 
                 // AGAINST column
                 html += '<div class="market__col"><div class="market__colhead side--no">AGAINST</div>';
