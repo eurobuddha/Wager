@@ -19,8 +19,13 @@ function notify(msg, type) {
     var ts = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0') + ':' + now.getSeconds().toString().padStart(2,'0');
     var div = document.createElement("div");
     div.className = "nb-entry nb-" + type;
-    div.innerHTML = '<span class="nb-time">' + ts + '</span>' + msg;
+    var timeSpan = document.createElement("span");
+    timeSpan.className = "nb-time";
+    timeSpan.textContent = ts;
+    div.appendChild(timeSpan);
+    div.appendChild(document.createTextNode(" " + msg));
     nb.appendChild(div);
+    while (nb.children.length > 50) nb.removeChild(nb.firstChild);
     nb.scrollTop = nb.scrollHeight;
     // Also log
     logActivity(msg, type);
@@ -93,8 +98,8 @@ function initApp() {
                 loadMaximaIdentity(function() {
                 notify("Initializing database...", "info");
                 initDB(function() {
-                    MDS.log("Wager v0.3.8 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
-                    notify("Wager v0.3.8 ready", "ok");
+                    MDS.log("Wager v0.4.1 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    notify("Wager v0.4.1 ready", "ok");
                     refreshBalance();
                     refreshBets(function() { renderCurrentView(); });
                 });
@@ -473,8 +478,6 @@ function pickSide(side) {
     updateOddsPreview();
 }
 
-var ESCROW_RATE = 0.25;
-
 function updateOddsPreview() {
     var bet = parseFloat(document.getElementById("betStake").value) || 0;
     var want = parseFloat(document.getElementById("betWantStake").value) || 0;
@@ -603,7 +606,6 @@ function showCounterModal() {
     var bestCounter = 0;
     OPEN_BETS.forEach(function(b) {
         if (b.proposition === bet.proposition && b.side === mySideNum && b.coinid !== bet.coinid) {
-            var bAsk = parseFloat(b.wantstake) / (1 + ESCROW_RATE);
             var bBet = parseFloat(b.amount) / (1 + ESCROW_RATE);
             if (bBet > bestCounter) bestCounter = bBet;
         }
@@ -778,10 +780,10 @@ function submitCounter() {
 
 function doCancel(coinid) {
     if (!confirm("Cancel this bet?")) return;
-    MDS.notify("Cancelling...");
+    notify("Cancelling bet...", "info");
     cancelBet(coinid, function(ok, err) {
-        if (ok) { MDS.notify("Cancelled!"); refreshBets(renderCurrentView); }
-        else { MDS.notify("Failed: " + (err || "unknown")); }
+        if (ok) { notify("Cancelled!", "ok"); refreshBets(renderCurrentView); }
+        else { notify("Cancel failed: " + (err || "unknown"), "err"); }
     });
 }
 
@@ -795,11 +797,11 @@ function doResolve(coinid, outcome) {
     }
     if (!confirm(msg)) return;
 
-    MDS.notify("Resolving...");
     var rLabel = outcome === 2 ? "VOID" : outcome === 1 ? "Won" : "Lost";
+    notify("Resolving bet — " + rLabel + "...", "info");
     resolveBet(coinid, outcome, function(ok, err) {
-        if (ok) { MDS.notify("Resolved — " + rLabel); refreshBets(renderCurrentView); }
-        else { MDS.notify("Failed: " + (err || "unknown")); }
+        if (ok) { notify("Resolved — " + rLabel, "ok"); refreshBets(renderCurrentView); }
+        else { notify("Resolve failed: " + (err || "unknown"), "err"); }
     });
 }
 
@@ -810,48 +812,50 @@ function doPropose(coinid, outcome) {
     var label = outcome === 1 ? "WON (proposition true)" : "LOST (proposition false)";
     if (!confirm("Propose: " + label + "\n\nIf counterparty agrees: 0% fee\nIf they reject: arbiter decides (10% fee)")) return;
 
-    MDS.notify("Building proposal...");
+    notify("Building settlement proposal...", "info");
     selfSettle(coinid, outcome, function(ok, err, txnHex) {
         if (ok && txnHex) {
             var counterMxKey = bet.isMine ? bet.countermxkey : bet.ownermxkey;
             if (counterMxKey) {
                 sendSettlePropose(counterMxKey, coinid, outcome, txnHex, function() {
-                    MDS.notify("Proposal sent — waiting for counterparty");
+                    notify("Proposal sent — waiting for counterparty", "ok");
                 });
             } else {
-                MDS.notify("Signed — no Mx key for counterparty");
-                MDS.log("Self-settle txnHex: " + txnHex);
+                notify("Signed — no Maxima key for counterparty", "warn");
             }
         } else {
-            MDS.notify("Failed: " + (err || "unknown"));
+            notify("Proposal failed: " + (err || "unknown"), "err");
         }
     });
 }
 
 function doAcceptProposal(txnHex, betid, proposerMxKey) {
     if (!confirm("Accept settlement? 0% fee.")) return;
+    notify("Co-signing settlement...", "info");
     cosignAndPost(txnHex, function(ok, err) {
         if (ok) {
-            MDS.notify("Settled — 0% fee!");
+            notify("Settled — 0% fee!", "ok");
             if (proposerMxKey) sendSettleAccept(proposerMxKey, betid);
             refreshBets(renderCurrentView);
-        } else { MDS.notify("Failed: " + (err || "unknown")); }
+        } else { notify("Settlement failed: " + (err || "unknown"), "err"); }
     });
 }
 
 function doRejectProposal(betid, proposerMxKey, arbMxKey) {
     if (!confirm("Reject? Goes to arbiter (10% fee for loser).")) return;
+    notify("Sending dispute to arbiter...", "info");
     sendSettleReject(proposerMxKey, arbMxKey, betid, function() {
-        MDS.notify("Dispute sent to arbiter");
+        notify("Dispute sent to arbiter", "ok");
         refreshBets(renderCurrentView);
     });
 }
 
 function doTimeout(coinid) {
     if (!confirm("Trigger timeout refund?")) return;
+    notify("Triggering timeout refund...", "info");
     timeoutBet(coinid, function(ok, err) {
-        if (ok) { MDS.notify("Refunded!"); refreshBets(renderCurrentView); }
-        else { MDS.notify("Failed: " + (err || "unknown")); }
+        if (ok) { notify("Refunded!", "ok"); refreshBets(renderCurrentView); }
+        else { notify("Timeout failed: " + (err || "unknown"), "err"); }
     });
 }
 

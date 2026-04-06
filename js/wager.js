@@ -169,7 +169,7 @@ function postBet(params, callback) {
             releaseTxnLock();
             if (isPending(res)) {
                 notify("PENDING — Approve in MiniHub Pending Actions", "pending");
-                callback(true, null);
+                callback(false, "pending");
                 return;
             }
             if (res.status) {
@@ -409,22 +409,28 @@ function selfSettle(coinid, outcome, callback) {
                         if (!r2.status) { cleanupTxn(txid); callback(false, "output failed"); return; }
 
                         // Sign with auto (our key — first signature)
+                        notify("Signing settlement proposal...", "info");
                         MDS.cmd("txnsign id:" + txid + " publickey:auto", function(signRes) {
+                            if (isPending(signRes)) {
+                                releaseTxnLock();
+                                handlePending(txid, callback);
+                                return;
+                            }
                             if (signRes && signRes.status) {
-                                // Export for counter-party to co-sign
                                 MDS.cmd("txnexport id:" + txid, function(expRes) {
                                     releaseTxnLock();
                                     if (expRes && expRes.status) {
-                                        logActivity("Self-settle signed — needs counter-party signature", "warn");
+                                        notify("Settlement signed — needs counter-party signature", "warn");
                                         callback(true, null, expRes.response.data);
                                     } else {
-                                        logActivity("Export failed", "err");
+                                        notify("Export failed", "err");
                                         MDS.cmd("txndelete id:" + txid);
                                         callback(false, "export failed");
                                     }
                                 });
                             } else {
                                 releaseTxnLock();
+                                notify("Sign failed", "err");
                                 MDS.cmd("txndelete id:" + txid);
                                 callback(false, signRes ? signRes.error : "sign failed");
                             }
@@ -439,19 +445,34 @@ function selfSettle(coinid, outcome, callback) {
 // Co-sign and post a self-settle transaction (called by the counter-party)
 function cosignAndPost(txnHex, callback) {
     var txid = "cosign_" + Date.now();
+    notify("Importing settlement transaction...", "info");
     MDS.cmd("txnimport id:" + txid + " data:" + txnHex, function(r1) {
-        if (!r1 || !r1.status) { callback(false, "import failed"); return; }
+        if (!r1 || !r1.status) { notify("Import failed", "err"); callback(false, "import failed"); return; }
+        notify("Co-signing...", "info");
         MDS.cmd("txnsign id:" + txid + " publickey:auto", function(r2) {
-            if (!r2 || !r2.status) { MDS.cmd("txndelete id:" + txid); callback(false, "cosign failed"); return; }
-            MDS.cmd("txnbasics id:" + txid + ";txnpost id:" + txid, function(postArr) {
-                var rp = Array.isArray(postArr) ? postArr[postArr.length - 1] : postArr;
-                if (rp && rp.status) {
-                    logActivity("Self-settle posted — 0% fee!", "ok");
-                    callback(true, null);
-                } else {
+            if (isPending(r2)) {
+                handlePending(txid, callback);
+                return;
+            }
+            if (!r2 || !r2.status) { notify("Co-sign failed", "err"); MDS.cmd("txndelete id:" + txid); callback(false, "cosign failed"); return; }
+            notify("Posting settlement...", "info");
+            MDS.cmd("txnbasics id:" + txid, function(br) {
+                if (!br || !br.status) {
+                    notify("txnbasics failed", "err");
                     MDS.cmd("txndelete id:" + txid);
-                    callback(false, rp ? rp.error : "post failed");
+                    callback(false, "txnbasics failed");
+                    return;
                 }
+                MDS.cmd("txnpost id:" + txid, function(pr) {
+                    MDS.cmd("txndelete id:" + txid);
+                    if (pr && pr.status) {
+                        notify("Settled — 0% fee!", "ok");
+                        callback(true, null);
+                    } else {
+                        notify("Settlement post failed", "err");
+                        callback(false, pr ? pr.error : "post failed");
+                    }
+                });
             });
         });
     });
@@ -547,22 +568,38 @@ function resolveBet(coinid, outcome, callback) {
 // -- Arbiter sign + post helper --
 
 function signAndPostArbiter(txid, arbPk, label, callback) {
+    notify("Signing as arbiter...", "info");
     MDS.cmd("txnsign id:" + txid + " publickey:" + arbPk, function(signRes) {
+        if (isPending(signRes)) {
+            releaseTxnLock();
+            handlePending(txid, callback);
+            return;
+        }
         if (signRes && signRes.status) {
-            MDS.cmd("txnbasics id:" + txid + ";txnpost id:" + txid, function(postArr) {
-                releaseTxnLock();
-                var rp = Array.isArray(postArr) ? postArr[postArr.length - 1] : postArr;
-                if (rp && rp.status) {
-                    logActivity("Bet resolved — " + label + "!", "ok");
-                    callback(true, null);
-                } else {
-                    logActivity("Resolve post failed", "err");
-                    callback(false, rp ? rp.error : "post failed");
+            notify("Posting resolve — " + label + "...", "info");
+            MDS.cmd("txnbasics id:" + txid, function(br) {
+                if (!br || !br.status) {
+                    releaseTxnLock();
+                    notify("txnbasics failed", "err");
+                    MDS.cmd("txndelete id:" + txid);
+                    callback(false, "txnbasics failed");
+                    return;
                 }
+                MDS.cmd("txnpost id:" + txid, function(pr) {
+                    releaseTxnLock();
+                    MDS.cmd("txndelete id:" + txid);
+                    if (pr && pr.status) {
+                        notify("Bet resolved — " + label + "!", "ok");
+                        callback(true, null);
+                    } else {
+                        notify("Resolve post failed", "err");
+                        callback(false, pr ? pr.error : "post failed");
+                    }
+                });
             });
         } else {
             releaseTxnLock();
-            logActivity("Resolve sign failed", "err");
+            notify("Resolve sign failed", "err");
             MDS.cmd("txndelete id:" + txid);
             callback(false, signRes ? signRes.error : "sign failed");
         }
@@ -575,16 +612,17 @@ function signAndPostArbiter(txid, arbPk, label, callback) {
 function timeoutBet(coinid, callback) {
     acquireTxnLock(function() {
         var txid = "timeout_" + Date.now();
+        notify("Building timeout refund...", "info");
 
         MDS.cmd("txncreate id:" + txid, function(r0) {
-            if (!r0.status) { releaseTxnLock(); callback(false, "txncreate failed"); return; }
+            if (!r0.status) { releaseTxnLock(); notify("txncreate failed", "err"); callback(false, "txncreate failed"); return; }
 
             MDS.cmd("txninput id:" + txid + " coinid:" + coinid, function(r1) {
-                if (!r1.status) { cleanupTxn(txid); callback(false, "input failed"); return; }
+                if (!r1.status) { cleanupTxn(txid); notify("Input failed", "err"); callback(false, "input failed"); return; }
 
                 MDS.cmd("coins coinid:" + coinid, function(coinRes) {
                     if (!coinRes.status || !coinRes.response || coinRes.response.length === 0) {
-                        cleanupTxn(txid); callback(false, "coin not found"); return;
+                        cleanupTxn(txid); notify("Coin not found", "err"); callback(false, "coin not found"); return;
                     }
                     var coin = coinRes.response[0];
                     var ownerStake = getStateVal(coin, 10);
@@ -592,27 +630,29 @@ function timeoutBet(coinid, callback) {
                     var counterAddr = getStateVal(coin, 9);
                     var counterStake = (parseFloat(coin.amount) - parseFloat(ownerStake)).toFixed(8);
 
-                    MDS.log("TIMEOUT: ownerStake=" + ownerStake + " counterStake=" + counterStake);
-
-                    // Output 0 (@INPUT): owner gets their stake back
                     MDS.cmd("txnoutput id:" + txid + " amount:" + ownerStake + " address:" + ownerAddr + " storestate:false", function(r2) {
-                        if (!r2.status) { cleanupTxn(txid); callback(false, "owner output failed"); return; }
+                        if (!r2.status) { cleanupTxn(txid); notify("Owner output failed", "err"); callback(false, "owner output failed"); return; }
 
-                        // Output 1 (@INPUT+1): counter gets their stake back
                         MDS.cmd("txnoutput id:" + txid + " amount:" + counterStake + " address:" + counterAddr + " storestate:false", function(r3) {
-                            if (!r3.status) { cleanupTxn(txid); callback(false, "counter output failed"); return; }
+                            if (!r3.status) { cleanupTxn(txid); notify("Counter output failed", "err"); callback(false, "counter output failed"); return; }
 
-                            // No signature needed for timeout path — @COINAGE check only
-                            MDS.cmd("txnbasics id:" + txid + ";txnpost id:" + txid, function(postArr) {
-                                releaseTxnLock();
-                                var rp = Array.isArray(postArr) ? postArr[postArr.length - 1] : postArr;
-                                if (rp && rp.status) {
-                                    logActivity("Bet timed out — both sides refunded", "ok");
-                                    callback(true, null);
-                                } else {
-                                    logActivity("Timeout post failed", "err");
-                                    callback(false, rp ? rp.error : "post failed");
+                            notify("Posting timeout refund...", "info");
+                            MDS.cmd("txnbasics id:" + txid, function(br) {
+                                if (!br || !br.status) {
+                                    releaseTxnLock(); notify("txnbasics failed", "err");
+                                    MDS.cmd("txndelete id:" + txid); callback(false, "txnbasics failed"); return;
                                 }
+                                MDS.cmd("txnpost id:" + txid, function(pr) {
+                                    releaseTxnLock();
+                                    MDS.cmd("txndelete id:" + txid);
+                                    if (pr && pr.status) {
+                                        notify("Bet timed out — both sides refunded", "ok");
+                                        callback(true, null);
+                                    } else {
+                                        notify("Timeout post failed", "err");
+                                        callback(false, pr ? pr.error : "post failed");
+                                    }
+                                });
                             });
                         });
                     });
@@ -645,10 +685,12 @@ function collectExpired(coinid, callback) {
                 MDS.cmd("txnoutput id:" + txid + " amount:" + amt + " address:" + ownerAddr + " storestate:false", function(r2) {
                     if (!r2.status) { MDS.cmd("txndelete id:" + txid); callback(false); return; }
 
-                    // No signature needed — COINAGE path
-                    MDS.cmd("txnbasics id:" + txid + ";txnpost id:" + txid, function(postArr) {
-                        var rp = Array.isArray(postArr) ? postArr[postArr.length - 1] : postArr;
-                        callback(rp && rp.status);
+                    MDS.cmd("txnbasics id:" + txid, function(br) {
+                        if (!br || !br.status) { MDS.cmd("txndelete id:" + txid); callback(false); return; }
+                        MDS.cmd("txnpost id:" + txid, function(pr) {
+                            MDS.cmd("txndelete id:" + txid);
+                            callback(pr && pr.status);
+                        });
                     });
                 });
             });
