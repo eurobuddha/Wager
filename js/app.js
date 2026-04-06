@@ -110,8 +110,8 @@ function initApp() {
                 loadMaximaIdentity(function() {
                 notify("Initializing database...", "info");
                 initDB(function() {
-                    MDS.log("Wager v0.5.2 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
-                    notify("Wager v0.5.2 ready", "ok");
+                    MDS.log("Wager v0.5.3 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    notify("Wager v0.5.3 ready", "ok");
                     refreshBalance();
                     refreshBetsAndProposals(function() { renderCurrentView(); });
                 });
@@ -650,10 +650,11 @@ function doFill(coinid) {
         "\nIf you lose: -" + myBet.toFixed(2) + " MINIMA" +
         "\n\n25% escrow locked as honesty insurance")) return;
 
-    // Auto-cancel my existing bets on the same proposition before filling
+    // Auto-cancel only my COUNTER bets (opposite side from the bet I'm taking)
     var prop2 = bet.proposition || "";
+    var mySideWhenTaking = bet.side === 1 ? 0 : 1;
     var myExisting = prop2 ? OPEN_BETS.filter(function(b) {
-        return b.isMine && b.proposition === prop2 && b.phase === 0 && b.coinid !== coinid;
+        return b.isMine && b.proposition === prop2 && b.side === mySideWhenTaking && b.phase === 0 && b.coinid !== coinid;
     }) : [];
 
     function cancelExisting(idx, done) {
