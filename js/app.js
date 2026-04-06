@@ -473,16 +473,19 @@ function showCounterModal() {
 
     // Find the spread — look for bets on the opposite side of the same proposition
     var sliderMin = 0.1, sliderMax = 10, sliderDefault = origOddsRatio;
+    var bestOtherOdds = null;
+    var hasTwoSides = false;
     if (bet.proposition) {
         var otherSideBets = OPEN_BETS.filter(function(b) {
             return b.proposition === bet.proposition && b.side !== bet.side && !b.isMine;
         });
         if (otherSideBets.length > 0) {
-            var bestOther = null;
+            hasTwoSides = true;
             otherSideBets.forEach(function(b) {
                 var r = parseFloat(b.wantstake) / parseFloat(b.amount);
-                if (!bestOther || r < bestOther) bestOther = r;
+                if (!bestOtherOdds || r < bestOtherOdds) bestOtherOdds = r;
             });
+            var bestOther = bestOtherOdds;
             // Slider range = strictly between the two prices (the spread)
             sliderMin = Math.min(origOddsRatio, bestOther);
             sliderMax = Math.max(origOddsRatio, bestOther);
@@ -524,12 +527,18 @@ function showCounterModal() {
         '</div>' +
 
         '<div class="form-group">' +
-        '<label>Your Odds</label>' +
+        '<label>Adjust Your Odds</label>' +
+        '<div class="counter__spread">' +
+        '<span class="counter__end counter__end--mine">' + origOddsRatio.toFixed(2) + ':1<br/><small>your side</small></span>' +
+        '<div class="counter__sliderWrap">' +
         '<div class="counter__slider">' +
         '<button class="btn btn--ghost btn--sm" onclick="adjustCounterOdds(-0.05)">&#9664;</button>' +
         '<input type="range" id="counterOddsSlider" min="' + sliderMin.toFixed(2) + '" max="' + sliderMax.toFixed(2) + '" step="0.05" value="' + sliderDefault.toFixed(2) + '" oninput="updateCounterPreview()" />' +
         '<button class="btn btn--ghost btn--sm" onclick="adjustCounterOdds(0.05)">&#9654;</button>' +
-        '<span class="counter__oddsLabel" id="counterOddsLabel">' + sliderDefault.toFixed(2) + ':1</span>' +
+        '</div>' +
+        '<div class="counter__oddsLabel" id="counterOddsLabel">' + sliderDefault.toFixed(2) + ':1</div>' +
+        '</div>' +
+        '<span class="counter__end counter__end--theirs">' + (hasTwoSides ? bestOtherOdds.toFixed(2) : '?') + ':1<br/><small>their side</small></span>' +
         '</div>' +
         '</div>' +
 
