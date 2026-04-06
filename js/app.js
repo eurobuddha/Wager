@@ -99,20 +99,24 @@ function renderBetCard(bet, role) {
     var isOpen = bet.phase === 0;
     var sideLabel = bet.side === 1 ? "FOR" : "AGAINST";
     var sideClass = bet.side === 1 ? "side--yes" : "side--no";
-    var odds = calcOdds(bet.amount, bet.wantstake || "0");
-    var stake = parseFloat(bet.amount).toFixed(4);
+    // Show bet amounts (without escrow) — escrow is implementation detail
+    var locked = parseFloat(bet.amount);
+    var betAmt = locked / (1 + ESCROW_RATE);
+    var wantLocked = parseFloat(bet.wantstake || "0");
+    var wantBet = wantLocked / (1 + ESCROW_RATE);
+    var odds = calcOdds(betAmt, wantBet);
     var prop = bet.proposition || "";
     var propShort = prop.length > 40 ? prop.substring(0, 40) + "..." : prop;
     var canFill = isOpen && !bet.isMine && !bet.isMyArb;
 
-    // Summary row
+    // Summary row — show BET amounts, not locked amounts
     var html = '<div class="betcard" id="' + id + '">';
     html += '<div class="betcard__summary" onclick="toggleCard(\'' + id + '\')">';
     if (prop) {
         html += '<span class="betcard__prop">' + esc(propShort) + '</span>';
     }
     html += '<span class="' + sideClass + ' betcard__side">' + sideLabel + '</span>';
-    html += '<span class="betcard__stake">' + stake + ' M</span>';
+    html += '<span class="betcard__stake">' + betAmt.toFixed(2) + ' M</span>';
     html += '<span class="odds betcard__odds">' + odds + '</span>';
     if (role) html += '<span class="betcard__role">' + role + '</span>';
     html += '<span class="betcard__chevron">&#9662;</span>';
@@ -126,29 +130,23 @@ function renderBetCard(bet, role) {
         html += '<div class="betcard__proposition">' + esc(prop) + '</div>';
     }
 
-    // Odds breakdown
-    var counterOdds = isOpen ? calcCounterOdds(bet.amount, bet.wantstake) : "—";
-    var totalPot = isOpen ? (parseFloat(bet.amount) + parseFloat(bet.wantstake)).toFixed(4) : stake;
+    // Odds and amounts — clean, bet-focused
+    var counterOdds = isOpen ? calcCounterOdds(betAmt, wantBet) : "—";
+    var totalBets = isOpen ? (betAmt + wantBet).toFixed(2) : (locked / (1 + ESCROW_RATE) * 2).toFixed(2);
     html += '<div class="betcard__grid">';
-    html += '<dl><dt>For Odds</dt><dd>' + odds + '</dd></dl>';
-    html += '<dl><dt>Against Odds</dt><dd>' + counterOdds + '</dd></dl>';
-    html += '<dl><dt>Total Pot</dt><dd>' + totalPot + ' MINIMA</dd></dl>';
-    html += '<dl><dt>Timeout</dt><dd>' + bet.timeout + ' blocks</dd></dl>';
+    html += '<dl><dt>FOR Odds</dt><dd>' + odds + '</dd></dl>';
+    html += '<dl><dt>AGAINST Odds</dt><dd>' + counterOdds + '</dd></dl>';
+    html += '<dl><dt>Bet</dt><dd>' + betAmt.toFixed(2) + ' M</dd></dl>';
+    html += '<dl><dt>Wants</dt><dd>' + wantBet.toFixed(2) + ' M</dd></dl>';
     html += '</div>';
 
-    // Payout preview
+    // Payout info — simple, no escrow maths
     if (isOpen) {
-        var tp = parseFloat(totalPot);
-        var osLock = parseFloat(bet.amount);
-        var csLock = parseFloat(bet.wantstake);
-        var osBet = osLock / (1 + ESCROW_RATE);
-        var csBet = csLock / (1 + ESCROW_RATE);
-
         html += '<div class="betcard__payouts">';
-        html += '<div><strong>Locked:</strong> FOR ' + osLock.toFixed(4) + ' (' + osBet.toFixed(4) + ' bet + ' + (osLock-osBet).toFixed(4) + ' escrow) | AGAINST ' + csLock.toFixed(4) + ' (' + csBet.toFixed(4) + ' + ' + (csLock-csBet).toFixed(4) + ')</div>';
-        html += '<div><strong>Agree on result (0% fee):</strong> winner gets both bets + own escrow, loser gets escrow back</div>';
-        html += '<div><strong>Arbiter decides (10% fee):</strong> winner gets pot - fee, loser forfeits all (125%)</div>';
-        html += '<div><strong>Void:</strong> both refunded 90% of locked, arbiter 10%</div>';
+        html += '<div>Winner takes: <strong>' + totalBets + ' MINIMA</strong></div>';
+        html += '<div>Agree on result: <strong>0% fee</strong> — loser gets escrow back</div>';
+        html += '<div>Arbiter decides: <strong>10% fee</strong> — loser forfeits all</div>';
+        html += '<div class="muted" style="margin-top:4px">25% escrow locked with each bet as honesty insurance</div>';
         html += '</div>';
     }
 
@@ -158,13 +156,17 @@ function renderBetCard(bet, role) {
     html += '<dd class="mono">' + esc(bet.arbpk || "—") + '</dd>';
     html += '</div>';
 
-    // Parties (if matched)
+    // Parties (if matched) — show bet amounts, not locked
     if (!isOpen && bet.ownerstake) {
-        var os = parseFloat(bet.ownerstake);
-        var cs = (parseFloat(bet.amount) - os).toFixed(4);
+        var osLock = parseFloat(bet.ownerstake);
+        var csLock = parseFloat(bet.amount) - osLock;
+        var osBet = osLock / (1 + ESCROW_RATE);
+        var csBet = csLock / (1 + ESCROW_RATE);
+        var potBet = osBet + csBet;
         html += '<div class="betcard__parties">';
-        html += '<div><span class="side--yes">FOR</span> stake: ' + os.toFixed(4) + ' — <span class="mono muted">' + esc((bet.owneraddr || "").substring(0, 20)) + '...</span></div>';
-        html += '<div><span class="side--no">AGAINST</span> stake: ' + cs + ' — <span class="mono muted">' + esc((bet.counteraddr || "").substring(0, 20)) + '...</span></div>';
+        html += '<div><span class="side--yes">FOR</span> bet ' + osBet.toFixed(2) + ' M to win ' + potBet.toFixed(2) + ' M</div>';
+        html += '<div><span class="side--no">AGAINST</span> bet ' + csBet.toFixed(2) + ' M to win ' + potBet.toFixed(2) + ' M</div>';
+        html += '<div class="muted" style="margin-top:4px">25% escrow locked — returned if you agree, forfeited if arbiter needed</div>';
         html += '</div>';
     }
 
@@ -366,21 +368,17 @@ function updateOddsPreview() {
     var el = document.getElementById("oddsPreview");
     if (bet <= 0 || want <= 0) { el.innerText = "Set bets to see odds"; return; }
 
-    var myEscrow = bet * ESCROW_RATE;
-    var theirEscrow = want * ESCROW_RATE;
-    var myLock = bet + myEscrow;
-    var theirLock = want + theirEscrow;
-    var totalPot = myLock + theirLock;
+    var totalPot = bet + want;
     var myOdds = calcOdds(bet, want);
     var theirOdds = calcOdds(want, bet);
     var side = SELECTED_SIDE === 1 ? "FOR" : "AGAINST";
 
     el.innerHTML =
-        'Your odds (' + side + '): <strong>' + myOdds + '</strong> — ' +
-        'Counter odds: <strong>' + theirOdds + '</strong><br/>' +
-        'You lock: ' + myLock.toFixed(4) + ' (' + bet.toFixed(2) + ' bet + ' + myEscrow.toFixed(2) + ' escrow)<br/>' +
-        'They lock: ' + theirLock.toFixed(4) + ' (' + want.toFixed(2) + ' bet + ' + theirEscrow.toFixed(2) + ' escrow)<br/>' +
-        '<span class="muted">Agree: 0% fee | Arbiter: 10% fee, loser forfeits 125%</span>';
+        '<strong>' + side + ' at ' + myOdds + '</strong> — Counter: ' + theirOdds + '<br/>' +
+        'You bet: <strong>' + bet.toFixed(2) + ' MINIMA</strong><br/>' +
+        'If you win: <strong>' + totalPot.toFixed(2) + ' MINIMA</strong> (+' + want.toFixed(2) + ' profit)<br/>' +
+        'If you lose: <strong>-' + bet.toFixed(2) + ' MINIMA</strong><br/>' +
+        '<span class="muted">25% escrow locked as honesty insurance | Agree: 0% fee | Arbiter: 10%</span>';
 }
 
 function doPost() {
@@ -433,12 +431,17 @@ function doFill(coinid) {
 
     var counterSide = bet.side === 1 ? "AGAINST" : "FOR";
     var lockAmt = parseFloat(bet.wantstake);
-    var betAmt = lockAmt / (1 + ESCROW_RATE);
-    var escrow = lockAmt - betAmt;
-    var odds = calcCounterOdds(bet.amount, bet.wantstake);
-    var prop = bet.proposition ? "\n\n\"" + bet.proposition + "\"" : "";
+    var myBet = lockAmt / (1 + ESCROW_RATE);
+    var theirBet = parseFloat(bet.amount) / (1 + ESCROW_RATE);
+    var totalPot = myBet + theirBet;
+    var odds = calcCounterOdds(myBet, theirBet);
+    var prop = bet.proposition ? "\n\"" + bet.proposition + "\"\n" : "\n";
 
-    if (!confirm("Take Bet — " + counterSide + " at " + odds + prop + "\n\nYou lock: " + lockAmt.toFixed(4) + " MINIMA (" + betAmt.toFixed(2) + " bet + " + escrow.toFixed(2) + " escrow)\n\nAgree on result: 0% fee\nArbiter needed: 10% fee, loser forfeits 125%")) return;
+    if (!confirm("Take Bet — " + counterSide + " at " + odds + prop +
+        "\nYou bet: " + myBet.toFixed(2) + " MINIMA" +
+        "\nIf you win: " + totalPot.toFixed(2) + " MINIMA" +
+        "\nIf you lose: -" + myBet.toFixed(2) + " MINIMA" +
+        "\n\n25% escrow locked as honesty insurance")) return;
 
     MDS.notify("Taking bet...");
     fillBet(bet, function(ok, err) {
@@ -590,13 +593,12 @@ function updateCounterPreview() {
     var theirLock = wantFromCounter + theirEscrow;
     var totalPot = myLock + theirLock;
 
+    var totalWin = stake + wantFromCounter;
     preview.innerHTML =
-        '<strong>Your bet: ' + stake.toFixed(2) + ' MINIMA</strong> at <strong>' + oddsRatio.toFixed(1) + ':1</strong><br/>' +
-        'If you win: +' + wantFromCounter.toFixed(2) + ' profit<br/>' +
-        'If you lose: -' + stake.toFixed(2) + ' (or -' + myLock.toFixed(2) + ' if arbiter needed)<br/>' +
-        'You lock: ' + myLock.toFixed(2) + ' (bet + ' + (myEscrow).toFixed(2) + ' escrow)<br/>' +
-        'Taker must lock: ' + theirLock.toFixed(2) + '<br/>' +
-        '<span class="muted">Agree: 0% fee | Arbiter: 10%, loser forfeits 125%</span>';
+        '<strong>You bet: ' + stake.toFixed(2) + ' MINIMA</strong> at <strong>' + oddsRatio.toFixed(2) + ':1</strong><br/>' +
+        'If you win: <strong>' + totalWin.toFixed(2) + ' MINIMA</strong> (+' + wantFromCounter.toFixed(2) + ' profit)<br/>' +
+        'If you lose: <strong>-' + stake.toFixed(2) + ' MINIMA</strong><br/>' +
+        '<span class="muted">25% escrow locked as honesty insurance</span>';
 }
 
 function submitCounter() {
