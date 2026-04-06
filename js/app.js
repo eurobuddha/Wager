@@ -455,10 +455,10 @@ function doFill(coinid) {
 }
 
 // -- Counter Modal --
-// The slider controls YOUR BET AMOUNT against their fixed bet.
-// Their bet: 10, wants 20 from you.
-// Slider: 10 (even) ← your bet → 20 (their ask).
-// At 15: they bet 10, you bet 15, winner takes 25.
+// The slider controls YOUR COUNTER-OFFER against their ask.
+// Example: They stake 20, want 10. Slider: 1 → 10 (their ask).
+// You slide DOWN to offer less. Counter at 8 posts a new bet: you stake 8, want 20.
+// Now there's an 8-10 spread. Next counter narrows it toward equilibrium.
 
 var COUNTER_BET = null;
 var COUNTER_THEIR_BET = 0;
@@ -484,14 +484,12 @@ function showCounterModal() {
     var theirBet = COUNTER_THEIR_BET;
     var theirAsk = COUNTER_THEIR_ASK;
 
-    // Slider: your bet amount, range = theirBet (even odds) to theirAsk (their price)
-    var spread = theirAsk - theirBet;
-    var sliderStep = spread > 20 ? 1 : spread > 2 ? 0.5 : 0.05;
-    var sliderMin = Math.ceil(theirBet / sliderStep) * sliderStep;
-    var sliderMax = Math.floor(theirAsk / sliderStep) * sliderStep;
-    if (sliderMin >= sliderMax) { sliderMin = theirBet; sliderMax = theirAsk; }
-    if (sliderMin >= sliderMax) sliderMax = sliderMin + sliderStep;
-    var sliderDefault = Math.round(((sliderMin + sliderMax) / 2) / sliderStep) * sliderStep;
+    // Slider: your counter-offer, from minimum up to theirAsk (what they want)
+    var sliderMin = 1;
+    var sliderMax = theirAsk;
+    if (sliderMax <= sliderMin) sliderMax = sliderMin + 1;
+    var sliderStep = sliderMax > 50 ? 1 : sliderMax > 10 ? 0.5 : 0.1;
+    var sliderDefault = sliderMax;
 
     var modal = document.getElementById("counterModal");
     if (!modal) {
@@ -518,9 +516,9 @@ function showCounterModal() {
         '</div>' +
 
         '<div class="form-group">' +
-        '<label>How much will you bet against their ' + theirBet.toFixed(2) + '?</label>' +
+        '<label>Counter their ask of ' + theirAsk.toFixed(2) + ' MINIMA</label>' +
         '<div class="counter__spread">' +
-        '<span class="counter__end counter__end--mine">' + theirBet.toFixed(0) + '<br/><small>even</small></span>' +
+        '<span class="counter__end counter__end--mine">1<br/><small>min</small></span>' +
         '<div class="counter__sliderWrap">' +
         '<div class="counter__slider">' +
         '<button class="btn btn--ghost btn--sm" onclick="adjustCounterAmt(-' + sliderStep + ')">&#9664;</button>' +
@@ -529,7 +527,7 @@ function showCounterModal() {
         '</div>' +
         '<div class="counter__oddsLabel" id="counterAmtLabel">' + sliderDefault.toFixed(2) + ' M</div>' +
         '</div>' +
-        '<span class="counter__end counter__end--theirs">' + theirAsk.toFixed(0) + '<br/><small>their ask</small></span>' +
+        '<span class="counter__end counter__end--theirs">' + theirAsk.toFixed(2) + '<br/><small>full ask</small></span>' +
         '</div>' +
         '</div>' +
 
@@ -577,12 +575,17 @@ function updateCounterPreview() {
     var myOdds = calcOdds(myBet, theirBet);
     var theirOdds = calcOdds(theirBet, myBet);
 
+    var theirAsk = COUNTER_THEIR_ASK;
+    var isFullAsk = Math.abs(myBet - theirAsk) < 0.01;
+
     preview.innerHTML =
-        '<div style="margin-bottom:8px"><strong>They bet ' + theirBet.toFixed(2) + ', you bet ' + myBet.toFixed(2) + '</strong></div>' +
+        '<div style="margin-bottom:8px"><strong>They stake ' + theirBet.toFixed(2) + ', you offer ' + myBet.toFixed(2) + '</strong>' +
+        (isFullAsk ? '' : ' <span class="muted">(asked ' + theirAsk.toFixed(2) + ')</span>') + '</div>' +
         '<div>Winner takes: <strong>' + totalPot.toFixed(2) + ' MINIMA</strong></div>' +
         '<div>Your odds: <strong>' + myOdds + '</strong> — Their odds: <strong>' + theirOdds + '</strong></div>' +
         '<div style="margin-top:6px">If you win: <strong>+' + theirBet.toFixed(2) + ' profit</strong></div>' +
         '<div>If you lose: <strong>-' + myBet.toFixed(2) + '</strong></div>' +
+        (isFullAsk ? '' : '<div class="muted" style="margin-top:6px">This is a counter-offer — they can accept, counter back, or wait</div>') +
         '<div class="muted" style="margin-top:6px">25% escrow locked as honesty insurance</div>';
 }
 
