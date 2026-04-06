@@ -28,7 +28,7 @@ function initApp() {
             loadWalletKeys(function() {
                 loadMaximaIdentity(function() {
                 initDB(function() {
-                    MDS.log("Wager v0.3.7 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    MDS.log("Wager v0.3.8 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
                     logActivity("Wager ready", "info");
                     refreshBalance();
                     refreshBets(function() { renderCurrentView(); });
@@ -247,17 +247,17 @@ function renderMarketsView(el) {
             var m = markets[keys[k]];
             if (m.prop) {
                 // Compute bet/want for each side
-                var esc = 1 + ESCROW_RATE;
+                var escRate = 1 + ESCROW_RATE;
                 var forBet = 0, forWant = 0, againstBet = 0, againstWant = 0;
                 m.forBets.forEach(function(b) {
-                    var bt = parseFloat(b.amount) / esc;
-                    var wt = parseFloat(b.wantstake || "0") / esc;
+                    var bt = parseFloat(b.amount) / escRate;
+                    var wt = parseFloat(b.wantstake || "0") / escRate;
                     if (bt > forBet) { forBet = bt; }
                     if (forWant === 0 || wt < forWant) { forWant = wt; }
                 });
                 m.againstBets.forEach(function(b) {
-                    var bt = parseFloat(b.amount) / esc;
-                    var wt = parseFloat(b.wantstake || "0") / esc;
+                    var bt = parseFloat(b.amount) / escRate;
+                    var wt = parseFloat(b.wantstake || "0") / escRate;
                     if (bt > againstBet) { againstBet = bt; }
                     if (againstWant === 0 || wt < againstWant) { againstWant = wt; }
                 });
