@@ -135,7 +135,7 @@ function renderBetCard(bet, role) {
     html += '<span class="betcard__tile betcard__stake">' + betAmt.toFixed(0) + ' wants ' + wantBet.toFixed(0) + '</span>';
     html += '<span class="betcard__tile betcard__mult">' + multiplier + '</span>';
     html += '<span class="betcard__tile betcard__odds">' + odds + '</span>';
-    html += '<span class="betcard__tile betcard__want">' + betAmt.toFixed(0) + '</span>';
+    html += '<span class="betcard__tile betcard__want">' + wantBet.toFixed(0) + '</span>';
     if (role) html += '<span class="betcard__role">' + role + '</span>';
     html += '<span class="betcard__chevron">&#9662;</span>';
     html += '</div>';
@@ -236,32 +236,40 @@ function renderMarketsView(el) {
         for (var k = 0; k < keys.length; k++) {
             var m = markets[keys[k]];
             if (m.prop) {
-                // Market spread: FOR's best ask vs AGAINST's best stake
-                // FOR "20 wants 10" → ask=10 (wantstake/escrow)
-                // AGAINST "9 wants 20" → offer=9 (amount/escrow)
-                var bestAsk = 0, bestOffer = 0;
+                // Compute bet/want for each side
+                var esc = 1 + ESCROW_RATE;
+                var forBet = 0, forWant = 0, againstBet = 0, againstWant = 0;
                 m.forBets.forEach(function(b) {
-                    var ask = parseFloat(b.wantstake || "0") / (1 + ESCROW_RATE);
-                    if (bestAsk === 0 || ask < bestAsk) bestAsk = ask; // lowest ask = best price
+                    var bt = parseFloat(b.amount) / esc;
+                    var wt = parseFloat(b.wantstake || "0") / esc;
+                    if (bt > forBet) { forBet = bt; }
+                    if (forWant === 0 || wt < forWant) { forWant = wt; }
                 });
                 m.againstBets.forEach(function(b) {
-                    var offer = parseFloat(b.amount) / (1 + ESCROW_RATE);
-                    if (offer > bestOffer) bestOffer = offer; // highest offer = best counter
+                    var bt = parseFloat(b.amount) / esc;
+                    var wt = parseFloat(b.wantstake || "0") / esc;
+                    if (bt > againstBet) { againstBet = bt; }
+                    if (againstWant === 0 || wt < againstWant) { againstWant = wt; }
                 });
 
-                // Bet size = FOR side's stake (the underlying amount being wagered)
-                var betSize = 0;
-                m.forBets.forEach(function(b) {
-                    var bt = parseFloat(b.amount) / (1 + ESCROW_RATE);
-                    if (bt > betSize) betSize = bt;
-                });
+                // Bet size = largest stake on either side
+                var betSize = Math.max(forBet, againstBet);
+
+                // Spread: each side's ask vs the other side's offer
+                // Pick the non-crossed pair (ask > offer = gap still open)
+                var spreadHi = 0, spreadLo = 0;
+                if (againstWant > forBet && againstWant > 0 && forBet > 0) {
+                    spreadHi = againstWant; spreadLo = forBet;
+                } else if (forWant > againstBet && forWant > 0 && againstBet > 0) {
+                    spreadHi = forWant; spreadLo = againstBet;
+                }
 
                 var spreadHtml = '';
-                if (bestAsk > 0 && bestOffer > 0) {
+                if (spreadHi > 0 && spreadLo > 0) {
                     spreadHtml = '<div class="market__midspread">' +
                         '<span class="market__midsize">' + betSize.toFixed(0) + '</span>' +
                         '<hr class="market__midline"/>' +
-                        '<span class="market__midprice">' + bestOffer.toFixed(0) + '-' + bestAsk.toFixed(0) + '</span>' +
+                        '<span class="market__midprice">' + spreadLo.toFixed(0) + '-' + spreadHi.toFixed(0) + '</span>' +
                         '</div>';
                 }
 
