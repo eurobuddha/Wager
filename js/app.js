@@ -174,16 +174,26 @@ function renderBetCard(bet, role) {
     html += '<dd class="mono">' + esc(bet.arbpk || "—") + '</dd>';
     html += '</div>';
 
-    // Parties (if matched) — show bet amounts, not locked
+    // Parties (if matched) — show bet amounts, highlight YOUR leg
     if (!isOpen && bet.ownerstake) {
         var osLock = parseFloat(bet.ownerstake);
         var csLock = parseFloat(bet.amount) - osLock;
         var osBet = osLock / (1 + ESCROW_RATE);
         var csBet = csLock / (1 + ESCROW_RATE);
         var potBet = osBet + csBet;
+        var youAreOwner = bet.isMine;
+        var youAreCounter = bet.isMyCounter;
+        var forMe = (bet.side === 1 && youAreOwner) || (bet.side === 0 && youAreCounter);
+        var againstMe = (bet.side === 0 && youAreOwner) || (bet.side === 1 && youAreCounter);
+        var myBet = forMe ? osBet : csBet;
+        var myProfit = forMe ? csBet : osBet;
+
         html += '<div class="betcard__parties">';
-        html += '<div><span class="side--yes">FOR</span> bet ' + osBet.toFixed(2) + ' M to win ' + potBet.toFixed(2) + ' M</div>';
-        html += '<div><span class="side--no">AGAINST</span> bet ' + csBet.toFixed(2) + ' M to win ' + potBet.toFixed(2) + ' M</div>';
+        html += '<div' + (forMe ? ' class="betcard__myleg"' : '') + '><span class="side--yes">FOR</span> bet ' + osBet.toFixed(2) + ' M to win ' + potBet.toFixed(2) + ' M' + (forMe ? ' <strong>← YOU</strong>' : '') + '</div>';
+        html += '<div' + (againstMe ? ' class="betcard__myleg"' : '') + '><span class="side--no">AGAINST</span> bet ' + csBet.toFixed(2) + ' M to win ' + potBet.toFixed(2) + ' M' + (againstMe ? ' <strong>← YOU</strong>' : '') + '</div>';
+        if (youAreOwner || youAreCounter) {
+            html += '<div class="betcard__yourleg">Your stake: <strong>' + myBet.toFixed(2) + ' M</strong> — Win: <strong>+' + myProfit.toFixed(2) + '</strong> — Lose: <strong>-' + myBet.toFixed(2) + '</strong></div>';
+        }
         html += '<div class="muted" style="margin-top:4px">25% escrow locked — returned if you agree, forfeited if arbiter needed</div>';
         html += '</div>';
     }
