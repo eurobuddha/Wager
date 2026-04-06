@@ -110,8 +110,8 @@ function initApp() {
                 loadMaximaIdentity(function() {
                 notify("Initializing database...", "info");
                 initDB(function() {
-                    MDS.log("Wager v0.6.0 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
-                    notify("Wager v0.6.0 ready", "ok");
+                    MDS.log("Wager v0.6.1 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    notify("Wager v0.6.1 ready", "ok");
                     refreshBalance();
                     refreshBetsAndProposals(function() { renderCurrentView(); });
                 });
@@ -417,17 +417,14 @@ function renderMarketsView(el) {
                     if (againstWant === 0 || wt < againstWant) { againstWant = wt; }
                 });
 
-                // Bet size = largest stake on either side
-                var betSize = Math.max(forBet, againstBet);
+                // Bet size = total pot at best prices
+                var betSize = Math.max(forBet + forWant, againstBet + againstWant);
 
-                // Spread: FOR price (left) — AGAINST price (right)
-                // FOR price = what FOR side offers (forBet) or what AGAINST asks (againstWant)
-                // AGAINST price = what AGAINST side offers (againstBet) or what FOR asks (forWant)
+                // Spread: what each side ASKS from counters (the counter market range)
                 var forPrice = 0, againstPrice = 0;
                 if (m.forBets.length > 0 && m.againstBets.length > 0) {
-                    // Both sides exist — show the spread
-                    forPrice = forBet;       // best FOR offer
-                    againstPrice = againstBet; // best AGAINST offer
+                    forPrice = forWant;        // what FOR asks from counters
+                    againstPrice = againstWant; // what AGAINST asks from counters
                 }
 
                 var spreadHtml = '';
