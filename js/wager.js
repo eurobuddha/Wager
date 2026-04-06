@@ -386,7 +386,7 @@ function cancelBet(coinid, callback) {
 // Both bettors agree on outcome — no arbiter needed, 0% fee.
 // Requires BOTH parties to sign (2-of-2 MULTISIG path).
 // The JS builds the payout transaction; both sign sequentially.
-// Params: coinid, outcome (1=BACK, 0=LAY), callback(success, error)
+// Params: coinid, outcome (1=TRUE/FOR, 0=FALSE/AGAINST), callback(success, error)
 
 function selfSettle(coinid, outcome, callback) {
     acquireTxnLock(function() {
@@ -486,7 +486,7 @@ function cosignAndPost(txnHex, callback) {
 
 // -- Resolve Bet (Phase 1) --
 // Arbiter declares outcome. 10% of winner's profit as fee.
-// Params: coinid, outcome (1=BACK wins, 0=LAY wins, 2=VOID), callback(success, error)
+// Params: coinid, outcome (1=TRUE/FOR wins, 0=FALSE/AGAINST wins, 2=VOID), callback(success, error)
 
 function resolveBet(coinid, outcome, callback) {
     acquireTxnLock(function() {
@@ -535,7 +535,7 @@ function resolveBet(coinid, outcome, callback) {
                         return;
                     }
 
-                    // BACK or LAY wins: 10% of profit as fee
+                    // TRUE or FALSE wins: 10% of profit as fee
                     var profit, winnerAddr;
                     if (outcome === ownerSide) {
                         profit = totalPot - ownerStake;
@@ -560,7 +560,7 @@ function resolveBet(coinid, outcome, callback) {
 
                             MDS.cmd("txnstate id:" + txid + " port:11 value:" + outcome, function(r4) {
                                 if (!r4.status) { cleanupTxn(txid); callback(false, "state set failed"); return; }
-                                var label = outcome === 1 ? "BACK wins" : "LAY wins";
+                                var label = outcome === 1 ? "TRUE wins" : "FALSE wins";
                                 signAndPostArbiter(txid, arbPk, label, callback);
                             });
                         });

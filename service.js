@@ -117,8 +117,8 @@ function handleBetMatched(message, senderMxKey) {
  * Bettor proposes an outcome with a partially signed transaction.
  */
 function handleSettlePropose(message, senderMxKey) {
-    MDS.log("SETTLE_PROPOSE: " + (message.outcome === 1 ? "BACK" : "LAY") + " wins proposed for bet " + (message.betid || "?"));
-    MDS.notify("Settlement proposed: " + (message.outcome === 1 ? "BACK" : "LAY") + " wins — review in Wager app");
+    MDS.log("SETTLE_PROPOSE: " + (message.outcome === 1 ? "TRUE" : "FALSE") + " proposed for bet " + (message.betid || "?"));
+    MDS.notify("Settlement proposed: " + (message.outcome === 1 ? "TRUE" : "FALSE") + " — review in Wager app");
 }
 
 /**

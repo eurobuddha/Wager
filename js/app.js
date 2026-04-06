@@ -9,6 +9,7 @@ var CURRENT_VIEW = "markets";
 var CURRENT_MARKET = null;
 var FILL_BET = null;
 var PREFILL = null; // for counter-bet pre-fill
+var PENDING_PROPOSALS = {}; // coinid → proposal data from incoming SETTLE_PROPOSE
 
 // -- Noticeboard --
 function notify(msg, type) {
@@ -80,10 +81,10 @@ MDS.init(function(msg) {
     if (msg.event === "NEWBLOCK") {
         updateBlock(msg);
         if (PENDING_TXID) completePending();
-        if (DB_READY) { refreshBets(renderCurrentView); refreshBalance(); }
+        if (DB_READY) { refreshBetsAndProposals(renderCurrentView); refreshBalance(); }
     }
     if (msg.event === "NEWBALANCE") {
-        if (DB_READY) { refreshBets(renderCurrentView); refreshBalance(); }
+        if (DB_READY) { refreshBetsAndProposals(renderCurrentView); refreshBalance(); }
     }
 });
 
@@ -101,7 +102,7 @@ function initApp() {
                     MDS.log("Wager v0.4.5 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
                     notify("Wager v0.4.5 ready", "ok");
                     refreshBalance();
-                    refreshBets(function() { renderCurrentView(); });
+                    refreshBetsAndProposals(function() { renderCurrentView(); });
                 });
                 });
             });
@@ -154,6 +155,31 @@ function renderCurrentView() {
     else if (CURRENT_VIEW === "mybets") renderMyBetsView(main);
     else if (CURRENT_VIEW === "arbiter") renderArbiterView(main);
     else if (CURRENT_VIEW === "activity") renderActivityView(main);
+}
+
+// -- Refresh bets + pending proposals, then callback --
+function refreshBetsAndProposals(callback) {
+    refreshBets(function() {
+        loadPendingProposals(function(rows) {
+            PENDING_PROPOSALS = {};
+            rows.forEach(function(row) {
+                try {
+                    var data = JSON.parse(row.DATA);
+                    var coinid = data.betid || "";
+                    if (coinid) {
+                        PENDING_PROPOSALS[coinid] = {
+                            outcome: data.outcome,
+                            txnhex: data.txnhex,
+                            sender_mxkey: data.sender_mxkey || row.SENDER_MXKEY || "",
+                            sender_name: data.sender_name || row.SENDER_NAME || "",
+                            randomid: row.RANDOMID
+                        };
+                    }
+                } catch(e) {}
+            });
+            if (callback) callback();
+        });
+    });
 }
 
 // -- Expandable Card --
@@ -293,6 +319,21 @@ function renderBetCard(bet, role) {
         html += '<button class="btn btn--yes btn--sm" onclick="event.stopPropagation(); doPropose(\'' + bet.coinid + '\', 1)">TRUE</button> ';
         html += '<button class="btn btn--no btn--sm" onclick="event.stopPropagation(); doPropose(\'' + bet.coinid + '\', 0)">FALSE</button>';
     }
+    // Incoming settlement proposal
+    var proposal = PENDING_PROPOSALS[bet.coinid];
+    if (proposal && !isOpen && (bet.isMine || bet.isMyCounter)) {
+        var pLabel = proposal.outcome === 1 ? "TRUE" : "FALSE";
+        var pClass = proposal.outcome === 1 ? "side--yes" : "side--no";
+        var arbMxKey = bet.arbitermxkey || "";
+        html += '<div class="betcard__proposal">';
+        html += '<div><strong>Settlement proposed: <span class="' + pClass + '">' + pLabel + '</span></strong>';
+        if (proposal.sender_name) html += ' by ' + esc(proposal.sender_name);
+        html += '</div>';
+        html += '<div class="muted" style="margin:4px 0">Accept = 0% fee &nbsp;|&nbsp; Reject = arbiter decides (10% fee)</div>';
+        html += '<button class="btn btn--yes btn--sm" onclick="event.stopPropagation(); doAcceptProposal(\'' + (proposal.txnhex || "") + '\', \'' + bet.coinid + '\', \'' + proposal.sender_mxkey + '\')">Accept</button> ';
+        html += '<button class="btn btn--no btn--sm" onclick="event.stopPropagation(); doRejectProposal(\'' + bet.coinid + '\', \'' + proposal.sender_mxkey + '\', \'' + arbMxKey + '\')">Reject</button>';
+        html += '</div>';
+    }
     html += '</div>';
 
     html += '</div>'; // detail
@@ -404,7 +445,13 @@ function renderMarketsView(el) {
     if (myMatched.length > 0) {
         html += '<h2>Matched Bets</h2>';
         myMatched.forEach(function(bet) {
-            var role = bet.isMine ? "for" : bet.isMyCounter ? "against" : bet.isMyArb ? "arbiter" : null;
+            var role = null;
+            if (bet.isMine || bet.isMyCounter) {
+                var youAreFor = (bet.side === 1 && bet.isMine) || (bet.side === 0 && bet.isMyCounter);
+                role = youAreFor ? "for" : "against";
+            } else if (bet.isMyArb) {
+                role = "arbiter";
+            }
             html += renderBetCard(bet, role);
         });
     }
@@ -536,7 +583,7 @@ function doPost() {
         if (ok) {
             showStatus(statusEl, "Bet posted!", "ok");
             if (arbmxkey) notifyArbiter("", arbmxkey, market, stake);
-            setTimeout(function() { refreshBets(renderCurrentView); }, 2000);
+            setTimeout(function() { refreshBetsAndProposals(renderCurrentView); }, 2000);
         } else {
             showStatus(statusEl, err || "Failed", "err");
         }
@@ -582,7 +629,7 @@ function doFill(coinid) {
         fillBet(bet, function(ok, err) {
             if (ok) {
                 notify("Bet matched!", "ok");
-                refreshBets(renderCurrentView);
+                refreshBetsAndProposals(renderCurrentView);
             } else {
                 notify("Fill failed: " + (err || "unknown"), "err");
             }
@@ -786,7 +833,7 @@ function submitCounter() {
         }, function(ok, err) {
             if (ok) {
                 showStatus(statusEl, "Counter bet posted!", "ok");
-                setTimeout(function() { closeCounterModal(); refreshBets(renderCurrentView); }, 1500);
+                setTimeout(function() { closeCounterModal(); refreshBetsAndProposals(renderCurrentView); }, 1500);
         } else {
             showStatus(statusEl, err || "Failed", "err");
         }
@@ -808,7 +855,7 @@ function doCancel(coinid) {
     if (!confirm("Cancel this bet?")) return;
     notify("Cancelling bet...", "info");
     cancelBet(coinid, function(ok, err) {
-        if (ok) { notify("Cancelled!", "ok"); refreshBets(renderCurrentView); }
+        if (ok) { notify("Cancelled!", "ok"); refreshBetsAndProposals(renderCurrentView); }
         else { notify("Cancel failed: " + (err || "unknown"), "err"); }
     });
 }
@@ -828,7 +875,7 @@ function doResolve(coinid, outcome) {
     var rLabel = outcome === 2 ? "VOID" : outcome === 1 ? "TRUE" : "FALSE";
     notify("Resolving bet — " + rLabel + "...", "info");
     resolveBet(coinid, outcome, function(ok, err) {
-        if (ok) { notify("Resolved — " + rLabel, "ok"); refreshBets(renderCurrentView); }
+        if (ok) { notify("Resolved — " + rLabel, "ok"); refreshBetsAndProposals(renderCurrentView); }
         else { notify("Resolve failed: " + (err || "unknown"), "err"); }
     });
 }
@@ -865,7 +912,7 @@ function doAcceptProposal(txnHex, betid, proposerMxKey) {
         if (ok) {
             notify("Settled — 0% fee!", "ok");
             if (proposerMxKey) sendSettleAccept(proposerMxKey, betid);
-            refreshBets(renderCurrentView);
+            refreshBetsAndProposals(renderCurrentView);
         } else { notify("Settlement failed: " + (err || "unknown"), "err"); }
     });
 }
@@ -875,7 +922,7 @@ function doRejectProposal(betid, proposerMxKey, arbMxKey) {
     notify("Sending dispute to arbiter...", "info");
     sendSettleReject(proposerMxKey, arbMxKey, betid, function() {
         notify("Dispute sent to arbiter", "ok");
-        refreshBets(renderCurrentView);
+        refreshBetsAndProposals(renderCurrentView);
     });
 }
 
@@ -883,7 +930,7 @@ function doTimeout(coinid) {
     if (!confirm("Trigger timeout refund?")) return;
     notify("Triggering timeout refund...", "info");
     timeoutBet(coinid, function(ok, err) {
-        if (ok) { notify("Refunded!", "ok"); refreshBets(renderCurrentView); }
+        if (ok) { notify("Refunded!", "ok"); refreshBetsAndProposals(renderCurrentView); }
         else { notify("Timeout failed: " + (err || "unknown"), "err"); }
     });
 }
@@ -906,7 +953,8 @@ function renderMyBetsView(el) {
     if (myMatched.length > 0) {
         html += '<h3>Matched</h3>';
         myMatched.forEach(function(bet) {
-            var role = bet.isMine ? "for" : "against";
+            var youAreFor = (bet.side === 1 && bet.isMine) || (bet.side === 0 && bet.isMyCounter);
+            var role = youAreFor ? "for" : "against";
             html += renderBetCard(bet, role);
         });
     }
