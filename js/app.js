@@ -216,8 +216,28 @@ function renderMarketsView(el) {
         for (var k = 0; k < keys.length; k++) {
             var m = markets[keys[k]];
             if (m.prop) {
+                // Calculate best odds on each side for the two-way price display
+                var bestFor = null, bestAgainst = null;
+                m.forBets.forEach(function(b) {
+                    var r = parseFloat(b.wantstake) / parseFloat(b.amount);
+                    if (!bestFor || r < bestFor.ratio) bestFor = { ratio: r, odds: calcOdds(b.amount, b.wantstake) };
+                });
+                m.againstBets.forEach(function(b) {
+                    var r = parseFloat(b.wantstake) / parseFloat(b.amount);
+                    if (!bestAgainst || r < bestAgainst.ratio) bestAgainst = { ratio: r, odds: calcOdds(b.amount, b.wantstake) };
+                });
+
+                var priceDisplay = '';
+                if (bestFor && bestAgainst) {
+                    priceDisplay = '<span class="market__spread"><span class="side--yes">FOR ' + bestFor.odds + '</span> / <span class="side--no">AGAINST ' + bestAgainst.odds + '</span></span>';
+                } else if (bestFor) {
+                    priceDisplay = '<span class="market__spread"><span class="side--yes">FOR ' + bestFor.odds + '</span> / <span class="muted">no AGAINST</span></span>';
+                } else if (bestAgainst) {
+                    priceDisplay = '<span class="market__spread"><span class="muted">no FOR</span> / <span class="side--no">AGAINST ' + bestAgainst.odds + '</span></span>';
+                }
+
                 html += '<div class="market">';
-                html += '<div class="market__title">' + esc(m.prop) + '</div>';
+                html += '<div class="market__title">' + esc(m.prop) + priceDisplay + '</div>';
                 html += '<div class="market__sides">';
 
                 // FOR column
@@ -451,6 +471,29 @@ function showCounterModal() {
     var origBet = parseFloat(bet.amount) / (1 + ESCROW_RATE);
     var origWant = parseFloat(bet.wantstake) / (1 + ESCROW_RATE);
 
+    // Find the spread — look for bets on the opposite side of the same proposition
+    var sliderMin = 0.1, sliderMax = 10, sliderDefault = origOddsRatio;
+    if (bet.proposition) {
+        var otherSideBets = OPEN_BETS.filter(function(b) {
+            return b.proposition === bet.proposition && b.side !== bet.side && !b.isMine;
+        });
+        if (otherSideBets.length > 0) {
+            // Best odds on the other side (lowest ratio = tightest price)
+            var bestOther = null;
+            otherSideBets.forEach(function(b) {
+                var r = parseFloat(b.wantstake) / parseFloat(b.amount);
+                if (!bestOther || r < bestOther) bestOther = r;
+            });
+            // Slider range = between the two prices
+            sliderMin = Math.min(origOddsRatio, bestOther);
+            sliderMax = Math.max(origOddsRatio, bestOther);
+            sliderDefault = (sliderMin + sliderMax) / 2;
+            // Add small padding so slider isn't stuck at edges
+            sliderMin = Math.max(0.1, Math.round((sliderMin - 0.1) * 10) / 10);
+            sliderMax = Math.round((sliderMax + 0.1) * 10) / 10;
+        }
+    }
+
     var modal = document.getElementById("counterModal");
     if (!modal) {
         modal = document.createElement("div");
@@ -484,9 +527,9 @@ function showCounterModal() {
         '<label>Your Odds</label>' +
         '<div class="counter__slider">' +
         '<button class="btn btn--ghost btn--sm" onclick="adjustCounterOdds(-0.1)">&#9664;</button>' +
-        '<input type="range" id="counterOddsSlider" min="0.1" max="10" step="0.1" value="' + origOddsRatio.toFixed(1) + '" oninput="updateCounterPreview()" />' +
+        '<input type="range" id="counterOddsSlider" min="' + sliderMin.toFixed(1) + '" max="' + sliderMax.toFixed(1) + '" step="0.1" value="' + sliderDefault.toFixed(1) + '" oninput="updateCounterPreview()" />' +
         '<button class="btn btn--ghost btn--sm" onclick="adjustCounterOdds(0.1)">&#9654;</button>' +
-        '<span class="counter__oddsLabel" id="counterOddsLabel">' + origOddsRatio.toFixed(1) + ':1</span>' +
+        '<span class="counter__oddsLabel" id="counterOddsLabel">' + sliderDefault.toFixed(1) + ':1</span>' +
         '</div>' +
         '</div>' +
 

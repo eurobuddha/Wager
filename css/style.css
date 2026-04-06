@@ -373,6 +373,18 @@ input::placeholder { color: var(--text2); opacity: 0.5; }
     color: var(--text);
     border-bottom: 1px solid var(--border);
     background: var(--bg3);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.market__spread {
+    font-size: 14px;
+    font-family: var(--mono);
+    font-weight: 700;
+    white-space: nowrap;
 }
 
 .market__sides {
