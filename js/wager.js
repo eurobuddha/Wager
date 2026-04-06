@@ -302,7 +302,7 @@ function fillBet(bet, callback) {
 
 function setFillState(txid, bet, callback) {
     var ownerStake = bet.amount;
-    // Use parsed properties, not getStateVal (bet is a parsed object, not raw coin)
+    // Use parsed properties — preserving raw hex for port 12 to avoid case mismatch
     var states = {
         0: bet.ownerpk,                 // ownerpk
         1: bet.owneraddr,               // owneraddr
@@ -315,7 +315,8 @@ function setFillState(txid, bet, callback) {
         8: MY_PUBKEY,                    // counterpk
         9: MY_HEX_ADDR,                 // counteraddr
         10: ownerStake,                  // ownerstake (= @AMOUNT at fill time)
-        12: strToHex(bet.proposition || "") // proposition text
+        12: bet.propositionHex || strToHex(bet.proposition || ""), // raw hex preserved
+        13: bet.settlement || "0"        // settlement block
     };
     setTxnState(txid, states, callback);
 }
@@ -866,6 +867,7 @@ function parseBetCoin(coin) {
         counteraddr: getStateVal(coin, 9),
         ownerstake: getStateVal(coin, 10),
         proposition: hexToStr(getStateVal(coin, 12)),
+        propositionHex: getStateVal(coin, 12),
         settlement: getStateVal(coin, 13),
         isMine: isMyKey(getStateVal(coin, 0)),
         isMyCounter: isMyKey(getStateVal(coin, 8)),
