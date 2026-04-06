@@ -22,7 +22,7 @@ var MY_MXNAME = "";     // This node's Maxima name
 function strToHex(str) {
     var hex = "0x";
     for (var i = 0; i < str.length; i++) {
-        hex += str.charCodeAt(i).toString(16).padStart(2, "0");
+        hex += str.charCodeAt(i).toString(16).toUpperCase().padStart(2, "0");
     }
     return hex;
 }
@@ -159,7 +159,8 @@ function postBet(params, callback) {
             "5": "" + params.timeout,
             "6": "" + params.side,
             "7": "" + params.wantstake,
-            "12": strToHex(params.market || "")
+            "12": strToHex(params.market || ""),
+            "13": "" + (params.settlement || "0")
         });
 
         var cmd = "send amount:" + params.stake + " address:" + WAGER_SCRIPT_ADDRESS + " state:" + stateObj;

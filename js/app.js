@@ -110,8 +110,8 @@ function initApp() {
                 loadMaximaIdentity(function() {
                 notify("Initializing database...", "info");
                 initDB(function() {
-                    MDS.log("Wager v0.5.4 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
-                    notify("Wager v0.5.4 ready", "ok");
+                    MDS.log("Wager v0.5.5 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    notify("Wager v0.5.5 ready", "ok");
                     refreshBalance();
                     refreshBetsAndProposals(function() { renderCurrentView(); });
                 });
@@ -758,7 +758,7 @@ function showCounterModal() {
         '<div class="form-group">' +
         '<label>Counter their ask of ' + theirAsk.toFixed(2) + ' MINIMA</label>' +
         '<div class="counter__spread">' +
-        '<span class="counter__end counter__end--mine">' + sliderMin.toFixed(2) + '<br/><small>' + (bestCounter > 0 ? 'best bid' : 'min') + '</small></span>' +
+        '<span class="counter__end counter__end--mine">' + sliderMin.toFixed(2) + '<br/><small>' + (bestOnMySide > 0 ? 'best bid' : 'min') + '</small></span>' +
         '<div class="counter__sliderWrap">' +
         '<div class="counter__slider">' +
         '<button class="btn btn--ghost btn--sm" onclick="adjustCounterAmt(-' + sliderStep + ')">&#9664;</button>' +
