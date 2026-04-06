@@ -455,13 +455,23 @@ function doFill(coinid) {
 }
 
 // -- Counter Modal --
+// The slider controls YOUR BET AMOUNT against their fixed bet.
+// Their bet: 10, wants 20 from you.
+// Slider: 10 (even) ← your bet → 20 (their ask).
+// At 15: they bet 10, you bet 15, winner takes 25.
 
 var COUNTER_BET = null;
+var COUNTER_THEIR_BET = 0;
+var COUNTER_THEIR_ASK = 0;
 
 function doCounter(coinid) {
     var bet = OPEN_BETS.find(function(b) { return b.coinid === coinid; });
     if (!bet) return;
     COUNTER_BET = bet;
+    // Their actual bet (without escrow)
+    COUNTER_THEIR_BET = parseFloat(bet.amount) / (1 + ESCROW_RATE);
+    // What they want from you (without escrow)
+    COUNTER_THEIR_ASK = parseFloat(bet.wantstake) / (1 + ESCROW_RATE);
     showCounterModal();
 }
 
@@ -470,35 +480,16 @@ function showCounterModal() {
     if (!bet) return;
 
     var mySide = bet.side === 1 ? "AGAINST" : "FOR";
-    var origOddsRatio = parseFloat(bet.wantstake) / parseFloat(bet.amount);
-    var origBet = parseFloat(bet.amount) / (1 + ESCROW_RATE);
-    var origWant = parseFloat(bet.wantstake) / (1 + ESCROW_RATE);
+    var theirSide = bet.side === 1 ? "FOR" : "AGAINST";
+    var theirBet = COUNTER_THEIR_BET;
+    var theirAsk = COUNTER_THEIR_ASK;
 
-    // Find the spread — look for bets on the opposite side of the same proposition
-    var sliderMin = 0.1, sliderMax = 10, sliderDefault = origOddsRatio;
-    var bestOtherOdds = null;
-    var hasTwoSides = false;
-    if (bet.proposition) {
-        var otherSideBets = OPEN_BETS.filter(function(b) {
-            return b.proposition === bet.proposition && b.side !== bet.side && !b.isMine;
-        });
-        if (otherSideBets.length > 0) {
-            hasTwoSides = true;
-            otherSideBets.forEach(function(b) {
-                var r = parseFloat(b.wantstake) / parseFloat(b.amount);
-                if (!bestOtherOdds || r < bestOtherOdds) bestOtherOdds = r;
-            });
-            var bestOther = bestOtherOdds;
-            // Slider range = strictly between the two prices (the spread)
-            sliderMin = Math.min(origOddsRatio, bestOther);
-            sliderMax = Math.max(origOddsRatio, bestOther);
-            // Step inside by 0.05 so you're improving on existing offers, not matching
-            sliderMin = Math.round((sliderMin + 0.05) * 20) / 20;
-            sliderMax = Math.round((sliderMax - 0.05) * 20) / 20;
-            if (sliderMin > sliderMax) sliderMin = sliderMax;
-            sliderDefault = Math.round(((sliderMin + sliderMax) / 2) * 20) / 20;
-        }
-    }
+    // Slider: your bet amount, range = theirBet (even odds) to theirAsk (their price)
+    var sliderMin = Math.round((theirBet + 0.5) * 2) / 2;  // just above even
+    var sliderMax = Math.round((theirAsk - 0.5) * 2) / 2;  // just below their ask
+    if (sliderMin > sliderMax) sliderMin = sliderMax;
+    var sliderDefault = Math.round(((sliderMin + sliderMax) / 2) * 2) / 2;
+    var sliderStep = (sliderMax - sliderMin) > 20 ? 1 : 0.5;
 
     var modal = document.getElementById("counterModal");
     if (!modal) {
@@ -519,29 +510,24 @@ function showCounterModal() {
         '<div class="modal__prop">' + esc(bet.proposition || "Unknown proposition") + '</div>' +
 
         '<div class="modal__info">' +
-        '<div class="modal__row"><span class="muted">Original bet</span><span>' + (bet.side === 1 ? "FOR" : "AGAINST") + ' at ' + calcOdds(bet.amount, bet.wantstake) + '</span></div>' +
+        '<div class="modal__row"><span class="muted">They bet</span><span><strong>' + theirBet.toFixed(2) + ' MINIMA</strong> ' + theirSide + '</span></div>' +
+        '<div class="modal__row"><span class="muted">They want from you</span><span>' + theirAsk.toFixed(2) + ' MINIMA</span></div>' +
         '<div class="modal__row"><span class="muted">Your side</span><span class="' + (mySide === "FOR" ? "side--yes" : "side--no") + '"><strong>' + mySide + '</strong></span></div>' +
-        '<div class="modal__row"><span class="muted">Arbiter</span><span class="mono" style="font-size:11px">' + esc((bet.arbpk || "").substring(0, 24)) + '...</span></div>' +
         '</div>' +
 
         '<div class="form-group">' +
-        '<label>Your Stake (MINIMA)</label>' +
-        '<input type="number" id="counterStake" min="0.01" step="1" value="' + origWant.toFixed(2) + '" oninput="updateCounterPreview()" />' +
-        '</div>' +
-
-        '<div class="form-group">' +
-        '<label>Adjust Your Odds</label>' +
+        '<label>How much will you bet against their ' + theirBet.toFixed(2) + '?</label>' +
         '<div class="counter__spread">' +
-        '<span class="counter__end counter__end--mine">' + origOddsRatio.toFixed(2) + ':1<br/><small>your side</small></span>' +
+        '<span class="counter__end counter__end--mine">' + theirBet.toFixed(0) + '<br/><small>even</small></span>' +
         '<div class="counter__sliderWrap">' +
         '<div class="counter__slider">' +
-        '<button class="btn btn--ghost btn--sm" onclick="adjustCounterOdds(-0.05)">&#9664;</button>' +
-        '<input type="range" id="counterOddsSlider" min="' + sliderMin.toFixed(2) + '" max="' + sliderMax.toFixed(2) + '" step="0.05" value="' + sliderDefault.toFixed(2) + '" oninput="updateCounterPreview()" />' +
-        '<button class="btn btn--ghost btn--sm" onclick="adjustCounterOdds(0.05)">&#9654;</button>' +
+        '<button class="btn btn--ghost btn--sm" onclick="adjustCounterAmt(-' + sliderStep + ')">&#9664;</button>' +
+        '<input type="range" id="counterAmtSlider" min="' + sliderMin.toFixed(1) + '" max="' + sliderMax.toFixed(1) + '" step="' + sliderStep + '" value="' + sliderDefault.toFixed(1) + '" oninput="updateCounterPreview()" />' +
+        '<button class="btn btn--ghost btn--sm" onclick="adjustCounterAmt(' + sliderStep + ')">&#9654;</button>' +
         '</div>' +
-        '<div class="counter__oddsLabel" id="counterOddsLabel">' + sliderDefault.toFixed(2) + ':1</div>' +
+        '<div class="counter__oddsLabel" id="counterAmtLabel">' + sliderDefault.toFixed(2) + ' M</div>' +
         '</div>' +
-        '<span class="counter__end counter__end--theirs">' + (hasTwoSides ? bestOtherOdds.toFixed(2) : '?') + ':1<br/><small>their side</small></span>' +
+        '<span class="counter__end counter__end--theirs">' + theirAsk.toFixed(0) + '<br/><small>their ask</small></span>' +
         '</div>' +
         '</div>' +
 
@@ -565,11 +551,12 @@ function closeCounterModal() {
     COUNTER_BET = null;
 }
 
-function adjustCounterOdds(delta) {
-    var slider = document.getElementById("counterOddsSlider");
+function adjustCounterAmt(delta) {
+    var slider = document.getElementById("counterAmtSlider");
     var min = parseFloat(slider.min);
     var max = parseFloat(slider.max);
-    var val = Math.round((parseFloat(slider.value) + delta) * 20) / 20;
+    var step = parseFloat(slider.step);
+    var val = Math.round((parseFloat(slider.value) + delta) / step) * step;
     if (val < min) val = min;
     if (val > max) val = max;
     slider.value = val;
@@ -577,43 +564,39 @@ function adjustCounterOdds(delta) {
 }
 
 function updateCounterPreview() {
-    var stake = parseFloat(document.getElementById("counterStake").value) || 0;
-    var oddsRatio = parseFloat(document.getElementById("counterOddsSlider").value) || 1;
-    var label = document.getElementById("counterOddsLabel");
+    var myBet = parseFloat(document.getElementById("counterAmtSlider").value) || 0;
+    var label = document.getElementById("counterAmtLabel");
     var preview = document.getElementById("counterPreview");
+    var theirBet = COUNTER_THEIR_BET;
 
-    label.innerText = oddsRatio.toFixed(2) + ":1";
+    label.innerText = myBet.toFixed(2) + " M";
 
-    if (stake <= 0) { preview.innerHTML = "Enter your stake"; return; }
+    var totalPot = theirBet + myBet;
+    var myOdds = calcOdds(myBet, theirBet);
+    var theirOdds = calcOdds(theirBet, myBet);
 
-    var wantFromCounter = stake * oddsRatio;
-    var myEscrow = stake * ESCROW_RATE;
-    var theirEscrow = wantFromCounter * ESCROW_RATE;
-    var myLock = stake + myEscrow;
-    var theirLock = wantFromCounter + theirEscrow;
-    var totalPot = myLock + theirLock;
-
-    var totalWin = stake + wantFromCounter;
     preview.innerHTML =
-        '<strong>You bet: ' + stake.toFixed(2) + ' MINIMA</strong> at <strong>' + oddsRatio.toFixed(2) + ':1</strong><br/>' +
-        'If you win: <strong>' + totalWin.toFixed(2) + ' MINIMA</strong> (+' + wantFromCounter.toFixed(2) + ' profit)<br/>' +
-        'If you lose: <strong>-' + stake.toFixed(2) + ' MINIMA</strong><br/>' +
-        '<span class="muted">25% escrow locked as honesty insurance</span>';
+        '<div style="margin-bottom:8px"><strong>They bet ' + theirBet.toFixed(2) + ', you bet ' + myBet.toFixed(2) + '</strong></div>' +
+        '<div>Winner takes: <strong>' + totalPot.toFixed(2) + ' MINIMA</strong></div>' +
+        '<div>Your odds: <strong>' + myOdds + '</strong> — Their odds: <strong>' + theirOdds + '</strong></div>' +
+        '<div style="margin-top:6px">If you win: <strong>+' + theirBet.toFixed(2) + ' profit</strong></div>' +
+        '<div>If you lose: <strong>-' + myBet.toFixed(2) + '</strong></div>' +
+        '<div class="muted" style="margin-top:6px">25% escrow locked as honesty insurance</div>';
 }
 
 function submitCounter() {
     var bet = COUNTER_BET;
     if (!bet) return;
 
-    var stake = parseFloat(document.getElementById("counterStake").value) || 0;
-    var oddsRatio = parseFloat(document.getElementById("counterOddsSlider").value) || 1;
+    var myBet = parseFloat(document.getElementById("counterAmtSlider").value) || 0;
     var statusEl = document.getElementById("counterStatus");
 
-    if (stake < 0.01) { showStatus(statusEl, "Minimum bet is 0.01", "err"); return; }
+    if (myBet < 0.01) { showStatus(statusEl, "Minimum bet is 0.01", "err"); return; }
 
-    var wantFromCounter = stake * oddsRatio;
-    var lockAmt = (stake * (1 + ESCROW_RATE)).toFixed(8);
-    var wantLock = (wantFromCounter * (1 + ESCROW_RATE)).toFixed(8);
+    // My counter: I bet myBet, I want theirBet from the taker
+    var theirBet = COUNTER_THEIR_BET;
+    var lockAmt = (myBet * (1 + ESCROW_RATE)).toFixed(8);
+    var wantLock = (theirBet * (1 + ESCROW_RATE)).toFixed(8);
     var mySide = bet.side === 1 ? 0 : 1;
     var prop = bet.proposition || "";
 
