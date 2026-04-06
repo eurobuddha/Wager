@@ -325,13 +325,13 @@ function renderPostView(el) {
     html += '</div></div>';
 
     html += '<div class="form-group">';
-    html += '<label>Your Bet (MINIMA)</label>';
-    html += '<input type="number" id="betStake" min="0.01" step="0.01" placeholder="10" oninput="updateOddsPreview()" />';
+    html += '<label>You Bet (MINIMA)</label>';
+    html += '<input type="number" id="betStake" min="0.01" step="0.01" placeholder="30" oninput="updateOddsPreview()" />';
     html += '</div>';
 
     html += '<div class="form-group">';
-    html += '<label>Counter Bet (MINIMA)</label>';
-    html += '<input type="number" id="betWantStake" min="0.01" step="0.01" placeholder="15" oninput="updateOddsPreview()" />';
+    html += '<label>You Want (MINIMA)</label>';
+    html += '<input type="number" id="betWantStake" min="0.01" step="0.01" placeholder="90" oninput="updateOddsPreview()" />';
     html += '</div>';
     html += '</div>';
 
@@ -382,17 +382,15 @@ function updateOddsPreview() {
     var bet = parseFloat(document.getElementById("betStake").value) || 0;
     var want = parseFloat(document.getElementById("betWantStake").value) || 0;
     var el = document.getElementById("oddsPreview");
-    if (bet <= 0 || want <= 0) { el.innerText = "Set bets to see odds"; return; }
+    if (bet <= 0 || want <= 0) { el.innerText = "You bet X, you want Y"; return; }
 
     var totalPot = bet + want;
     var myOdds = calcOdds(bet, want);
-    var theirOdds = calcOdds(want, bet);
     var side = SELECTED_SIDE === 1 ? "FOR" : "AGAINST";
 
     el.innerHTML =
-        '<strong>' + side + ' at ' + myOdds + '</strong> — Counter: ' + theirOdds + '<br/>' +
-        'You bet: <strong>' + bet.toFixed(2) + ' MINIMA</strong><br/>' +
-        'If you win: <strong>' + totalPot.toFixed(2) + ' MINIMA</strong> (+' + want.toFixed(2) + ' profit)<br/>' +
+        '<strong>You bet ' + bet.toFixed(0) + ', you want ' + want.toFixed(0) + '</strong> — ' + myOdds + ' ' + side + '<br/>' +
+        'Winner takes: <strong>' + totalPot.toFixed(2) + ' MINIMA</strong> (+' + want.toFixed(2) + ' profit)<br/>' +
         'If you lose: <strong>-' + bet.toFixed(2) + ' MINIMA</strong><br/>' +
         '<span class="muted">25% escrow locked as honesty insurance | Agree: 0% fee | Arbiter: 10%</span>';
 }
