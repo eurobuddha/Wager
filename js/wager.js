@@ -1,17 +1,19 @@
 /**
- * Wager — Transaction Builders
+ * Wager V2 — Transaction Builders
  *
  * All transaction construction for the prediction market:
- *   postBet()      — Create a new bet (send to script address)
- *   fillBet()      — Match an existing bet (phase 0→1)
- *   cancelBet()    — Owner cancels unmatched bet (phase 0)
- *   resolveBet()   — Arbiter declares outcome (phase 1)
- *   timeoutBet()   — Refund both sides after arbiter timeout (phase 1)
+ *   postBet()        — Create a new bet (send to script address)
+ *   fillBet()        — Match an existing bet (phase 0→1)
+ *   cancelBet()      — Owner cancels unmatched bet (phase 0)
+ *   resolveBet()     — Arbiter declares outcome (phase 1)
+ *   timeoutBet()     — Refund both sides after arbiter timeout (phase 1)
  *   collectExpired() — Return expired unmatched bets to owner (phase 0)
+ *   refreshCoin()    — Spend and recreate coin to reset @COINAGE (keep alive)
  */
 
 // -- Constants --
 var ESCROW_RATE = 0.25; // 25% escrow insurance on top of bet
+var REFRESH_AGE = 10;   // blocks before refresh (10 for testing, 1200 for production)
 var MY_MXKEY = "";      // This node's Maxima public key
 var MY_MXNAME = "";     // This node's Maxima name
 
@@ -704,7 +706,122 @@ function collectExpired(coinid, callback) {
     });
 }
 
-// -- Refresh On-Chain Bets --
+// -- Refresh Coin (keep alive across cascade) --
+// Spends and recreates coin at same address with identical state. Resets @COINAGE.
+// Phase 0: owner signs. Phase 1: owner OR counter signs.
+// STATE(14) = 1 tells the contract this is a refresh, not a cancel.
+
+function refreshCoin(coin, callback) {
+    var txid = "refresh_" + Date.now();
+    var phase = getStateVal(coin, 4);
+    var sigKey = null;
+
+    // Find a key we own that can sign
+    if (isMyKey(getStateVal(coin, 0))) {
+        sigKey = getStateVal(coin, 0); // owner
+    } else if (phase === "1" && isMyKey(getStateVal(coin, 8))) {
+        sigKey = getStateVal(coin, 8); // counter
+    }
+    if (!sigKey) {
+        MDS.log("Refresh: no signing key for coin " + coin.coinid.substring(0, 20));
+        if (callback) callback(false);
+        return;
+    }
+
+    MDS.log("Refreshing coin " + coin.coinid.substring(0, 20) + "... age=" + (coin.age || "?"));
+    notify("Refreshing bet (age " + (coin.age || "?") + " blocks)...", "info");
+
+    MDS.cmd("txncreate id:" + txid, function(r0) {
+        if (!r0.status) { MDS.log("Refresh txncreate failed"); if (callback) callback(false); return; }
+
+        MDS.cmd("txninput id:" + txid + " coinid:" + coin.coinid, function(r1) {
+            if (!r1.status) { MDS.cmd("txndelete id:" + txid); if (callback) callback(false); return; }
+
+            // Output: same amount, same address, storestate:true
+            MDS.cmd("txnoutput id:" + txid + " amount:" + coin.amount + " address:" + WAGER_SCRIPT_ADDRESS + " storestate:true", function(r2) {
+                if (!r2.status) { MDS.cmd("txndelete id:" + txid); if (callback) callback(false); return; }
+
+                // Copy all state ports from the coin + set port 14 = 1 (refresh flag)
+                var states = {};
+                coin.state.forEach(function(s) { states[s.port] = s.data; });
+                states[14] = "1"; // refresh flag
+
+                setTxnState(txid, states, function(stateOk) {
+                    if (!stateOk) { MDS.cmd("txndelete id:" + txid); if (callback) callback(false); return; }
+
+                    MDS.cmd("txnsign id:" + txid + " publickey:" + sigKey, function(sr) {
+                        if (!sr || !sr.status) {
+                            MDS.log("Refresh sign failed");
+                            MDS.cmd("txndelete id:" + txid);
+                            if (callback) callback(false);
+                            return;
+                        }
+
+                        MDS.cmd("txnbasics id:" + txid, function(br) {
+                            if (!br || !br.status) {
+                                MDS.log("Refresh basics failed");
+                                MDS.cmd("txndelete id:" + txid);
+                                if (callback) callback(false);
+                                return;
+                            }
+
+                            MDS.cmd("txnpost id:" + txid, function(pr) {
+                                MDS.cmd("txndelete id:" + txid);
+                                if (pr && pr.status) {
+                                    notify("Bet refreshed — coin age reset", "ok");
+                                    MDS.log("Refreshed coin " + coin.coinid.substring(0, 20));
+                                    if (callback) callback(true);
+                                } else {
+                                    MDS.log("Refresh post failed: " + (pr ? pr.error : ""));
+                                    notify("Refresh failed", "err");
+                                    if (callback) callback(false);
+                                }
+                            });
+                        });
+                    });
+                });
+            });
+        });
+    });
+}
+
+// Scan all contract coins and refresh any that are getting stale
+function refreshStaleCoins(callback) {
+    if (!WAGER_SCRIPT_ADDRESS) { if (callback) callback(); return; }
+
+    MDS.cmd("coins address:" + WAGER_SCRIPT_ADDRESS, function(res) {
+        if (!res.status || !res.response) { if (callback) callback(); return; }
+
+        var stale = [];
+        res.response.forEach(function(coin) {
+            var age = parseInt(coin.age) || 0;
+            if (age >= REFRESH_AGE && parseFloat(coin.amount) > 0.001) {
+                var phase = getStateVal(coin, 4);
+                var canSign = isMyKey(getStateVal(coin, 0));
+                if (phase === "1") canSign = canSign || isMyKey(getStateVal(coin, 8));
+                if (canSign) stale.push(coin);
+            }
+        });
+
+        if (stale.length === 0) { if (callback) callback(); return; }
+
+        MDS.log("Found " + stale.length + " stale coin(s) to refresh");
+        notify("Refreshing " + stale.length + " stale bet(s)...", "info");
+
+        // Refresh one at a time to avoid conflicts
+        var idx = 0;
+        function next() {
+            if (idx >= stale.length) { if (callback) callback(); return; }
+            refreshCoin(stale[idx], function() {
+                idx++;
+                setTimeout(next, 2000); // pause between refreshes
+            });
+        }
+        next();
+    });
+}
+
+// -- Load On-Chain Bets --
 // Scans all coins at script address, categorizes by phase.
 
 function refreshBets(callback) {

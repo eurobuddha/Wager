@@ -44,6 +44,8 @@ MDS.init(function(msg) {
         if (!WAGER_SCRIPT_ADDRESS) {
             registerContract();
         }
+        // Auto-refresh stale coins to keep them alive across cascade
+        checkAndRefreshCoins();
     }
 
     else if (msg.event === "MDS_TIMER_60SECONDS") {
@@ -155,5 +157,108 @@ function syncBetCoins() {
         if (!res.status) return;
         var coins = res.response || [];
         MDS.log("Sync: " + coins.length + " coins at contract");
+    });
+}
+
+/**
+ * Check for stale coins and refresh them to keep alive across cascade.
+ * Called on every NEWBLOCK. Refreshes coins older than REFRESH_AGE blocks.
+ */
+var REFRESH_RUNNING = false;
+
+function checkAndRefreshCoins() {
+    if (!WAGER_SCRIPT_ADDRESS || REFRESH_RUNNING) return;
+
+    MDS.cmd("coins address:" + WAGER_SCRIPT_ADDRESS, function(res) {
+        if (!res.status || !res.response) return;
+
+        var stale = [];
+        res.response.forEach(function(coin) {
+            var age = parseInt(coin.age) || 0;
+            if (age >= REFRESH_AGE && parseFloat(coin.amount) > 0.001) {
+                var ownerKey = getStateVal(coin, 0);
+                var counterKey = getStateVal(coin, 8);
+                var phase = getStateVal(coin, 4);
+                var canSign = isMyKey(ownerKey);
+                if (phase === "1") canSign = canSign || isMyKey(counterKey);
+                if (canSign) stale.push(coin);
+            }
+        });
+
+        if (stale.length === 0) return;
+
+        REFRESH_RUNNING = true;
+        MDS.log("Auto-refresh: " + stale.length + " stale coin(s) found");
+
+        var idx = 0;
+        function refreshNext() {
+            if (idx >= stale.length) { REFRESH_RUNNING = false; return; }
+            var coin = stale[idx];
+            var sigKey = isMyKey(getStateVal(coin, 0)) ? getStateVal(coin, 0) : getStateVal(coin, 8);
+            var txid = "autorefresh_" + Date.now();
+
+            MDS.cmd("txncreate id:" + txid, function(r0) {
+                if (!r0.status) { idx++; refreshNext(); return; }
+
+                MDS.cmd("txninput id:" + txid + " coinid:" + coin.coinid, function(r1) {
+                    if (!r1.status) { MDS.cmd("txndelete id:" + txid); idx++; refreshNext(); return; }
+
+                    MDS.cmd("txnoutput id:" + txid + " amount:" + coin.amount + " address:" + WAGER_SCRIPT_ADDRESS + " storestate:true", function(r2) {
+                        if (!r2.status) { MDS.cmd("txndelete id:" + txid); idx++; refreshNext(); return; }
+
+                        // Copy all state + set port 14 = 1 (refresh flag)
+                        var ports = [];
+                        coin.state.forEach(function(s) { ports.push(s.port + ":" + s.data); });
+                        ports.push("14:1");
+
+                        var pidx = 0;
+                        function setNextState() {
+                            if (pidx >= ports.length) { doSign(); return; }
+                            var parts = ports[pidx].split(":");
+                            var p = parts[0];
+                            var v = parts.slice(1).join(":");
+                            MDS.cmd("txnstate id:" + txid + " port:" + p + " value:" + v, function() {
+                                pidx++;
+                                setNextState();
+                            });
+                        }
+
+                        function doSign() {
+                            MDS.cmd("txnsign id:" + txid + " publickey:" + sigKey, function(sr) {
+                                if (!sr || !sr.status) {
+                                    MDS.log("Auto-refresh sign failed for " + coin.coinid.substring(0, 16));
+                                    MDS.cmd("txndelete id:" + txid);
+                                    idx++;
+                                    refreshNext();
+                                    return;
+                                }
+                                MDS.cmd("txnbasics id:" + txid, function(br) {
+                                    if (!br || !br.status) {
+                                        MDS.cmd("txndelete id:" + txid);
+                                        idx++;
+                                        refreshNext();
+                                        return;
+                                    }
+                                    MDS.cmd("txnpost id:" + txid, function(pr) {
+                                        MDS.cmd("txndelete id:" + txid);
+                                        if (pr && pr.status) {
+                                            MDS.log("Auto-refreshed: " + coin.coinid.substring(0, 16) + " (age was " + coin.age + ")");
+                                        } else {
+                                            MDS.log("Auto-refresh post failed: " + (pr ? pr.error : ""));
+                                        }
+                                        idx++;
+                                        setTimeout(refreshNext, 2000);
+                                    });
+                                });
+                            });
+                        }
+
+                        setNextState();
+                    });
+                });
+            });
+        }
+
+        refreshNext();
     });
 }
