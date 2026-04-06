@@ -98,8 +98,8 @@ function initApp() {
                 loadMaximaIdentity(function() {
                 notify("Initializing database...", "info");
                 initDB(function() {
-                    MDS.log("Wager v0.4.2 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
-                    notify("Wager v0.4.2 ready", "ok");
+                    MDS.log("Wager v0.4.3 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    notify("Wager v0.4.3 ready", "ok");
                     refreshBalance();
                     refreshBets(function() { renderCurrentView(); });
                 });

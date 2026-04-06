@@ -209,7 +209,13 @@ function fillBet(bet, callback) {
     acquireTxnLock(function() {
         var txid = "fill_" + Date.now();
         var ownerStake = bet.amount;
-        var counterStake = getStateVal(bet, 7);
+        var counterStake = bet.wantstake;
+        if (!counterStake || parseFloat(counterStake) <= 0) {
+            releaseTxnLock();
+            notify("No wantstake on bet — cannot fill", "err");
+            callback(false, "Missing wantstake");
+            return;
+        }
         var totalPot = (parseFloat(ownerStake) + parseFloat(counterStake)).toFixed(8);
 
         notify("Step 1/6 — Creating fill transaction...", "info");
@@ -294,20 +300,20 @@ function fillBet(bet, callback) {
 
 function setFillState(txid, bet, callback) {
     var ownerStake = bet.amount;
-    // Preserve ports 0-3 from the bet coin, set 4=1, preserve 5-7, add 8-10
+    // Use parsed properties, not getStateVal (bet is a parsed object, not raw coin)
     var states = {
-        0: getStateVal(bet, 0),         // ownerpk
-        1: getStateVal(bet, 1),         // owneraddr
-        2: getStateVal(bet, 2),         // arbpk
-        3: getStateVal(bet, 3),         // arbaddr
+        0: bet.ownerpk,                 // ownerpk
+        1: bet.owneraddr,               // owneraddr
+        2: bet.arbpk,                   // arbpk
+        3: bet.arbaddr,                 // arbaddr
         4: "1",                          // phase → 1 (matched)
-        5: getStateVal(bet, 5),         // timeout
-        6: getStateVal(bet, 6),         // side
-        7: getStateVal(bet, 7),         // wantstake
+        5: "" + bet.timeout,             // timeout
+        6: "" + bet.side,                // side
+        7: bet.wantstake,               // wantstake
         8: MY_PUBKEY,                    // counterpk
         9: MY_HEX_ADDR,                 // counteraddr
         10: ownerStake,                  // ownerstake (= @AMOUNT at fill time)
-        12: getStateVal(bet, 12)         // proposition text (preserved)
+        12: strToHex(bet.proposition || "") // proposition text
     };
     setTxnState(txid, states, callback);
 }
