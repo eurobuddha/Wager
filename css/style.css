@@ -73,6 +73,39 @@ body {
     font-family: var(--mono);
 }
 
+/* -- Noticeboard -- */
+.noticeboard {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 16px;
+    max-height: 180px;
+    overflow-y: auto;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.7;
+}
+
+.noticeboard:empty { display: none; }
+
+.noticeboard .nb-entry {
+    padding: 4px 10px;
+    border-left: 3px solid var(--border);
+    margin-bottom: 2px;
+    background: var(--bg2);
+    border-radius: 0 4px 4px 0;
+}
+
+.noticeboard .nb-time {
+    color: var(--text2);
+    margin-right: 8px;
+}
+
+.noticeboard .nb-info { border-left-color: var(--accent); }
+.noticeboard .nb-ok { border-left-color: var(--yes); color: var(--yes); }
+.noticeboard .nb-warn { border-left-color: var(--warn); color: var(--warn); }
+.noticeboard .nb-err { border-left-color: var(--no); color: var(--no); }
+.noticeboard .nb-pending { border-left-color: var(--warn); color: var(--warn); font-weight: 700; }
+
 /* -- Layout -- */
 .main { max-width: 900px; margin: 0 auto; padding: 20px 16px; }
 

@@ -10,11 +10,71 @@ var CURRENT_MARKET = null;
 var FILL_BET = null;
 var PREFILL = null; // for counter-bet pre-fill
 
+// -- Noticeboard --
+function notify(msg, type) {
+    type = type || "info";
+    var nb = document.getElementById("noticeboard");
+    if (!nb) return;
+    var now = new Date();
+    var ts = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0') + ':' + now.getSeconds().toString().padStart(2,'0');
+    var div = document.createElement("div");
+    div.className = "nb-entry nb-" + type;
+    div.innerHTML = '<span class="nb-time">' + ts + '</span>' + msg;
+    nb.appendChild(div);
+    nb.scrollTop = nb.scrollHeight;
+    // Also log
+    logActivity(msg, type);
+}
+
+// -- Pending Transaction Handling --
+var PENDING_TXID = null;
+var PENDING_CALLBACK = null;
+
+function handlePending(txid, cb) {
+    PENDING_TXID = txid;
+    PENDING_CALLBACK = cb;
+    notify("PENDING — Open Pending Actions in MiniHub to approve", "pending");
+}
+
+function completePending() {
+    if (!PENDING_TXID) return;
+    var txid = PENDING_TXID;
+    var cb = PENDING_CALLBACK;
+    PENDING_TXID = null;
+    PENDING_CALLBACK = null;
+    notify("Pending approved — completing transaction...", "info");
+    MDS.cmd("txnbasics id:" + txid, function(br) {
+        if (!br || !br.status) {
+            notify("txnbasics failed: " + (br ? br.error : "no response"), "err");
+            MDS.cmd("txndelete id:" + txid);
+            if (cb) cb(false, "txnbasics failed after pending");
+            return;
+        }
+        MDS.cmd("txnpost id:" + txid, function(pr) {
+            MDS.cmd("txndelete id:" + txid);
+            if (pr && pr.status) {
+                notify("Transaction posted! Waiting for confirmation...", "ok");
+                if (cb) cb(true, null);
+            } else {
+                notify("Post failed: " + (pr ? pr.error : "no response"), "err");
+                if (cb) cb(false, pr ? pr.error : "post failed");
+            }
+        });
+    });
+}
+
+function isPending(res) {
+    if (res && res.pending === true) return true;
+    if (res && res.status === false && res.error && res.error.indexOf("pending") >= 0) return true;
+    return false;
+}
+
 // -- Init --
 MDS.init(function(msg) {
     if (msg.event === "inited") initApp();
     if (msg.event === "NEWBLOCK") {
         updateBlock(msg);
+        if (PENDING_TXID) completePending();
         if (DB_READY) { refreshBets(renderCurrentView); refreshBalance(); }
     }
     if (msg.event === "NEWBALANCE") {
@@ -23,13 +83,18 @@ MDS.init(function(msg) {
 });
 
 function initApp() {
+    notify("Registering contract...", "info");
     registerContract(function() {
+        notify("Loading identity...", "info");
         loadIdentity(function() {
+            notify("Loading wallet keys...", "info");
             loadWalletKeys(function() {
+                notify("Loading Maxima identity...", "info");
                 loadMaximaIdentity(function() {
+                notify("Initializing database...", "info");
                 initDB(function() {
                     MDS.log("Wager v0.3.8 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
-                    logActivity("Wager ready", "info");
+                    notify("Wager v0.3.8 ready", "ok");
                     refreshBalance();
                     refreshBets(function() { renderCurrentView(); });
                 });
@@ -491,13 +556,13 @@ function doFill(coinid) {
         "\nIf you lose: -" + myBet.toFixed(2) + " MINIMA" +
         "\n\n25% escrow locked as honesty insurance")) return;
 
-    MDS.notify("Taking bet...");
+    notify("Taking bet — building transaction...", "info");
     fillBet(bet, function(ok, err) {
         if (ok) {
-            MDS.notify("Bet matched!");
+            notify("Bet matched!", "ok");
             refreshBets(renderCurrentView);
         } else {
-            MDS.notify("Fill failed: " + (err || "unknown"));
+            notify("Fill failed: " + (err || "unknown"), "err");
         }
     });
 }

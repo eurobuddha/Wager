@@ -162,12 +162,16 @@ function postBet(params, callback) {
 
         var cmd = "send amount:" + params.stake + " address:" + WAGER_SCRIPT_ADDRESS + " state:" + stateObj;
 
-        MDS.log("POST BET: " + cmd);
         var sideLabel = params.side === 1 ? "FOR" : "AGAINST";
-        logActivity("Posting " + sideLabel + ": " + (params.market || "") + " — " + params.stake + " MINIMA at " + calcOdds(params.stake, params.wantstake), "info");
+        notify("Posting " + sideLabel + " bet: " + params.stake + " MINIMA...", "info");
 
         MDS.cmd(cmd, function(res) {
             releaseTxnLock();
+            if (isPending(res)) {
+                notify("PENDING — Approve in MiniHub Pending Actions", "pending");
+                callback(true, null);
+                return;
+            }
             if (res.status) {
                 // Record in local DB
                 insertBet({
@@ -186,11 +190,11 @@ function postBet(params, callback) {
                     myrole: "owner",
                     status: "OPEN"
                 });
-                logActivity("Bet posted — waiting for confirmation", "ok");
+                notify("Bet posted — waiting for confirmation", "ok");
                 callback(true, null);
             } else {
                 var err = res.error || "Failed to post bet";
-                logActivity("Bet failed — " + err, "err");
+                notify("Bet failed — " + err, "err");
                 callback(false, err);
             }
         });
@@ -204,66 +208,79 @@ function postBet(params, callback) {
 function fillBet(bet, callback) {
     acquireTxnLock(function() {
         var txid = "fill_" + Date.now();
-        var ownerStake = bet.amount;               // coin amount = owner's stake
-        var counterStake = getStateVal(bet, 7);     // wantstake from state
+        var ownerStake = bet.amount;
+        var counterStake = getStateVal(bet, 7);
         var totalPot = (parseFloat(ownerStake) + parseFloat(counterStake)).toFixed(8);
 
-        MDS.log("FILL BET: ownerStake=" + ownerStake + " counterStake=" + counterStake + " total=" + totalPot);
-        logActivity("Filling bet — putting up " + counterStake + " MINIMA", "info");
+        notify("Step 1/6 — Creating fill transaction...", "info");
 
         MDS.cmd("txncreate id:" + txid, function(r0) {
-            if (!r0.status) { releaseTxnLock(); callback(false, "txncreate failed"); return; }
+            if (!r0.status) { releaseTxnLock(); notify("txncreate failed", "err"); callback(false, "txncreate failed"); return; }
 
-            // Input 0: the bet coin at script address
+            notify("Step 2/6 — Adding bet coin as input...", "info");
             MDS.cmd("txninput id:" + txid + " coinid:" + bet.coinid, function(r1) {
-                if (!r1.status) { cleanupTxn(txid); callback(false, "bet input failed"); return; }
+                if (!r1.status) { cleanupTxn(txid); notify("Bet input failed", "err"); callback(false, "bet input failed"); return; }
 
-                // Find coins to cover counter stake
+                notify("Step 3/6 — Finding " + counterStake + " MINIMA to fund...", "info");
                 findCoins("0x00", counterStake, function(result) {
-                    if (!result) { cleanupTxn(txid); callback(false, "Insufficient funds (need " + counterStake + " MINIMA)"); return; }
+                    if (!result) { cleanupTxn(txid); notify("Insufficient funds (need " + counterStake + " MINIMA)", "err"); callback(false, "Insufficient funds"); return; }
 
                     addMultipleInputs(txid, result.coins, 0, function(ok) {
-                        if (!ok) { cleanupTxn(txid); callback(false, "Funding input failed"); return; }
+                        if (!ok) { cleanupTxn(txid); notify("Funding input failed", "err"); callback(false, "Funding input failed"); return; }
 
-                        // Output 0: total pot back to script address (storestate:true for phase transition)
+                        notify("Step 4/6 — Building outputs (pot=" + totalPot + ")...", "info");
                         MDS.cmd("txnoutput id:" + txid + " amount:" + totalPot + " address:" + WAGER_SCRIPT_ADDRESS + " storestate:true", function(r2) {
-                            if (!r2.status) { cleanupTxn(txid); callback(false, "Pot output failed"); return; }
+                            if (!r2.status) { cleanupTxn(txid); notify("Pot output failed", "err"); callback(false, "Pot output failed"); return; }
 
-                            // Output 1: change back to filler (if any)
                             var change = (result.total - parseFloat(counterStake)).toFixed(8);
                             var doSign = function() {
-                                // Set state: preserve 0-3, set 4=1 (phase), preserve 5-7, add 8-10
                                 setFillState(txid, bet, function(stateOk) {
-                                    if (!stateOk) { cleanupTxn(txid); callback(false, "State set failed"); return; }
+                                    if (!stateOk) { cleanupTxn(txid); notify("State set failed", "err"); callback(false, "State set failed"); return; }
 
-                                    logActivity("Signing fill transaction...", "info");
+                                    notify("Step 5/6 — Signing transaction...", "info");
                                     MDS.cmd("txnsign id:" + txid + " publickey:auto", function(signRes) {
-                                        if (signRes && signRes.status) {
-                                            MDS.cmd("txnbasics id:" + txid + ";txnpost id:" + txid, function(postArr) {
-                                                releaseTxnLock();
-                                                var rp = Array.isArray(postArr) ? postArr[postArr.length - 1] : postArr;
-                                                if (rp && rp.status) {
-                                                    logActivity("Bet matched! Waiting for confirmation...", "ok");
-                                                    callback(true, null);
-                                                } else {
-                                                    logActivity("Fill post failed — " + (rp ? rp.error || "unknown" : "no response"), "err");
-                                                    callback(false, rp ? rp.error : "post failed");
-                                                }
-                                            });
-                                        } else {
+                                        if (isPending(signRes)) {
+                                            releaseTxnLock();
+                                            handlePending(txid, callback);
+                                            return;
+                                        }
+                                        if (!signRes || !signRes.status) {
                                             releaseTxnLock();
                                             var serr = signRes ? signRes.error || "sign failed" : "no response";
-                                            logActivity("Sign failed — " + serr, "err");
+                                            notify("Sign failed — " + serr, "err");
                                             MDS.cmd("txndelete id:" + txid);
                                             callback(false, serr);
+                                            return;
                                         }
+
+                                        notify("Step 6/6 — Posting to network...", "info");
+                                        MDS.cmd("txnbasics id:" + txid, function(br) {
+                                            if (!br || !br.status) {
+                                                releaseTxnLock();
+                                                notify("txnbasics failed: " + (br ? br.error : ""), "err");
+                                                MDS.cmd("txndelete id:" + txid);
+                                                callback(false, "txnbasics failed");
+                                                return;
+                                            }
+                                            MDS.cmd("txnpost id:" + txid, function(pr) {
+                                                releaseTxnLock();
+                                                MDS.cmd("txndelete id:" + txid);
+                                                if (pr && pr.status) {
+                                                    notify("Bet matched! Waiting for confirmation...", "ok");
+                                                    callback(true, null);
+                                                } else {
+                                                    notify("Post failed — " + (pr ? pr.error || "unknown" : "no response"), "err");
+                                                    callback(false, pr ? pr.error : "post failed");
+                                                }
+                                            });
+                                        });
                                     });
                                 });
                             };
 
                             if (parseFloat(change) > 0.000001) {
                                 MDS.cmd("txnoutput id:" + txid + " amount:" + change + " address:" + MY_HEX_ADDR + " storestate:false", function(r3) {
-                                    if (!r3.status) { cleanupTxn(txid); callback(false, "Change output failed"); return; }
+                                    if (!r3.status) { cleanupTxn(txid); notify("Change output failed", "err"); callback(false, "Change output failed"); return; }
                                     doSign();
                                 });
                             } else { doSign(); }
@@ -301,41 +318,53 @@ function setFillState(txid, bet, callback) {
 function cancelBet(coinid, callback) {
     acquireTxnLock(function() {
         var txid = "cancel_" + Date.now();
+        notify("Cancelling bet...", "info");
 
         MDS.cmd("txncreate id:" + txid, function(r0) {
-            if (!r0.status) { releaseTxnLock(); callback(false, "txncreate failed"); return; }
+            if (!r0.status) { releaseTxnLock(); notify("txncreate failed", "err"); callback(false, "txncreate failed"); return; }
 
             MDS.cmd("txninput id:" + txid + " coinid:" + coinid, function(r1) {
-                if (!r1.status) { cleanupTxn(txid); callback(false, "input failed"); return; }
+                if (!r1.status) { cleanupTxn(txid); notify("Input failed", "err"); callback(false, "input failed"); return; }
 
-                // Get coin details for amount and owner address
                 MDS.cmd("coins coinid:" + coinid, function(coinRes) {
                     if (!coinRes.status || !coinRes.response || coinRes.response.length === 0) {
-                        cleanupTxn(txid); callback(false, "coin not found"); return;
+                        cleanupTxn(txid); notify("Coin not found", "err"); callback(false, "coin not found"); return;
                     }
                     var coin = coinRes.response[0];
                     var ownerAddr = getStateVal(coin, 1);
                     var amt = coin.amount;
 
                     MDS.cmd("txnoutput id:" + txid + " amount:" + amt + " address:" + ownerAddr + " storestate:false", function(r2) {
-                        if (!r2.status) { cleanupTxn(txid); callback(false, "output failed"); return; }
+                        if (!r2.status) { cleanupTxn(txid); notify("Output failed", "err"); callback(false, "output failed"); return; }
 
+                        notify("Signing cancel...", "info");
                         MDS.cmd("txnsign id:" + txid + " publickey:" + getStateVal(coin, 0), function(signRes) {
+                            if (isPending(signRes)) {
+                                releaseTxnLock();
+                                handlePending(txid, callback);
+                                return;
+                            }
                             if (signRes && signRes.status) {
-                                MDS.cmd("txnbasics id:" + txid + ";txnpost id:" + txid, function(postArr) {
-                                    releaseTxnLock();
-                                    var rp = Array.isArray(postArr) ? postArr[postArr.length - 1] : postArr;
-                                    if (rp && rp.status) {
-                                        logActivity("Bet cancelled", "ok");
-                                        callback(true, null);
-                                    } else {
-                                        logActivity("Cancel post failed", "err");
-                                        callback(false, rp ? rp.error : "post failed");
+                                MDS.cmd("txnbasics id:" + txid, function(br) {
+                                    if (!br || !br.status) {
+                                        releaseTxnLock(); notify("txnbasics failed", "err");
+                                        MDS.cmd("txndelete id:" + txid); callback(false, "txnbasics failed"); return;
                                     }
+                                    MDS.cmd("txnpost id:" + txid, function(pr) {
+                                        releaseTxnLock();
+                                        MDS.cmd("txndelete id:" + txid);
+                                        if (pr && pr.status) {
+                                            notify("Bet cancelled", "ok");
+                                            callback(true, null);
+                                        } else {
+                                            notify("Cancel post failed", "err");
+                                            callback(false, pr ? pr.error : "post failed");
+                                        }
+                                    });
                                 });
                             } else {
                                 releaseTxnLock();
-                                logActivity("Cancel sign failed", "err");
+                                notify("Cancel sign failed", "err");
                                 MDS.cmd("txndelete id:" + txid);
                                 callback(false, signRes ? signRes.error : "sign failed");
                             }
