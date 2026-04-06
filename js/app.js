@@ -485,11 +485,13 @@ function showCounterModal() {
     var theirAsk = COUNTER_THEIR_ASK;
 
     // Slider: your bet amount, range = theirBet (even odds) to theirAsk (their price)
-    var sliderMin = Math.round((theirBet + 0.5) * 2) / 2;  // just above even
-    var sliderMax = Math.round((theirAsk - 0.5) * 2) / 2;  // just below their ask
-    if (sliderMin > sliderMax) sliderMin = sliderMax;
-    var sliderDefault = Math.round(((sliderMin + sliderMax) / 2) * 2) / 2;
-    var sliderStep = (sliderMax - sliderMin) > 20 ? 1 : 0.5;
+    var spread = theirAsk - theirBet;
+    var sliderStep = spread > 20 ? 1 : spread > 2 ? 0.5 : 0.05;
+    var sliderMin = Math.ceil(theirBet / sliderStep) * sliderStep;
+    var sliderMax = Math.floor(theirAsk / sliderStep) * sliderStep;
+    if (sliderMin >= sliderMax) { sliderMin = theirBet; sliderMax = theirAsk; }
+    if (sliderMin >= sliderMax) sliderMax = sliderMin + sliderStep;
+    var sliderDefault = Math.round(((sliderMin + sliderMax) / 2) / sliderStep) * sliderStep;
 
     var modal = document.getElementById("counterModal");
     if (!modal) {
