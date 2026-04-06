@@ -110,8 +110,8 @@ function initApp() {
                 loadMaximaIdentity(function() {
                 notify("Initializing database...", "info");
                 initDB(function() {
-                    MDS.log("Wager v0.6.3 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
-                    notify("Wager v0.6.3 ready", "ok");
+                    MDS.log("Wager v0.6.4 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    notify("Wager v0.6.4 ready", "ok");
                     refreshBalance();
                     refreshBetsAndProposals(function() { renderCurrentView(); });
                 });
@@ -715,21 +715,28 @@ function showCounterModal() {
     var theirBet = COUNTER_THEIR_BET;
     var theirAsk = COUNTER_THEIR_ASK;
 
-    // Slider: the current market spread. Both sides see the same range.
-    // Find the best counter on MY side (tightens from below) and their ask (ceiling).
+    // Slider = the market spread. Find what both sides are asking.
     var mySideNum = bet.side === 1 ? 0 : 1;
-    var bestOnMySide = 0;
+    var myBestBid = 0;    // best existing counter on my side (floor)
+    var otherBestAsk = 0; // best ask on the other side (ceiling)
     OPEN_BETS.forEach(function(b) {
-        if (b.proposition === bet.proposition && b.side === mySideNum && b.phase === 0) {
-            var bBet = parseFloat(b.amount) / (1 + ESCROW_RATE);
-            if (bBet > bestOnMySide) bestOnMySide = bBet;
+        if (b.proposition !== bet.proposition || b.phase !== 0) return;
+        var bBet = parseFloat(b.amount) / (1 + ESCROW_RATE);
+        var bWant = parseFloat(b.wantstake || "0") / (1 + ESCROW_RATE);
+        if (b.side === mySideNum) {
+            // My side — best existing bid (tightens from below)
+            if (bBet > myBestBid) myBestBid = bBet;
+        } else {
+            // Other side — their ask (ceiling)
+            if (bWant > otherBestAsk) otherBestAsk = bWant;
         }
     });
-    var sliderMin = bestOnMySide > 0 ? bestOnMySide : 1;
-    var sliderMax = theirAsk;
+    var sliderMin = myBestBid > 0 ? myBestBid : 0.1;
+    var sliderMax = otherBestAsk > 0 ? otherBestAsk : theirAsk;
     if (sliderMax <= sliderMin) sliderMax = sliderMin + 0.1;
     var spread = sliderMax - sliderMin;
-    var sliderStep = spread > 20 ? 1 : spread > 2 ? 0.5 : 0.1;
+    var sliderStep = spread / 10; // always 10 increments
+    if (sliderStep < 0.01) sliderStep = 0.01;
     var sliderDefault = sliderMin;
 
     var modal = document.getElementById("counterModal");
