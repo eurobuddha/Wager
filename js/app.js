@@ -559,28 +559,53 @@ function submitCounter() {
     var lockAmt = (stake * (1 + ESCROW_RATE)).toFixed(8);
     var wantLock = (wantFromCounter * (1 + ESCROW_RATE)).toFixed(8);
     var mySide = bet.side === 1 ? 0 : 1;
+    var prop = bet.proposition || "";
 
-    showStatus(statusEl, "Posting counter bet...", "warn");
+    // Cancel any existing open bet from me on the same proposition first
+    var myExisting = OPEN_BETS.filter(function(b) {
+        return b.isMine && b.proposition === prop && b.phase === 0;
+    });
 
-    postBet({
-        market: bet.proposition || "",
-        side: mySide,
-        stake: lockAmt,
-        wantstake: wantLock,
-        arbpk: bet.arbpk || "",
-        arbaddr: bet.arbaddr || "",
-        arbname: "",
-        arbitermxkey: "",
-        ownermxkey: MY_MXKEY,
-        timeout: bet.timeout || 5000
-    }, function(ok, err) {
-        if (ok) {
-            showStatus(statusEl, "Counter bet posted!", "ok");
-            setTimeout(function() { closeCounterModal(); refreshBets(renderCurrentView); }, 1500);
+    function cancelExisting(idx, done) {
+        if (idx >= myExisting.length) { done(); return; }
+        showStatus(statusEl, "Cancelling previous bet (" + (idx+1) + "/" + myExisting.length + ")...", "warn");
+        cancelBet(myExisting[idx].coinid, function(ok) {
+            cancelExisting(idx + 1, done);
+        });
+    }
+
+    function doPost() {
+        showStatus(statusEl, "Posting counter bet...", "warn");
+        postBet({
+            market: prop,
+            side: mySide,
+            stake: lockAmt,
+            wantstake: wantLock,
+            arbpk: bet.arbpk || "",
+            arbaddr: bet.arbaddr || "",
+            arbname: "",
+            arbitermxkey: "",
+            ownermxkey: MY_MXKEY,
+            timeout: bet.timeout || 5000
+        }, function(ok, err) {
+            if (ok) {
+                showStatus(statusEl, "Counter bet posted!", "ok");
+                setTimeout(function() { closeCounterModal(); refreshBets(renderCurrentView); }, 1500);
         } else {
             showStatus(statusEl, err || "Failed", "err");
         }
     });
+    }
+
+    // Cancel existing bets on same proposition, then post new counter
+    if (myExisting.length > 0) {
+        cancelExisting(0, function() {
+            // Wait a moment for cancels to process
+            setTimeout(doPost, 1000);
+        });
+    } else {
+        doPost();
+    }
 }
 
 function doCancel(coinid) {
