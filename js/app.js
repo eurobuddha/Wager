@@ -122,7 +122,8 @@ function renderBetCard(bet, role) {
     }
 
     // Multiplier: what you win per 1 staked
-    var multiplier = betAmt > 0 ? (wantBet / betAmt).toFixed(1) + 'x' : '—';
+    var multVal = betAmt > 0 ? wantBet / betAmt : 0;
+    var multiplier = multVal > 0 ? (multVal % 1 === 0 ? multVal.toFixed(0) : multVal.toFixed(1)) + 'x' : '—';
 
     // Summary row: prop | side | "20 wants 10" | 0.5x | 1:2 | [ask] [market] [counter]
     var html = '<div class="betcard" id="' + id + '">';
@@ -391,10 +392,12 @@ function updateOddsPreview() {
 
     var totalPot = bet + want;
     var myOdds = calcOdds(bet, want);
+    var mv = want / bet;
+    var mult = (mv % 1 === 0 ? mv.toFixed(0) : mv.toFixed(1)) + 'x';
     var side = SELECTED_SIDE === 1 ? "FOR" : "AGAINST";
 
     el.innerHTML =
-        '<strong>You bet ' + bet.toFixed(0) + ', you want ' + want.toFixed(0) + '</strong> — ' + myOdds + ' ' + side + '<br/>' +
+        '<strong>' + bet.toFixed(0) + ' wants ' + want.toFixed(0) + '</strong> &nbsp; ' + mult + ' &nbsp; ' + myOdds + ' &nbsp; ' + side + '<br/>' +
         'Winner takes: <strong>' + totalPot.toFixed(2) + ' MINIMA</strong> (+' + want.toFixed(2) + ' profit)<br/>' +
         'If you lose: <strong>-' + bet.toFixed(2) + ' MINIMA</strong><br/>' +
         '<span class="muted">25% escrow locked as honesty insurance | Agree: 0% fee | Arbiter: 10%</span>';
