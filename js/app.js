@@ -98,8 +98,8 @@ function initApp() {
                 loadMaximaIdentity(function() {
                 notify("Initializing database...", "info");
                 initDB(function() {
-                    MDS.log("Wager v0.4.4 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
-                    notify("Wager v0.4.4 ready", "ok");
+                    MDS.log("Wager v0.4.5 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    notify("Wager v0.4.5 ready", "ok");
                     refreshBalance();
                     refreshBets(function() { renderCurrentView(); });
                 });
@@ -244,23 +244,27 @@ function renderBetCard(bet, role) {
     html += '<dd class="mono">' + esc(bet.arbpk || "—") + '</dd>';
     html += '</div>';
 
-    // Parties (if matched) — show bet amounts, highlight YOUR leg
+    // Parties (if matched) — show each side's bet, highlight YOUR leg
     if (!isOpen && bet.ownerstake) {
         var osLock = parseFloat(bet.ownerstake);
         var csLock = parseFloat(bet.amount) - osLock;
         var osBet = osLock / (1 + ESCROW_RATE);
         var csBet = csLock / (1 + ESCROW_RATE);
         var potBet = osBet + csBet;
+        // Owner's side is bet.side. Counter is the opposite.
+        var ownerIsFor = bet.side === 1;
+        var forBet = ownerIsFor ? osBet : csBet;
+        var againstBet = ownerIsFor ? csBet : osBet;
         var youAreOwner = bet.isMine;
         var youAreCounter = bet.isMyCounter;
-        var forMe = (bet.side === 1 && youAreOwner) || (bet.side === 0 && youAreCounter);
-        var againstMe = (bet.side === 0 && youAreOwner) || (bet.side === 1 && youAreCounter);
-        var myBet = forMe ? osBet : csBet;
-        var myProfit = forMe ? csBet : osBet;
+        var youAreFor = (ownerIsFor && youAreOwner) || (!ownerIsFor && youAreCounter);
+        var youAreAgainst = (!ownerIsFor && youAreOwner) || (ownerIsFor && youAreCounter);
+        var myBet = youAreFor ? forBet : againstBet;
+        var myProfit = youAreFor ? againstBet : forBet;
 
         html += '<div class="betcard__parties">';
-        html += '<div' + (forMe ? ' class="betcard__myleg"' : '') + '><span class="side--yes">FOR</span> bet ' + osBet.toFixed(2) + ' M to win ' + potBet.toFixed(2) + ' M' + (forMe ? ' <strong>← YOU</strong>' : '') + '</div>';
-        html += '<div' + (againstMe ? ' class="betcard__myleg"' : '') + '><span class="side--no">AGAINST</span> bet ' + csBet.toFixed(2) + ' M to win ' + potBet.toFixed(2) + ' M' + (againstMe ? ' <strong>← YOU</strong>' : '') + '</div>';
+        html += '<div' + (youAreFor ? ' class="betcard__myleg"' : '') + '><span class="side--yes">FOR</span> bet ' + forBet.toFixed(2) + ' M to win ' + potBet.toFixed(2) + ' M' + (youAreFor ? ' <strong>← YOU</strong>' : '') + '</div>';
+        html += '<div' + (youAreAgainst ? ' class="betcard__myleg"' : '') + '><span class="side--no">AGAINST</span> bet ' + againstBet.toFixed(2) + ' M to win ' + potBet.toFixed(2) + ' M' + (youAreAgainst ? ' <strong>← YOU</strong>' : '') + '</div>';
         if (youAreOwner || youAreCounter) {
             html += '<div class="betcard__yourleg">Your stake: <strong>' + myBet.toFixed(2) + ' M</strong> — Win: <strong>+' + myProfit.toFixed(2) + '</strong> — Lose: <strong>-' + myBet.toFixed(2) + '</strong></div>';
         }
@@ -281,13 +285,13 @@ function renderBetCard(bet, role) {
         html += '<button class="btn btn--ghost btn--sm" onclick="event.stopPropagation(); doCounter(\'' + bet.coinid + '\')">Counter</button>';
     }
     if (!isOpen && bet.isMyArb) {
-        html += '<button class="btn btn--yes" onclick="event.stopPropagation(); doResolve(\'' + bet.coinid + '\', 1)">Won</button> ';
-        html += '<button class="btn btn--no" onclick="event.stopPropagation(); doResolve(\'' + bet.coinid + '\', 0)">Lost</button> ';
+        html += '<button class="btn btn--yes" onclick="event.stopPropagation(); doResolve(\'' + bet.coinid + '\', 1)">TRUE</button> ';
+        html += '<button class="btn btn--no" onclick="event.stopPropagation(); doResolve(\'' + bet.coinid + '\', 0)">FALSE</button> ';
         html += '<button class="btn btn--ghost btn--sm" onclick="event.stopPropagation(); doResolve(\'' + bet.coinid + '\', 2)">Void</button>';
     }
     if (!isOpen && !bet.isMyArb && (bet.isMine || bet.isMyCounter)) {
-        html += '<button class="btn btn--yes btn--sm" onclick="event.stopPropagation(); doPropose(\'' + bet.coinid + '\', 1)">Propose: Won</button> ';
-        html += '<button class="btn btn--no btn--sm" onclick="event.stopPropagation(); doPropose(\'' + bet.coinid + '\', 0)">Propose: Lost</button>';
+        html += '<button class="btn btn--yes btn--sm" onclick="event.stopPropagation(); doPropose(\'' + bet.coinid + '\', 1)">TRUE</button> ';
+        html += '<button class="btn btn--no btn--sm" onclick="event.stopPropagation(); doPropose(\'' + bet.coinid + '\', 0)">FALSE</button>';
     }
     html += '</div>';
 
@@ -810,16 +814,18 @@ function doCancel(coinid) {
 }
 
 function doResolve(coinid, outcome) {
+    var bet = MATCHED_BETS.find(function(b) { return b.coinid === coinid; });
+    var propText = bet && bet.proposition ? "\n\"" + bet.proposition + "\"\n" : "\n";
     var msg;
     if (outcome === 2) {
-        msg = "Declare VOID? Both get 90% back, you earn 10% of pot.";
+        msg = "Declare VOID?" + propText + "Both get 90% back, you earn 10% of pot.";
     } else {
-        var label = outcome === 1 ? "WON (proposition true)" : "LOST (proposition false)";
-        msg = "Declare: " + label + "?\nYou earn 10% of the winner's profit.\nThis is final.";
+        var label = outcome === 1 ? "TRUE — proposition happened" : "FALSE — proposition did not happen";
+        msg = "Declare: " + label + "?" + propText + "You earn 10% of the winner's profit.\nThis is final.";
     }
     if (!confirm(msg)) return;
 
-    var rLabel = outcome === 2 ? "VOID" : outcome === 1 ? "Won" : "Lost";
+    var rLabel = outcome === 2 ? "VOID" : outcome === 1 ? "TRUE" : "FALSE";
     notify("Resolving bet — " + rLabel + "...", "info");
     resolveBet(coinid, outcome, function(ok, err) {
         if (ok) { notify("Resolved — " + rLabel, "ok"); refreshBets(renderCurrentView); }
@@ -831,8 +837,9 @@ function doPropose(coinid, outcome) {
     var bet = MATCHED_BETS.find(function(b) { return b.coinid === coinid; });
     if (!bet) return;
 
-    var label = outcome === 1 ? "WON (proposition true)" : "LOST (proposition false)";
-    if (!confirm("Propose: " + label + "\n\nIf counterparty agrees: 0% fee\nIf they reject: arbiter decides (10% fee)")) return;
+    var propText = bet.proposition ? "\n\"" + bet.proposition + "\"\n" : "\n";
+    var label = outcome === 1 ? "TRUE — it happened" : "FALSE — it did not happen";
+    if (!confirm("Propose: " + label + propText + "\nIf counterparty agrees: 0% fee\nIf they reject: arbiter decides (10% fee)")) return;
 
     notify("Building settlement proposal...", "info");
     selfSettle(coinid, outcome, function(ok, err, txnHex) {
