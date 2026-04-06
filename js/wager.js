@@ -837,6 +837,7 @@ function refreshBets(callback) {
         MATCHED_BETS = [];
 
         allCoins.forEach(function(coin) {
+            if (coin.spent) return;
             var phase = parseInt(getStateVal(coin, 4)) || 0;
             var parsed = parseBetCoin(coin);
 

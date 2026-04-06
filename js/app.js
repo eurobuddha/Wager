@@ -110,8 +110,8 @@ function initApp() {
                 loadMaximaIdentity(function() {
                 notify("Initializing database...", "info");
                 initDB(function() {
-                    MDS.log("Wager v0.5.5 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
-                    notify("Wager v0.5.5 ready", "ok");
+                    MDS.log("Wager v0.5.6 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    notify("Wager v0.5.6 ready", "ok");
                     refreshBalance();
                     refreshBetsAndProposals(function() { renderCurrentView(); });
                 });
@@ -420,21 +420,22 @@ function renderMarketsView(el) {
                 // Bet size = largest stake on either side
                 var betSize = Math.max(forBet, againstBet);
 
-                // Spread: each side's ask vs the other side's offer
-                // Pick the non-crossed pair (ask > offer = gap still open)
-                var spreadHi = 0, spreadLo = 0;
-                if (againstWant > forBet && againstWant > 0 && forBet > 0) {
-                    spreadHi = againstWant; spreadLo = forBet;
-                } else if (forWant > againstBet && forWant > 0 && againstBet > 0) {
-                    spreadHi = forWant; spreadLo = againstBet;
+                // Spread: FOR price (left) — AGAINST price (right)
+                // FOR price = what FOR side offers (forBet) or what AGAINST asks (againstWant)
+                // AGAINST price = what AGAINST side offers (againstBet) or what FOR asks (forWant)
+                var forPrice = 0, againstPrice = 0;
+                if (m.forBets.length > 0 && m.againstBets.length > 0) {
+                    // Both sides exist — show the spread
+                    forPrice = forBet;       // best FOR offer
+                    againstPrice = againstBet; // best AGAINST offer
                 }
 
                 var spreadHtml = '';
-                if (spreadHi > 0 && spreadLo > 0) {
+                if (forPrice > 0 && againstPrice > 0) {
                     spreadHtml = '<div class="market__midspread">' +
                         '<span class="market__midsize">' + betSize.toFixed(0) + '</span>' +
                         '<hr class="market__midline"/>' +
-                        '<span class="market__midprice">' + spreadLo.toFixed(0) + '-' + spreadHi.toFixed(0) + '</span>' +
+                        '<span class="market__midprice">' + forPrice.toFixed(0) + '-' + againstPrice.toFixed(0) + '</span>' +
                         '</div>';
                 }
 
@@ -624,6 +625,9 @@ function doPost() {
             showStatus(statusEl, "Bet posted!", "ok");
             if (arbmxkey) notifyArbiter("", arbmxkey, market, stake);
             setTimeout(function() { refreshBetsAndProposals(renderCurrentView); }, 2000);
+        } else if (err === "pending") {
+            showStatus(statusEl, "Pending — approve in MiniHub", "warn");
+            notify("Bet pending — approve in MiniHub Pending Actions", "pending");
         } else {
             showStatus(statusEl, err || "Failed", "err");
         }
@@ -875,10 +879,14 @@ function submitCounter() {
             if (ok) {
                 showStatus(statusEl, "Counter bet posted!", "ok");
                 setTimeout(function() { closeCounterModal(); refreshBetsAndProposals(renderCurrentView); }, 1500);
-        } else {
-            showStatus(statusEl, err || "Failed", "err");
-        }
-    });
+            } else if (err === "pending") {
+                showStatus(statusEl, "Pending — approve in MiniHub", "warn");
+                notify("Counter pending — approve in MiniHub Pending Actions", "pending");
+                setTimeout(function() { closeCounterModal(); }, 2000);
+            } else {
+                showStatus(statusEl, err || "Failed", "err");
+            }
+        });
     }
 
     // Cancel existing bets on same side, then post new counter
