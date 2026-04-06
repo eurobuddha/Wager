@@ -81,10 +81,21 @@ MDS.init(function(msg) {
     if (msg.event === "NEWBLOCK") {
         updateBlock(msg);
         if (PENDING_TXID) completePending();
-        if (DB_READY) { refreshBetsAndProposals(renderCurrentView); refreshBalance(); }
+        if (DB_READY) {
+            refreshBetsAndProposals(function() {
+                // Don't re-render if user is filling in a form
+                if (CURRENT_VIEW !== "post") renderCurrentView();
+            });
+            refreshBalance();
+        }
     }
     if (msg.event === "NEWBALANCE") {
-        if (DB_READY) { refreshBetsAndProposals(renderCurrentView); refreshBalance(); }
+        if (DB_READY) {
+            refreshBetsAndProposals(function() {
+                if (CURRENT_VIEW !== "post") renderCurrentView();
+            });
+            refreshBalance();
+        }
     }
 });
 
@@ -99,8 +110,8 @@ function initApp() {
                 loadMaximaIdentity(function() {
                 notify("Initializing database...", "info");
                 initDB(function() {
-                    MDS.log("Wager v0.4.6 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
-                    notify("Wager v0.4.6 ready", "ok");
+                    MDS.log("Wager v0.4.7 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    notify("Wager v0.4.7 ready", "ok");
                     refreshBalance();
                     refreshBetsAndProposals(function() { renderCurrentView(); });
                 });
