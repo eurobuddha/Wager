@@ -135,7 +135,7 @@ function renderBetCard(bet, role) {
     html += '<span class="betcard__tile betcard__stake">' + betAmt.toFixed(0) + ' wants ' + wantBet.toFixed(0) + '</span>';
     html += '<span class="betcard__tile betcard__mult">' + multiplier + '</span>';
     html += '<span class="betcard__tile betcard__odds">' + odds + '</span>';
-    html += '<span class="betcard__tile betcard__want">' + wantBet.toFixed(0) + '</span>';
+    html += '<span class="betcard__tile betcard__want">' + betAmt.toFixed(0) + '</span>';
     if (role) html += '<span class="betcard__role">' + role + '</span>';
     html += '<span class="betcard__chevron">&#9662;</span>';
     html += '</div>';
@@ -262,7 +262,7 @@ function renderMarketsView(el) {
                 if (m.forBets.length > 0 && m.againstBets.length > 0) {
                     var lo = bestAgainstBet;  // best counter offer
                     var hi = bestForAsk;      // what FOR is asking
-                    spreadHtml = '<div class="market__midspread"><span class="market__midtile">' + lo.toFixed(0) + '–' + hi.toFixed(0) + '</span></div>';
+                    spreadHtml = '<div class="market__midspread"><span class="market__midtile">' + hi.toFixed(0) + '-' + lo.toFixed(0) + '</span></div>';
                 }
 
                 html += '<div class="market">';
