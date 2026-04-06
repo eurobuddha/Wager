@@ -249,12 +249,19 @@ function renderMarketsView(el) {
                     if (offer > bestOffer) bestOffer = offer; // highest offer = best counter
                 });
 
+                // Bet size = FOR side's stake (the underlying amount being wagered)
+                var betSize = 0;
+                m.forBets.forEach(function(b) {
+                    var bt = parseFloat(b.amount) / (1 + ESCROW_RATE);
+                    if (bt > betSize) betSize = bt;
+                });
+
                 var spreadHtml = '';
                 if (bestAsk > 0 && bestOffer > 0) {
                     spreadHtml = '<div class="market__midspread">' +
-                        '<span class="market__midval">' + bestAsk.toFixed(0) + '</span>' +
-                        '<span class="market__middash">|</span>' +
-                        '<span class="market__midval">' + bestOffer.toFixed(0) + '</span>' +
+                        '<span class="market__midsize">' + betSize.toFixed(0) + '</span>' +
+                        '<hr class="market__midline"/>' +
+                        '<span class="market__midprice">' + bestOffer.toFixed(0) + '-' + bestAsk.toFixed(0) + '</span>' +
                         '</div>';
                 }
 
