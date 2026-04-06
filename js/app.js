@@ -484,12 +484,23 @@ function showCounterModal() {
     var theirBet = COUNTER_THEIR_BET;
     var theirAsk = COUNTER_THEIR_ASK;
 
-    // Slider: your counter-offer, from minimum up to theirAsk (what they want)
-    var sliderMin = 1;
+    // Slider: your counter-offer, from best existing counter up to theirAsk
+    // Find best existing counter on my side (same proposition, opposite side)
+    var mySideNum = bet.side === 1 ? 0 : 1;
+    var bestCounter = 0;
+    OPEN_BETS.forEach(function(b) {
+        if (b.proposition === bet.proposition && b.side === mySideNum && b.coinid !== bet.coinid) {
+            var bAsk = parseFloat(b.wantstake) / (1 + ESCROW_RATE);
+            var bBet = parseFloat(b.amount) / (1 + ESCROW_RATE);
+            if (bBet > bestCounter) bestCounter = bBet;
+        }
+    });
+    var sliderMin = bestCounter > 0 ? bestCounter : 1;
     var sliderMax = theirAsk;
-    if (sliderMax <= sliderMin) sliderMax = sliderMin + 1;
-    var sliderStep = sliderMax > 50 ? 1 : sliderMax > 10 ? 0.5 : 0.1;
-    var sliderDefault = sliderMax;
+    if (sliderMax <= sliderMin) sliderMax = sliderMin + 0.1;
+    var spread = sliderMax - sliderMin;
+    var sliderStep = spread > 20 ? 1 : spread > 2 ? 0.5 : 0.1;
+    var sliderDefault = sliderMin;
 
     var modal = document.getElementById("counterModal");
     if (!modal) {
@@ -518,7 +529,7 @@ function showCounterModal() {
         '<div class="form-group">' +
         '<label>Counter their ask of ' + theirAsk.toFixed(2) + ' MINIMA</label>' +
         '<div class="counter__spread">' +
-        '<span class="counter__end counter__end--mine">1<br/><small>min</small></span>' +
+        '<span class="counter__end counter__end--mine">' + sliderMin.toFixed(2) + '<br/><small>' + (bestCounter > 0 ? 'best bid' : 'min') + '</small></span>' +
         '<div class="counter__sliderWrap">' +
         '<div class="counter__slider">' +
         '<button class="btn btn--ghost btn--sm" onclick="adjustCounterAmt(-' + sliderStep + ')">&#9664;</button>' +
