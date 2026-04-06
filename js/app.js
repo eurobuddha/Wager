@@ -110,8 +110,8 @@ function initApp() {
                 loadMaximaIdentity(function() {
                 notify("Initializing database...", "info");
                 initDB(function() {
-                    MDS.log("Wager v0.6.1 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
-                    notify("Wager v0.6.1 ready", "ok");
+                    MDS.log("Wager v0.6.2 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    notify("Wager v0.6.2 ready", "ok");
                     refreshBalance();
                     refreshBetsAndProposals(function() { renderCurrentView(); });
                 });
@@ -417,8 +417,8 @@ function renderMarketsView(el) {
                     if (againstWant === 0 || wt < againstWant) { againstWant = wt; }
                 });
 
-                // Bet size = total pot at best prices
-                var betSize = Math.max(forBet + forWant, againstBet + againstWant);
+                // Bet size = the largest ask (what the market is for)
+                var betSize = Math.max(forWant, againstWant);
 
                 // Spread: what each side ASKS from counters (the counter market range)
                 var forPrice = 0, againstPrice = 0;
