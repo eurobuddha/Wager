@@ -775,10 +775,20 @@ function setTxnState(txid, states, callback) {
 }
 
 function findCoins(tokenid, minAmount, callback) {
-    MDS.cmd("coins relevant:true sendable:true tokenid:" + tokenid, function(res) {
-        if (!res.status || !res.response || res.response.length === 0) { callback(null); return; }
+    MDS.cmd("coins sendable:true tokenid:" + tokenid, function(res) {
+        if (!res.status || !res.response || res.response.length === 0) {
+            notify("No sendable coins found (need " + minAmount + ")", "err");
+            callback(null);
+            return;
+        }
         var needed = parseFloat(minAmount);
-        var sorted = res.response.slice().sort(function(a, b) { return parseFloat(b.amount) - parseFloat(a.amount); });
+        var available = res.response.filter(function(c) { return parseFloat(c.amount) > 0; });
+        var total = 0;
+        available.forEach(function(c) { total += parseFloat(c.amount); });
+        notify("Found " + available.length + " coins, total " + total.toFixed(4) + " (need " + needed.toFixed(4) + ")", "info");
+        if (total < needed) { callback(null); return; }
+
+        var sorted = available.sort(function(a, b) { return parseFloat(b.amount) - parseFloat(a.amount); });
         if (parseFloat(sorted[0].amount) >= needed) { callback({ coins: [sorted[0]], total: parseFloat(sorted[0].amount) }); return; }
         var selected = [], sum = 0;
         for (var i = 0; i < sorted.length; i++) {
