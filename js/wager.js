@@ -866,10 +866,12 @@ function parseBetCoin(coin) {
         counteraddr: getStateVal(coin, 9),
         ownerstake: getStateVal(coin, 10),
         proposition: hexToStr(getStateVal(coin, 12)),
+        settlement: getStateVal(coin, 13),
         isMine: isMyKey(getStateVal(coin, 0)),
         isMyCounter: isMyKey(getStateVal(coin, 8)),
         isMyArb: isMyKey(getStateVal(coin, 2)),
-        created: coin.created || "0"
+        created: coin.created || "0",
+        age: parseInt(coin.age) || 0
     };
 }
 

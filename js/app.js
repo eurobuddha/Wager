@@ -110,8 +110,8 @@ function initApp() {
                 loadMaximaIdentity(function() {
                 notify("Initializing database...", "info");
                 initDB(function() {
-                    MDS.log("Wager v0.5.0 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
-                    notify("Wager v0.5.0 ready", "ok");
+                    MDS.log("Wager v0.5.1 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    notify("Wager v0.5.1 ready", "ok");
                     refreshBalance();
                     refreshBetsAndProposals(function() { renderCurrentView(); });
                 });
@@ -310,6 +310,33 @@ function renderBetCard(bet, role) {
         }
         html += '<div class="muted" style="margin-top:4px">25% escrow locked — returned if you agree, forfeited if arbiter needed</div>';
         html += '</div>';
+    }
+
+    // Coin age and settlement info
+    var ageInfo = '';
+    if (bet.age > 0) {
+        var ageHrs = (bet.age * 50 / 3600).toFixed(1);
+        ageInfo += '<span>Age: ' + bet.age + ' blocks (~' + ageHrs + 'h)</span>';
+    }
+    var settlementBlk = parseInt(bet.settlement) || 0;
+    if (settlementBlk > 0 && CURRENT_BLOCK > 0) {
+        var blocksLeft = settlementBlk - CURRENT_BLOCK;
+        if (blocksLeft > 0) {
+            var daysLeft = (blocksLeft * 50 / 86400).toFixed(1);
+            ageInfo += '<span>Settles: block ' + settlementBlk + ' (' + daysLeft + ' days)</span>';
+        } else {
+            ageInfo += '<span class="side--yes">Settlement open</span>';
+        }
+    }
+    if (isOpen && bet.timeout) {
+        var timeoutBlocks = parseInt(bet.timeout) || 0;
+        if (timeoutBlocks > 0) {
+            var timeoutHrs = (timeoutBlocks * 50 / 3600).toFixed(0);
+            ageInfo += '<span>Timeout: ' + timeoutBlocks + ' blocks (~' + timeoutHrs + 'h)</span>';
+        }
+    }
+    if (ageInfo) {
+        html += '<div class="betcard__age">' + ageInfo + '</div>';
     }
 
     // Coin ID
@@ -686,17 +713,17 @@ function showCounterModal() {
     var theirBet = COUNTER_THEIR_BET;
     var theirAsk = COUNTER_THEIR_ASK;
 
-    // Slider: your counter-offer, from best existing counter up to theirAsk
-    // Find best existing counter on my side (same proposition, opposite side)
+    // Slider: the current market spread. Both sides see the same range.
+    // Find the best counter on MY side (tightens from below) and their ask (ceiling).
     var mySideNum = bet.side === 1 ? 0 : 1;
-    var bestCounter = 0;
+    var bestOnMySide = 0;
     OPEN_BETS.forEach(function(b) {
-        if (b.proposition === bet.proposition && b.side === mySideNum && b.coinid !== bet.coinid) {
+        if (b.proposition === bet.proposition && b.side === mySideNum && b.phase === 0) {
             var bBet = parseFloat(b.amount) / (1 + ESCROW_RATE);
-            if (bBet > bestCounter) bestCounter = bBet;
+            if (bBet > bestOnMySide) bestOnMySide = bBet;
         }
     });
-    var sliderMin = bestCounter > 0 ? bestCounter : 1;
+    var sliderMin = bestOnMySide > 0 ? bestOnMySide : 1;
     var sliderMax = theirAsk;
     if (sliderMax <= sliderMin) sliderMax = sliderMin + 0.1;
     var spread = sliderMax - sliderMin;
@@ -817,9 +844,9 @@ function submitCounter() {
     var mySide = bet.side === 1 ? 0 : 1;
     var prop = bet.proposition || "";
 
-    // Cancel any existing open bet from me on the same proposition first
+    // Cancel any existing open bet from me on the same proposition AND same side
     var myExisting = OPEN_BETS.filter(function(b) {
-        return b.isMine && b.proposition === prop && b.phase === 0;
+        return b.isMine && b.proposition === prop && b.side === mySide && b.phase === 0;
     });
 
     function cancelExisting(idx, done) {
@@ -853,11 +880,14 @@ function submitCounter() {
     });
     }
 
-    // Cancel existing bets on same proposition, then post new counter
+    // Cancel existing bets on same side, then post new counter
     if (myExisting.length > 0) {
         cancelExisting(0, function() {
-            // Wait a moment for cancels to process
-            setTimeout(doPost, 1000);
+            // Wait for cancels to confirm, then refresh and post
+            notify("Waiting for cancel to confirm...", "info");
+            setTimeout(function() {
+                refreshBetsAndProposals(function() { doPost(); });
+            }, 3000);
         });
     } else {
         doPost();

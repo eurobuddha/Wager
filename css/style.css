@@ -435,6 +435,18 @@ input::placeholder { color: var(--text2); opacity: 0.5; }
     line-height: 1.6;
 }
 
+.betcard__age {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text2);
+    padding: 6px 0;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+}
+
 .betcard__parties {
     font-size: 12px;
     line-height: 1.8;
