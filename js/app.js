@@ -28,7 +28,7 @@ function initApp() {
             loadWalletKeys(function() {
                 loadMaximaIdentity(function() {
                 initDB(function() {
-                    MDS.log("Wager v0.1.3 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    MDS.log("Wager v0.3.7 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
                     logActivity("Wager ready", "info");
                     refreshBalance();
                     refreshBets(function() { renderCurrentView(); });
