@@ -98,8 +98,8 @@ function initApp() {
                 loadMaximaIdentity(function() {
                 notify("Initializing database...", "info");
                 initDB(function() {
-                    MDS.log("Wager v0.4.3 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
-                    notify("Wager v0.4.3 ready", "ok");
+                    MDS.log("Wager v0.4.4 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    notify("Wager v0.4.4 ready", "ok");
                     refreshBalance();
                     refreshBets(function() { renderCurrentView(); });
                 });
@@ -559,15 +559,37 @@ function doFill(coinid) {
         "\nIf you lose: -" + myBet.toFixed(2) + " MINIMA" +
         "\n\n25% escrow locked as honesty insurance")) return;
 
-    notify("Taking bet — building transaction...", "info");
-    fillBet(bet, function(ok, err) {
-        if (ok) {
-            notify("Bet matched!", "ok");
-            refreshBets(renderCurrentView);
-        } else {
-            notify("Fill failed: " + (err || "unknown"), "err");
-        }
-    });
+    // Auto-cancel my existing bets on the same proposition before filling
+    var prop2 = bet.proposition || "";
+    var myExisting = prop2 ? OPEN_BETS.filter(function(b) {
+        return b.isMine && b.proposition === prop2 && b.phase === 0 && b.coinid !== coinid;
+    }) : [];
+
+    function cancelExisting(idx, done) {
+        if (idx >= myExisting.length) { done(); return; }
+        notify("Cancelling your counter (" + (idx+1) + "/" + myExisting.length + ")...", "info");
+        cancelBet(myExisting[idx].coinid, function() {
+            cancelExisting(idx + 1, done);
+        });
+    }
+
+    function doTake() {
+        notify("Taking bet — building transaction...", "info");
+        fillBet(bet, function(ok, err) {
+            if (ok) {
+                notify("Bet matched!", "ok");
+                refreshBets(renderCurrentView);
+            } else {
+                notify("Fill failed: " + (err || "unknown"), "err");
+            }
+        });
+    }
+
+    if (myExisting.length > 0) {
+        cancelExisting(0, function() { setTimeout(doTake, 1000); });
+    } else {
+        doTake();
+    }
 }
 
 // -- Counter Modal --
