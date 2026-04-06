@@ -248,7 +248,7 @@ function renderBetCard(bet, role) {
     }
 
     // Odds and amounts — clean, bet-focused
-    var counterOdds = isOpen ? calcCounterOdds(betAmt, wantBet) : calcCounterOdds(betAmt, wantBet);
+    var counterOdds = calcCounterOdds(betAmt, wantBet);
     var totalBets = isOpen ? (betAmt + wantBet).toFixed(2) : (locked / (1 + ESCROW_RATE)).toFixed(2);
     html += '<div class="betcard__grid">';
     html += '<dl><dt>FOR Odds</dt><dd>' + odds + '</dd></dl>';
@@ -327,7 +327,6 @@ function renderBetCard(bet, role) {
     if (proposal && !isOpen && (bet.isMine || bet.isMyCounter)) {
         var pLabel = proposal.outcome === 1 ? "TRUE" : "FALSE";
         var pClass = proposal.outcome === 1 ? "side--yes" : "side--no";
-        var arbMxKey = bet.arbitermxkey || "";
         html += '<div class="betcard__proposal">';
         html += '<div><strong>Settlement proposed: <span class="' + pClass + '">' + pLabel + '</span></strong>';
         if (proposal.sender_name) html += ' by ' + esc(proposal.sender_name);
