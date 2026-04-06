@@ -109,31 +109,36 @@ function renderBetCard(bet, role) {
     var propShort = prop.length > 40 ? prop.substring(0, 40) + "..." : prop;
     var canFill = isOpen && !bet.isMine && !bet.isMyArb;
 
-    // Find market spread for this proposition
-    var marketSpread = '';
+    // Find best counter on the other side for market spread
+    var bestCounter = 0;
     if (isOpen && prop) {
         var otherSide = bet.side === 1 ? 0 : 1;
-        var bestOther = 0;
         OPEN_BETS.forEach(function(b) {
             if (b.proposition === prop && b.side === otherSide && b.phase === 0) {
                 var bBet = parseFloat(b.amount) / (1 + ESCROW_RATE);
-                if (bBet > bestOther) bestOther = bBet;
+                if (bBet > bestCounter) bestCounter = bBet;
             }
         });
-        if (bestOther > 0) {
-            marketSpread = '<span class="betcard__spread">' + wantBet.toFixed(0) + '-' + bestOther.toFixed(0) + '</span>';
-        }
     }
 
-    // Summary row — show stake, want, and market spread
+    // Multiplier: what you win per 1 staked
+    var multiplier = betAmt > 0 ? (wantBet / betAmt).toFixed(1) + 'x' : '—';
+
+    // Summary row: prop | side | "20 wants 10" | 0.5x | 1:2 | [ask] [market] [counter]
     var html = '<div class="betcard" id="' + id + '">';
     html += '<div class="betcard__summary" onclick="toggleCard(\'' + id + '\')">';
     if (prop) {
         html += '<span class="betcard__prop">' + esc(propShort) + '</span>';
     }
     html += '<span class="' + sideClass + ' betcard__side">' + sideLabel + '</span>';
-    html += '<span class="betcard__stake">' + betAmt.toFixed(0) + ' want ' + wantBet.toFixed(0) + '</span>';
-    html += marketSpread;
+    html += '<span class="betcard__stake">' + betAmt.toFixed(0) + ' wants ' + wantBet.toFixed(0) + '</span>';
+    html += '<span class="betcard__mult">' + multiplier + '</span>';
+    html += '<span class="betcard__odds">' + odds + '</span>';
+    if (bestCounter > 0) {
+        html += '<span class="betcard__ask">' + wantBet.toFixed(0) + '</span>';
+        html += '<span class="betcard__market">' + bestCounter.toFixed(0) + '-' + wantBet.toFixed(0) + '</span>';
+        html += '<span class="betcard__counter">' + bestCounter.toFixed(0) + '</span>';
+    }
     if (role) html += '<span class="betcard__role">' + role + '</span>';
     html += '<span class="betcard__chevron">&#9662;</span>';
     html += '</div>';

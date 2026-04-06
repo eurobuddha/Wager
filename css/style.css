@@ -255,15 +255,23 @@ input::placeholder { color: var(--text2); opacity: 0.5; }
 .betcard__prop { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .betcard__side { font-size: 12px; min-width: 52px; text-align: center; }
 .betcard__stake { font-family: var(--mono); font-weight: 600; font-size: 13px; }
-.betcard__odds { font-size: 13px; }
-.betcard__spread {
+.betcard__mult { font-family: var(--mono); font-size: 12px; color: var(--text2); }
+.betcard__odds { font-family: var(--mono); font-size: 12px; font-weight: 600; }
+.betcard__ask, .betcard__counter {
     font-family: var(--mono);
     font-size: 11px;
     font-weight: 700;
     color: var(--warn);
-    background: rgba(245, 158, 11, 0.12);
-    padding: 2px 8px;
+    background: rgba(245, 158, 11, 0.15);
+    padding: 2px 6px;
     border-radius: 4px;
+}
+.betcard__market {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text);
+    padding: 0 2px;
 }
 .betcard__role {
     font-size: 11px;

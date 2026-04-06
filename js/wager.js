@@ -731,19 +731,18 @@ function cleanupTxn(txid) {
     MDS.cmd("txndelete id:" + txid);
 }
 
-// Traditional fractional odds: "how much I win per 1 unit staked"
-// If I stake 10 and want 15 from counter, my odds are 1.5:1 (I win 1.5 for every 1 risked)
-function calcOdds(myStake, counterStake) {
-    var my = parseFloat(myStake);
-    var cs = parseFloat(counterStake);
-    if (my <= 0) return "—";
-    var ratio = cs / my;
-    if (ratio === Math.floor(ratio)) return ratio + ":1";
-    return ratio.toFixed(1) + ":1";
+// Odds as simplified whole number ratio want:bet — "20 wants 10" = 1:2, "30 wants 90" = 3:1
+function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
+function calcOdds(betAmt, wantAmt) {
+    var b = Math.round(parseFloat(betAmt) * 100);
+    var w = Math.round(parseFloat(wantAmt) * 100);
+    if (b <= 0 || w <= 0) return "—";
+    var g = gcd(w, b);
+    return (w / g) + ':' + (b / g);
 }
 
-function calcCounterOdds(myStake, counterStake) {
-    return calcOdds(counterStake, myStake);
+function calcCounterOdds(betAmt, wantAmt) {
+    return calcOdds(wantAmt, betAmt);
 }
 
 // -- ChainMail Messaging --
