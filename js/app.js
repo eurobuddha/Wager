@@ -131,14 +131,14 @@ function renderBetCard(bet, role) {
     if (prop) {
         html += '<span class="betcard__prop">' + esc(propShort) + '</span>';
     }
-    html += '<span class="' + sideClass + ' betcard__side">' + sideLabel + '</span>';
-    html += '<span class="betcard__stake">' + betAmt.toFixed(0) + ' wants ' + wantBet.toFixed(0) + '</span>';
-    html += '<span class="betcard__mult">' + multiplier + '</span>';
-    html += '<span class="betcard__odds">' + odds + '</span>';
+    html += '<span class="betcard__tile ' + sideClass + ' betcard__side">' + sideLabel + '</span>';
+    html += '<span class="betcard__tile betcard__stake">' + betAmt.toFixed(0) + ' wants ' + wantBet.toFixed(0) + '</span>';
+    html += '<span class="betcard__tile betcard__mult">' + multiplier + '</span>';
+    html += '<span class="betcard__tile betcard__odds">' + odds + '</span>';
     if (bestCounter > 0) {
-        html += '<span class="betcard__ask">' + wantBet.toFixed(0) + '</span>';
-        html += '<span class="betcard__market">' + bestCounter.toFixed(0) + '-' + wantBet.toFixed(0) + '</span>';
-        html += '<span class="betcard__counter">' + bestCounter.toFixed(0) + '</span>';
+        html += '<span class="betcard__tile betcard__ask">' + wantBet.toFixed(0) + '</span>';
+        html += '<span class="betcard__tile betcard__market">' + bestCounter.toFixed(0) + '–' + wantBet.toFixed(0) + '</span>';
+        html += '<span class="betcard__tile betcard__counter">' + bestCounter.toFixed(0) + '</span>';
     }
     if (role) html += '<span class="betcard__role">' + role + '</span>';
     html += '<span class="betcard__chevron">&#9662;</span>';

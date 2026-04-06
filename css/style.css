@@ -246,32 +246,75 @@ input::placeholder { color: var(--text2); opacity: 0.5; }
 .betcard__summary {
     display: flex;
     align-items: center;
-    gap: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
     padding: 12px 14px;
     cursor: pointer;
     user-select: none;
 }
 
-.betcard__prop { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.betcard__side { font-size: 12px; min-width: 52px; text-align: center; }
-.betcard__stake { font-family: var(--mono); font-weight: 600; font-size: 13px; }
-.betcard__mult { font-family: var(--mono); font-size: 12px; color: var(--text2); }
-.betcard__odds { font-family: var(--mono); font-size: 12px; font-weight: 600; }
-.betcard__ask, .betcard__counter {
-    font-family: var(--mono);
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--warn);
-    background: rgba(245, 158, 11, 0.15);
-    padding: 2px 6px;
-    border-radius: 4px;
-}
-.betcard__market {
-    font-family: var(--mono);
-    font-size: 11px;
+.betcard__prop {
+    font-size: 13px;
     font-weight: 600;
     color: var(--text);
-    padding: 0 2px;
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* -- Tile chips on the summary row -- */
+.betcard__tile {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.04) inset;
+}
+
+.betcard__side {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+}
+.betcard__side.side--yes { background: var(--yes-bg); }
+.betcard__side.side--no { background: var(--no-bg); }
+
+.betcard__stake {
+    background: var(--bg3);
+    color: var(--text);
+}
+
+.betcard__mult {
+    background: rgba(255,255,255,0.05);
+    color: var(--accent2);
+}
+
+.betcard__odds {
+    background: rgba(255,255,255,0.05);
+    color: var(--text);
+    letter-spacing: 0.5px;
+}
+
+.betcard__ask, .betcard__counter {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--warn);
+    font-size: 11px;
+}
+
+.betcard__market {
+    background: rgba(245, 158, 11, 0.08);
+    color: var(--warn);
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    opacity: 0.8;
 }
 .betcard__role {
     font-size: 11px;
