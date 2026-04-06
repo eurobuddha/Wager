@@ -236,33 +236,22 @@ function renderMarketsView(el) {
         for (var k = 0; k < keys.length; k++) {
             var m = markets[keys[k]];
             if (m.prop) {
-                // Find best ask on each side for the market spread
-                var bestForAsk = 0, bestAgainstAsk = 0;
+                // Market spread: FOR's best ask vs AGAINST's best stake
+                // FOR "20 wants 10" → ask=10 (wantstake/escrow)
+                // AGAINST "9 wants 20" → offer=9 (amount/escrow)
+                var bestAsk = 0, bestOffer = 0;
                 m.forBets.forEach(function(b) {
-                    var wnt = parseFloat(b.wantstake || "0") / (1 + ESCROW_RATE);
-                    if (wnt > bestForAsk || bestForAsk === 0) bestForAsk = wnt;
+                    var ask = parseFloat(b.wantstake || "0") / (1 + ESCROW_RATE);
+                    if (bestAsk === 0 || ask < bestAsk) bestAsk = ask; // lowest ask = best price
                 });
                 m.againstBets.forEach(function(b) {
-                    var wnt = parseFloat(b.wantstake || "0") / (1 + ESCROW_RATE);
-                    if (wnt > bestAgainstAsk || bestAgainstAsk === 0) bestAgainstAsk = wnt;
-                });
-                // Best counter amounts (what each side is actually offering)
-                var bestForBet = 0, bestAgainstBet = 0;
-                m.forBets.forEach(function(b) {
-                    var bt = parseFloat(b.amount) / (1 + ESCROW_RATE);
-                    if (bt > bestForBet) bestForBet = bt;
-                });
-                m.againstBets.forEach(function(b) {
-                    var bt = parseFloat(b.amount) / (1 + ESCROW_RATE);
-                    if (bt > bestAgainstBet) bestAgainstBet = bt;
+                    var offer = parseFloat(b.amount) / (1 + ESCROW_RATE);
+                    if (offer > bestOffer) bestOffer = offer; // highest offer = best counter
                 });
 
-                // Market spread: what FOR wants vs what AGAINST is offering
                 var spreadHtml = '';
-                if (m.forBets.length > 0 && m.againstBets.length > 0) {
-                    var lo = bestAgainstBet;  // best counter offer
-                    var hi = bestForAsk;      // what FOR is asking
-                    spreadHtml = '<div class="market__midspread"><span class="market__midtile">' + hi.toFixed(0) + '-' + lo.toFixed(0) + '</span></div>';
+                if (bestAsk > 0 && bestOffer > 0) {
+                    spreadHtml = '<div class="market__midspread"><span class="market__midtile">' + bestAsk.toFixed(0) + '-' + bestOffer.toFixed(0) + '</span></div>';
                 }
 
                 html += '<div class="market">';
