@@ -478,19 +478,19 @@ function showCounterModal() {
             return b.proposition === bet.proposition && b.side !== bet.side && !b.isMine;
         });
         if (otherSideBets.length > 0) {
-            // Best odds on the other side (lowest ratio = tightest price)
             var bestOther = null;
             otherSideBets.forEach(function(b) {
                 var r = parseFloat(b.wantstake) / parseFloat(b.amount);
                 if (!bestOther || r < bestOther) bestOther = r;
             });
-            // Slider range = between the two prices
+            // Slider range = strictly between the two prices (the spread)
             sliderMin = Math.min(origOddsRatio, bestOther);
             sliderMax = Math.max(origOddsRatio, bestOther);
-            sliderDefault = (sliderMin + sliderMax) / 2;
-            // Add small padding so slider isn't stuck at edges
-            sliderMin = Math.max(0.1, Math.round((sliderMin - 0.1) * 10) / 10);
-            sliderMax = Math.round((sliderMax + 0.1) * 10) / 10;
+            // Step inside by 0.05 so you're improving on existing offers, not matching
+            sliderMin = Math.round((sliderMin + 0.05) * 20) / 20;
+            sliderMax = Math.round((sliderMax - 0.05) * 20) / 20;
+            if (sliderMin > sliderMax) sliderMin = sliderMax;
+            sliderDefault = Math.round(((sliderMin + sliderMax) / 2) * 20) / 20;
         }
     }
 
@@ -526,10 +526,10 @@ function showCounterModal() {
         '<div class="form-group">' +
         '<label>Your Odds</label>' +
         '<div class="counter__slider">' +
-        '<button class="btn btn--ghost btn--sm" onclick="adjustCounterOdds(-0.1)">&#9664;</button>' +
-        '<input type="range" id="counterOddsSlider" min="' + sliderMin.toFixed(1) + '" max="' + sliderMax.toFixed(1) + '" step="0.1" value="' + sliderDefault.toFixed(1) + '" oninput="updateCounterPreview()" />' +
-        '<button class="btn btn--ghost btn--sm" onclick="adjustCounterOdds(0.1)">&#9654;</button>' +
-        '<span class="counter__oddsLabel" id="counterOddsLabel">' + sliderDefault.toFixed(1) + ':1</span>' +
+        '<button class="btn btn--ghost btn--sm" onclick="adjustCounterOdds(-0.05)">&#9664;</button>' +
+        '<input type="range" id="counterOddsSlider" min="' + sliderMin.toFixed(2) + '" max="' + sliderMax.toFixed(2) + '" step="0.05" value="' + sliderDefault.toFixed(2) + '" oninput="updateCounterPreview()" />' +
+        '<button class="btn btn--ghost btn--sm" onclick="adjustCounterOdds(0.05)">&#9654;</button>' +
+        '<span class="counter__oddsLabel" id="counterOddsLabel">' + sliderDefault.toFixed(2) + ':1</span>' +
         '</div>' +
         '</div>' +
 
@@ -555,9 +555,11 @@ function closeCounterModal() {
 
 function adjustCounterOdds(delta) {
     var slider = document.getElementById("counterOddsSlider");
-    var val = Math.round((parseFloat(slider.value) + delta) * 10) / 10;
-    if (val < 0.1) val = 0.1;
-    if (val > 10) val = 10;
+    var min = parseFloat(slider.min);
+    var max = parseFloat(slider.max);
+    var val = Math.round((parseFloat(slider.value) + delta) * 20) / 20;
+    if (val < min) val = min;
+    if (val > max) val = max;
     slider.value = val;
     updateCounterPreview();
 }
@@ -568,7 +570,7 @@ function updateCounterPreview() {
     var label = document.getElementById("counterOddsLabel");
     var preview = document.getElementById("counterPreview");
 
-    label.innerText = oddsRatio.toFixed(1) + ":1";
+    label.innerText = oddsRatio.toFixed(2) + ":1";
 
     if (stake <= 0) { preview.innerHTML = "Enter your stake"; return; }
 
