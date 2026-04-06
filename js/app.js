@@ -99,8 +99,8 @@ function initApp() {
                 loadMaximaIdentity(function() {
                 notify("Initializing database...", "info");
                 initDB(function() {
-                    MDS.log("Wager v0.4.5 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
-                    notify("Wager v0.4.5 ready", "ok");
+                    MDS.log("Wager v0.4.6 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    notify("Wager v0.4.6 ready", "ok");
                     refreshBalance();
                     refreshBetsAndProposals(function() { renderCurrentView(); });
                 });
@@ -162,11 +162,14 @@ function refreshBetsAndProposals(callback) {
     refreshBets(function() {
         loadPendingProposals(function(rows) {
             PENDING_PROPOSALS = {};
+            // Build set of active matched coinids
+            var matchedIds = {};
+            MATCHED_BETS.forEach(function(b) { matchedIds[b.coinid] = true; });
             rows.forEach(function(row) {
                 try {
                     var data = JSON.parse(row.DATA);
                     var coinid = data.betid || "";
-                    if (coinid) {
+                    if (coinid && matchedIds[coinid]) {
                         PENDING_PROPOSALS[coinid] = {
                             outcome: data.outcome,
                             txnhex: data.txnhex,
@@ -245,8 +248,8 @@ function renderBetCard(bet, role) {
     }
 
     // Odds and amounts — clean, bet-focused
-    var counterOdds = isOpen ? calcCounterOdds(betAmt, wantBet) : "—";
-    var totalBets = isOpen ? (betAmt + wantBet).toFixed(2) : (locked / (1 + ESCROW_RATE) * 2).toFixed(2);
+    var counterOdds = isOpen ? calcCounterOdds(betAmt, wantBet) : calcCounterOdds(betAmt, wantBet);
+    var totalBets = isOpen ? (betAmt + wantBet).toFixed(2) : (locked / (1 + ESCROW_RATE)).toFixed(2);
     html += '<div class="betcard__grid">';
     html += '<dl><dt>FOR Odds</dt><dd>' + odds + '</dd></dl>';
     html += '<dl><dt>AGAINST Odds</dt><dd>' + counterOdds + '</dd></dl>';
@@ -330,8 +333,8 @@ function renderBetCard(bet, role) {
         if (proposal.sender_name) html += ' by ' + esc(proposal.sender_name);
         html += '</div>';
         html += '<div class="muted" style="margin:4px 0">Accept = 0% fee &nbsp;|&nbsp; Reject = arbiter decides (10% fee)</div>';
-        html += '<button class="btn btn--yes btn--sm" onclick="event.stopPropagation(); doAcceptProposal(\'' + (proposal.txnhex || "") + '\', \'' + bet.coinid + '\', \'' + proposal.sender_mxkey + '\')">Accept</button> ';
-        html += '<button class="btn btn--no btn--sm" onclick="event.stopPropagation(); doRejectProposal(\'' + bet.coinid + '\', \'' + proposal.sender_mxkey + '\', \'' + arbMxKey + '\')">Reject</button>';
+        html += '<button class="btn btn--yes btn--sm" onclick="event.stopPropagation(); doAcceptProposal(\'' + bet.coinid + '\')">Accept</button> ';
+        html += '<button class="btn btn--no btn--sm" onclick="event.stopPropagation(); doRejectProposal(\'' + bet.coinid + '\')">Reject</button>';
         html += '</div>';
     }
     html += '</div>';
@@ -905,25 +908,38 @@ function doPropose(coinid, outcome) {
     });
 }
 
-function doAcceptProposal(txnHex, betid, proposerMxKey) {
+function doAcceptProposal(coinid) {
+    var proposal = PENDING_PROPOSALS[coinid];
+    if (!proposal || !proposal.txnhex) { notify("No proposal found", "err"); return; }
     if (!confirm("Accept settlement? 0% fee.")) return;
     notify("Co-signing settlement...", "info");
-    cosignAndPost(txnHex, function(ok, err) {
+    cosignAndPost(proposal.txnhex, function(ok, err) {
         if (ok) {
             notify("Settled — 0% fee!", "ok");
-            if (proposerMxKey) sendSettleAccept(proposerMxKey, betid);
+            if (proposal.sender_mxkey) sendSettleAccept(proposal.sender_mxkey, coinid);
+            clearProposal(proposal.randomid);
             refreshBetsAndProposals(renderCurrentView);
         } else { notify("Settlement failed: " + (err || "unknown"), "err"); }
     });
 }
 
-function doRejectProposal(betid, proposerMxKey, arbMxKey) {
+function doRejectProposal(coinid) {
+    var proposal = PENDING_PROPOSALS[coinid];
+    if (!proposal) { notify("No proposal found", "err"); return; }
+    var bet = MATCHED_BETS.find(function(b) { return b.coinid === coinid; });
+    var arbMxKey = bet ? (bet.arbitermxkey || "") : "";
     if (!confirm("Reject? Goes to arbiter (10% fee for loser).")) return;
     notify("Sending dispute to arbiter...", "info");
-    sendSettleReject(proposerMxKey, arbMxKey, betid, function() {
+    sendSettleReject(proposal.sender_mxkey, arbMxKey, coinid, function() {
         notify("Dispute sent to arbiter", "ok");
+        clearProposal(proposal.randomid);
         refreshBetsAndProposals(renderCurrentView);
     });
+}
+
+function clearProposal(randomid) {
+    if (!randomid) return;
+    MDS.sql("DELETE FROM messages WHERE randomid='" + randomid.replace(/'/g, "''") + "'");
 }
 
 function doTimeout(coinid) {
