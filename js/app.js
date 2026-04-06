@@ -135,7 +135,7 @@ function renderBetCard(bet, role) {
     html += '<span class="betcard__tile betcard__stake">' + betAmt.toFixed(0) + ' wants ' + wantBet.toFixed(0) + '</span>';
     html += '<span class="betcard__tile betcard__mult">' + multiplier + '</span>';
     html += '<span class="betcard__tile betcard__odds">' + odds + '</span>';
-    html += '<span class="betcard__tile betcard__want">' + wantBet.toFixed(0) + '</span>';
+    html += '<span class="betcard__tile betcard__want">' + Math.min(betAmt, wantBet).toFixed(0) + '</span>';
     if (role) html += '<span class="betcard__role">' + role + '</span>';
     html += '<span class="betcard__chevron">&#9662;</span>';
     html += '</div>';
