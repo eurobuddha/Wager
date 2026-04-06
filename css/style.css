@@ -459,23 +459,36 @@ input::placeholder { color: var(--text2); opacity: 0.5; }
 
 .market__midspread {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 12px 4px;
+    padding: 8px 6px;
     align-self: center;
+    gap: 0;
 }
 
-.market__midtile {
+.market__midval {
     font-family: var(--mono);
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 800;
     color: var(--warn);
     background: rgba(245, 158, 11, 0.12);
-    padding: 8px 14px;
-    border-radius: 8px;
+    padding: 6px 14px;
+    border-radius: 6px;
     box-shadow: 0 2px 6px rgba(0,0,0,0.4), 0 0 0 1px rgba(245, 158, 11, 0.2) inset;
-    white-space: nowrap;
     letter-spacing: 1px;
+    text-align: center;
+    min-width: 40px;
+}
+
+.market__middash {
+    font-family: var(--mono);
+    font-size: 16px;
+    font-weight: 300;
+    color: var(--warn);
+    opacity: 0.5;
+    line-height: 1;
+    padding: 2px 0;
 }
 
 .market__colhead {

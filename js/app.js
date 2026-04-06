@@ -251,7 +251,11 @@ function renderMarketsView(el) {
 
                 var spreadHtml = '';
                 if (bestAsk > 0 && bestOffer > 0) {
-                    spreadHtml = '<div class="market__midspread"><span class="market__midtile">' + bestAsk.toFixed(0) + '-' + bestOffer.toFixed(0) + '</span></div>';
+                    spreadHtml = '<div class="market__midspread">' +
+                        '<span class="market__midval">' + bestAsk.toFixed(0) + '</span>' +
+                        '<span class="market__middash">|</span>' +
+                        '<span class="market__midval">' + bestOffer.toFixed(0) + '</span>' +
+                        '</div>';
                 }
 
                 html += '<div class="market">';
