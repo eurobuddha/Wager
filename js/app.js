@@ -106,19 +106,22 @@ MDS.init(function(msg) {
                 if (ns99) {
                     decryptChainMail(ns99, function(success, message, senderMxKey) {
                         if (success && message) {
-                            notify("ChainMail received: " + (message.type || "unknown"), "info");
-                            // Store in DB for proposal display
                             if (message.type === "SETTLE_PROPOSE" && message.betid) {
-                                insertMessage({
-                                    randomid: message.randomid || "0x" + Date.now(),
-                                    betid: message.betid,
-                                    type: message.type,
-                                    sender_mxkey: senderMxKey || "",
-                                    sender_name: message.sender_name || "",
-                                    data: JSON.stringify(message),
-                                    direction: "received"
+                                messageExists(message.randomid, function(exists) {
+                                    if (!exists) {
+                                        notify("Settlement proposal received!", "ok");
+                                        insertMessage({
+                                            randomid: message.randomid || "0x" + Date.now(),
+                                            betid: message.betid,
+                                            type: message.type,
+                                            sender_mxkey: senderMxKey || "",
+                                            sender_name: message.sender_name || "",
+                                            data: JSON.stringify(message),
+                                            direction: "received"
+                                        });
+                                        refreshBetsAndProposals(renderCurrentView);
+                                    }
                                 });
-                                refreshBetsAndProposals(renderCurrentView);
                             }
                         }
                     });
@@ -177,8 +180,10 @@ function initApp() {
                 loadMaximaIdentity(function() {
                 notify("Initializing database...", "info");
                 initDB(function() {
-                    MDS.log("Wager v0.9.3 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
-                    notify("Wager v0.9.3 ready", "ok");
+                    // Register coinnotify for ChainMail (mInbox pattern)
+                    MDS.cmd("coinnotify action:add address:" + WAGER_MAIL_ADDRESS);
+                    MDS.log("Wager v0.9.4 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    notify("Wager v0.9.4 ready", "ok");
                     refreshBalance();
                     refreshBetsAndProposals(function() { renderCurrentView(); });
                 });
