@@ -83,7 +83,6 @@ MDS.init(function(msg) {
         if (PENDING_TXID) completePending();
         if (DB_READY) {
             refreshBetsAndProposals(function() {
-                // Don't re-render if user is filling in a form
                 if (CURRENT_VIEW !== "post") renderCurrentView();
             });
             refreshBalance();
@@ -97,7 +96,75 @@ MDS.init(function(msg) {
             refreshBalance();
         }
     }
+    // ChainMail: scan for incoming messages (mInbox pattern — app.js checks too, not just service.js)
+    if (msg.event === "NOTIFYCOIN") {
+        var ncoin = msg.data && msg.data.coin;
+        if (ncoin) {
+            var ncAddr = ncoin.address || (msg.data && msg.data.address) || "";
+            if (ncAddr === WAGER_MAIL_ADDRESS) {
+                var ns99 = getState99(ncoin.state);
+                if (ns99) {
+                    decryptChainMail(ns99, function(success, message, senderMxKey) {
+                        if (success && message) {
+                            notify("ChainMail received: " + (message.type || "unknown"), "info");
+                            // Store in DB for proposal display
+                            if (message.type === "SETTLE_PROPOSE" && message.betid) {
+                                insertMessage({
+                                    randomid: message.randomid || "0x" + Date.now(),
+                                    betid: message.betid,
+                                    type: message.type,
+                                    sender_mxkey: senderMxKey || "",
+                                    sender_name: message.sender_name || "",
+                                    data: JSON.stringify(message),
+                                    direction: "received"
+                                });
+                                refreshBetsAndProposals(renderCurrentView);
+                            }
+                        }
+                    });
+                }
+            }
+        }
+    }
+    if (msg.event === "MDS_TIMER_10SECONDS") {
+        // Poll for ChainMail every 10 seconds (mInbox pattern)
+        if (DB_READY) scanForChainMail();
+    }
 });
+
+// Scan for unprocessed ChainMail in the app context (mirrors service.js scan)
+function scanForChainMail() {
+    if (!WAGER_MAIL_ADDRESS) return;
+    MDS.cmd("coins address:" + WAGER_MAIL_ADDRESS, function(res) {
+        if (!res || !res.status || !res.response) return;
+        var recent = res.response.filter(function(c) { return parseInt(c.age) < 50 && !c.spent; });
+        recent.forEach(function(coin) {
+            var s99 = getState99(coin.state);
+            if (s99) {
+                decryptChainMail(s99, function(success, message, senderMxKey) {
+                    if (success && message && message.type === "SETTLE_PROPOSE" && message.betid) {
+                        // Check if already stored
+                        messageExists(message.randomid, function(exists) {
+                            if (!exists) {
+                                notify("Settlement proposal received!", "ok");
+                                insertMessage({
+                                    randomid: message.randomid || "0x" + Date.now(),
+                                    betid: message.betid,
+                                    type: message.type,
+                                    sender_mxkey: senderMxKey || "",
+                                    sender_name: message.sender_name || "",
+                                    data: JSON.stringify(message),
+                                    direction: "received"
+                                });
+                                refreshBetsAndProposals(renderCurrentView);
+                            }
+                        });
+                    }
+                });
+            }
+        });
+    });
+}
 
 function initApp() {
     notify("Registering contract...", "info");
@@ -110,8 +177,8 @@ function initApp() {
                 loadMaximaIdentity(function() {
                 notify("Initializing database...", "info");
                 initDB(function() {
-                    MDS.log("Wager v0.9.2 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
-                    notify("Wager v0.9.2 ready", "ok");
+                    MDS.log("Wager v0.9.3 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    notify("Wager v0.9.3 ready", "ok");
                     refreshBalance();
                     refreshBetsAndProposals(function() { renderCurrentView(); });
                 });
