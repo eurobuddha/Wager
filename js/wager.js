@@ -317,7 +317,8 @@ function setFillState(txid, bet, callback) {
         9: MY_HEX_ADDR,                 // counteraddr
         10: ownerStake,                  // ownerstake (= @AMOUNT at fill time)
         12: bet.propositionHex || strToHex(bet.proposition || ""), // raw hex preserved
-        13: bet.settlement || "0"        // settlement block
+        13: bet.settlement || "0",       // settlement block
+        14: "0"                          // refresh flag (must be set — Java VM crashes on unset STATE)
     };
     setTxnState(txid, states, callback);
 }
@@ -489,83 +490,57 @@ function cosignAndPost(txnHex, callback) {
 }
 
 // -- Resolve Bet (Phase 1) --
-// Arbiter declares outcome. 10% of winner's profit as fee.
-// Params: coinid, outcome (1=TRUE/FOR wins, 0=FALSE/AGAINST wins, 2=VOID), callback(success, error)
+// Arbiter declares outcome. Fee = 10% of total pot.
+// Params: coinid, outcome (1=TRUE/FOR wins, 0=FALSE/AGAINST wins), callback(success, error)
+// VOID removed from contract — handled via self-settle (both sign, 0% fee).
 
 function resolveBet(coinid, outcome, callback) {
     acquireTxnLock(function() {
         var txid = "resolve_" + Date.now();
+        notify("Building resolve transaction...", "info");
 
         MDS.cmd("txncreate id:" + txid, function(r0) {
-            if (!r0.status) { releaseTxnLock(); callback(false, "txncreate failed"); return; }
+            if (!r0.status) { releaseTxnLock(); notify("txncreate failed", "err"); callback(false, "txncreate failed"); return; }
 
             MDS.cmd("txninput id:" + txid + " coinid:" + coinid, function(r1) {
-                if (!r1.status) { cleanupTxn(txid); callback(false, "input failed"); return; }
+                if (!r1.status) { cleanupTxn(txid); notify("Input failed", "err"); callback(false, "input failed"); return; }
 
                 MDS.cmd("coins coinid:" + coinid, function(coinRes) {
                     if (!coinRes.status || !coinRes.response || coinRes.response.length === 0) {
-                        cleanupTxn(txid); callback(false, "coin not found"); return;
+                        cleanupTxn(txid); notify("Coin not found", "err"); callback(false, "coin not found"); return;
                     }
                     var coin = coinRes.response[0];
                     var totalPot = parseFloat(coin.amount);
-                    var ownerStake = parseFloat(getStateVal(coin, 10));
                     var ownerSide = parseInt(getStateVal(coin, 6));
                     var ownerAddr = getStateVal(coin, 1);
                     var counterAddr = getStateVal(coin, 9);
                     var arbAddr = getStateVal(coin, 3);
                     var arbPk = getStateVal(coin, 2);
 
-                    // VOID: 10% of pot to arbiter, 90% refund proportionally
-                    if (outcome === 2) {
-                        var voidFee = Math.floor((totalPot / 10) * 1e8) / 1e8;
-                        var ownerRefund = Math.floor((ownerStake - ownerStake / 10) * 1e8) / 1e8;
-                        var counterRefund = Math.floor((totalPot - voidFee - ownerRefund) * 1e8) / 1e8;
-
-                        MDS.log("VOID: fee=" + voidFee + " ownerRefund=" + ownerRefund + " counterRefund=" + counterRefund);
-
-                        MDS.cmd("txnoutput id:" + txid + " amount:" + ownerRefund.toFixed(8) + " address:" + ownerAddr + " storestate:false", function(r2) {
-                            if (!r2.status) { cleanupTxn(txid); callback(false, "owner refund output failed"); return; }
-                            MDS.cmd("txnoutput id:" + txid + " amount:" + counterRefund.toFixed(8) + " address:" + counterAddr + " storestate:false", function(r3) {
-                                if (!r3.status) { cleanupTxn(txid); callback(false, "counter refund output failed"); return; }
-                                MDS.cmd("txnoutput id:" + txid + " amount:" + voidFee.toFixed(8) + " address:" + arbAddr + " storestate:false", function(r4) {
-                                    if (!r4.status) { cleanupTxn(txid); callback(false, "fee output failed"); return; }
-                                    MDS.cmd("txnstate id:" + txid + " port:11 value:2", function(r5) {
-                                        if (!r5.status) { cleanupTxn(txid); callback(false, "state failed"); return; }
-                                        signAndPostArbiter(txid, arbPk, "Bet voided", callback);
-                                    });
-                                });
-                            });
-                        });
-                        return;
-                    }
-
-                    // TRUE or FALSE wins: 10% of profit as fee
-                    var profit, winnerAddr;
-                    if (outcome === ownerSide) {
-                        profit = totalPot - ownerStake;
-                        winnerAddr = ownerAddr;
-                    } else {
-                        profit = ownerStake;
-                        winnerAddr = counterAddr;
-                    }
-                    var fee = Math.floor((profit / 10) * 1e8) / 1e8;
+                    // Fee = 10% of total pot (matches contract: f=@AMOUNT/10)
+                    var fee = Math.floor((totalPot / 10) * 1e8) / 1e8;
                     var winnings = (totalPot - fee).toFixed(8);
                     var feeStr = fee.toFixed(8);
+                    var winnerAddr = (outcome === ownerSide) ? ownerAddr : counterAddr;
 
-                    MDS.log("RESOLVE: outcome=" + outcome + " profit=" + profit + " fee=" + feeStr + " winner=" + winnerAddr);
+                    notify("Resolve: winner gets " + winnings + ", arbiter fee " + feeStr, "info");
 
                     // Output 0 (@INPUT): winnings to winner
                     MDS.cmd("txnoutput id:" + txid + " amount:" + winnings + " address:" + winnerAddr + " storestate:false", function(r2) {
-                        if (!r2.status) { cleanupTxn(txid); callback(false, "winner output failed"); return; }
+                        if (!r2.status) { cleanupTxn(txid); notify("Winner output failed", "err"); callback(false, "winner output failed"); return; }
 
                         // Output 1 (@INPUT+1): fee to arbiter
                         MDS.cmd("txnoutput id:" + txid + " amount:" + feeStr + " address:" + arbAddr + " storestate:false", function(r3) {
-                            if (!r3.status) { cleanupTxn(txid); callback(false, "fee output failed"); return; }
+                            if (!r3.status) { cleanupTxn(txid); notify("Fee output failed", "err"); callback(false, "fee output failed"); return; }
 
+                            // Set STATE(11)=outcome AND STATE(14)=0 (Java VM requires all STATE ports set)
                             MDS.cmd("txnstate id:" + txid + " port:11 value:" + outcome, function(r4) {
-                                if (!r4.status) { cleanupTxn(txid); callback(false, "state set failed"); return; }
-                                var label = outcome === 1 ? "TRUE wins" : "FALSE wins";
-                                signAndPostArbiter(txid, arbPk, label, callback);
+                                if (!r4.status) { cleanupTxn(txid); callback(false, "state 11 failed"); return; }
+                                MDS.cmd("txnstate id:" + txid + " port:14 value:0", function(r5) {
+                                    if (!r5.status) { cleanupTxn(txid); callback(false, "state 14 failed"); return; }
+                                    var label = outcome === 1 ? "TRUE wins" : "FALSE wins";
+                                    signAndPostArbiter(txid, arbPk, label, callback);
+                                });
                             });
                         });
                     });
@@ -646,6 +621,9 @@ function timeoutBet(coinid, callback) {
                         MDS.cmd("txnoutput id:" + txid + " amount:" + counterStake + " address:" + counterAddr + " storestate:false", function(r3) {
                             if (!r3.status) { cleanupTxn(txid); notify("Counter output failed", "err"); callback(false, "counter output failed"); return; }
 
+                            // Must set STATE(14)=0 — Java VM crashes on unset STATE ports
+                            MDS.cmd("txnstate id:" + txid + " port:14 value:0", function() {
+
                             notify("Posting timeout refund...", "info");
                             MDS.cmd("txnbasics id:" + txid, function(br) {
                                 if (!br || !br.status) {
@@ -664,6 +642,7 @@ function timeoutBet(coinid, callback) {
                                     }
                                 });
                             });
+                            }); // txnstate port:14
                         });
                     });
                 });
