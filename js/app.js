@@ -110,8 +110,8 @@ function initApp() {
                 loadMaximaIdentity(function() {
                 notify("Initializing database...", "info");
                 initDB(function() {
-                    MDS.log("Wager v0.7.1 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
-                    notify("Wager v0.7.1 ready", "ok");
+                    MDS.log("Wager v0.7.2 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    notify("Wager v0.7.2 ready", "ok");
                     refreshBalance();
                     refreshBetsAndProposals(function() { renderCurrentView(); });
                 });
@@ -745,12 +745,12 @@ function showCounterModal() {
             if (bWant > otherBestAsk) otherBestAsk = bWant;
         }
     });
-    var sliderMin = myBestBid > 0 ? myBestBid : 0.1;
+    var sliderMin = myBestBid > 0 ? myBestBid : 0;
     var sliderMax = otherBestAsk > 0 ? otherBestAsk : theirAsk;
-    if (sliderMax <= sliderMin) sliderMax = sliderMin + 0.1;
+    if (sliderMax <= sliderMin) sliderMax = sliderMin + 1;
     var spread = sliderMax - sliderMin;
-    var sliderStep = spread / 10; // always 10 increments
-    if (sliderStep < 0.01) sliderStep = 0.01;
+    // Clean step: 0.01, 0.1, 0.5, or 1.0 — always lands on round numbers
+    var sliderStep = spread <= 1 ? 0.01 : spread <= 10 ? 0.1 : spread <= 50 ? 0.5 : 1;
     var sliderDefault = sliderMin;
 
     var modal = document.getElementById("counterModal");
