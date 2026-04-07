@@ -340,24 +340,31 @@ function cancelBet(coinid, callback) {
         var txid = "cancel_" + Date.now();
         notify("Cancelling bet...", "info");
 
+        // Fetch coin FIRST to verify it still exists (auto-refresh may have changed coinid)
+        findCoinByIdOnChain(coinid, function(coin) {
+            if (!coin) {
+                // Coinid changed — try to find by proposition in OPEN_BETS
+                var bet = OPEN_BETS ? OPEN_BETS.find(function(b) { return b.coinid === coinid; }) : null;
+                if (!bet) {
+                    releaseTxnLock(); notify("Coin not found — may have been refreshed", "err"); callback(false, "coin not found"); return;
+                }
+            }
+            var actualCoinid = coin ? coin.coinid : coinid;
+            var ownerAddr = coin ? getStateVal(coin, 1) : "";
+            var amt = coin ? coin.amount : "0";
+
         MDS.cmd("txncreate id:" + txid, function(r0) {
             if (!r0.status) { releaseTxnLock(); notify("txncreate failed", "err"); callback(false, "txncreate failed"); return; }
 
-            MDS.cmd("txninput id:" + txid + " coinid:" + coinid, function(r1) {
-                if (!r1.status) { cleanupTxn(txid); notify("Input failed", "err"); callback(false, "input failed"); return; }
-
-                findCoinByIdOnChain(coinid, function(coin) {
-                    if (!coin) {
-                        cleanupTxn(txid); notify("Coin not found", "err"); callback(false, "coin not found"); return;
-                    }
-                    var ownerAddr = getStateVal(coin, 1);
-                    var amt = coin.amount;
+            MDS.cmd("txninput id:" + txid + " coinid:" + actualCoinid, function(r1) {
+                if (!r1.status) { cleanupTxn(txid); notify("Input failed — coin may have been refreshed", "err"); callback(false, "input failed"); return; }
 
                     MDS.cmd("txnoutput id:" + txid + " amount:" + amt + " address:" + ownerAddr + " storestate:false", function(r2) {
                         if (!r2.status) { cleanupTxn(txid); notify("Output failed", "err"); callback(false, "output failed"); return; }
 
                         notify("Signing cancel...", "info");
-                        MDS.cmd("txnsign id:" + txid + " publickey:" + getStateVal(coin, 0), function(signRes) {
+                        var sigKey = coin ? getStateVal(coin, 0) : "auto";
+                        MDS.cmd("txnsign id:" + txid + " publickey:" + sigKey, function(signRes) {
                             if (isPending(signRes)) {
                                 releaseTxnLock();
                                 handlePending(txid, callback);
@@ -391,8 +398,8 @@ function cancelBet(coinid, callback) {
                     });
                 });
             });
-        });
-    });
+        }); // findCoinByIdOnChain
+    }); // acquireTxnLock
 }
 
 // -- Self-Settle (Phase 1) --
@@ -855,8 +862,8 @@ function parseBetCoin(coin) {
         proposition: hexToStr(getStateVal(coin, 12)),
         propositionHex: getStateVal(coin, 12),
         settlement: getStateVal(coin, 13),
-        ownermxkey: hexToStr(getStateVal(coin, 15)),
-        countermxkey: hexToStr(getStateVal(coin, 16)),
+        ownermxkey: (function(){ var k = hexToStr(getStateVal(coin, 15)); return k && k.substring(0,2) === "Mx" ? k : ""; })(),
+        countermxkey: (function(){ var k = hexToStr(getStateVal(coin, 16)); return k && k.substring(0,2) === "Mx" ? k : ""; })(),
         isMine: isMyKey(getStateVal(coin, 0)),
         isMyCounter: isMyKey(getStateVal(coin, 8)),
         isMyArb: isMyKey(getStateVal(coin, 2)),

@@ -193,8 +193,8 @@ function initApp() {
                 initDB(function() {
                     // Register coinnotify for ChainMail (mInbox pattern)
                     MDS.cmd("coinnotify action:add address:" + WAGER_MAIL_ADDRESS);
-                    MDS.log("Wager v0.9.8 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
-                    notify("Wager v0.9.8 ready", "ok");
+                    MDS.log("Wager v0.9.9 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    notify("Wager v0.9.9 ready", "ok");
                     refreshBalance();
                     refreshBetsAndProposals(function() { renderCurrentView(); });
                 });
