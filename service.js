@@ -34,8 +34,15 @@ MDS.init(function(msg) {
     }
 
     else if (msg.event === "NOTIFYCOIN") {
-        if (msg.data.address === WAGER_MAIL_ADDRESS && msg.data.coin && msg.data.coin.state[99]) {
-            decryptChainMail(msg.data.coin.state[99], function(success, message, senderMxKey) {
+        var notifyCoin = msg.data.coin;
+        var state99data = null;
+        if (msg.data.address === WAGER_MAIL_ADDRESS && notifyCoin && notifyCoin.state) {
+            for (var i = 0; i < notifyCoin.state.length; i++) {
+                if (notifyCoin.state[i].port === 99) { state99data = notifyCoin.state[i].data; break; }
+            }
+        }
+        if (state99data) {
+            decryptChainMail(state99data, function(success, message, senderMxKey) {
                 if (success && message) {
                     processMessage(message, senderMxKey);
                 }
