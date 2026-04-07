@@ -173,7 +173,11 @@ function sendChainMail(recipientMxKey, payload, callback) {
  */
 function decryptChainMail(encryptedData, callback) {
     try {
-        MDS.cmd("maxmessage action:decrypt data:" + encryptedData, function(decRes) {
+        // Strip 0x prefix before passing to maxmessage (PocketShop pattern)
+        var cleanData = encryptedData;
+        if (cleanData && cleanData.substring(0, 2) === '0x') cleanData = cleanData.substring(2);
+
+        MDS.cmd("maxmessage action:decrypt data:" + cleanData, function(decRes) {
             if (!decRes || !decRes.status) {
                 // Not for us — silent skip
                 if (callback) callback(false, null, null);

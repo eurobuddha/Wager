@@ -20,6 +20,9 @@ MDS.load("./js/wager.js");
 
 MDS.init(function(msg) {
 
+    // Use independent if blocks (not else if) — mInbox/PocketShop pattern
+    // Events fire independently, else-if can block later handlers
+
     if (msg.event === "inited") {
         initDB(function() {
             registerContract(function() {
@@ -35,38 +38,39 @@ MDS.init(function(msg) {
         });
     }
 
-    else if (msg.event === "NOTIFYCOIN") {
+    if (msg.event === "NOTIFYCOIN") {
         var notifyCoin = msg.data && msg.data.coin;
-        if (notifyCoin && msg.data.address === WAGER_MAIL_ADDRESS) {
-            var state99data = getState99(notifyCoin.state);
-            if (state99data) {
-                MDS.log("NOTIFYCOIN: found state99, attempting decrypt...");
-                decryptChainMail(state99data, function(success, message, senderMxKey) {
-                    if (success && message) {
-                        processMessage(message, senderMxKey);
-                    }
-                });
+        if (notifyCoin) {
+            var coinAddr = notifyCoin.address || (msg.data && msg.data.address) || "";
+            if (coinAddr === WAGER_MAIL_ADDRESS) {
+                var state99data = getState99(notifyCoin.state);
+                if (state99data) {
+                    MDS.log("NOTIFYCOIN: found state99, attempting decrypt...");
+                    decryptChainMail(state99data, function(success, message, senderMxKey) {
+                        if (success && message) {
+                            processMessage(message, senderMxKey);
+                        }
+                    });
+                }
             }
         }
     }
 
-    else if (msg.event === "NEWBLOCK") {
+    if (msg.event === "NEWBLOCK") {
         if (!WAGER_SCRIPT_ADDRESS) {
             registerContract();
         }
-        // Ensure coinnotify is registered (lost after update/restart)
         ensureCoinNotify();
-        // Auto-refresh stale coins to keep them alive across cascade
         checkAndRefreshCoins();
     }
 
-    else if (msg.event === "MDS_TIMER_60SECONDS") {
+    if (msg.event === "MDS_TIMER_60SECONDS") {
         syncBetCoins();
         ensureCoinNotify();
         scanUnprocessedMail();
     }
 
-    else if (msg.event === "MDSCOMMS") {
+    if (msg.event === "MDSCOMMS") {
         if (!msg.data.public) {
             try {
                 var req = JSON.parse(msg.data.message);
