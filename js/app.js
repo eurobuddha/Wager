@@ -182,8 +182,8 @@ function initApp() {
                 initDB(function() {
                     // Register coinnotify for ChainMail (mInbox pattern)
                     MDS.cmd("coinnotify action:add address:" + WAGER_MAIL_ADDRESS);
-                    MDS.log("Wager v0.9.4 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
-                    notify("Wager v0.9.4 ready", "ok");
+                    MDS.log("Wager v0.9.5 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    notify("Wager v0.9.5 ready", "ok");
                     refreshBalance();
                     refreshBetsAndProposals(function() { renderCurrentView(); });
                 });
@@ -801,24 +801,24 @@ function showCounterModal() {
     var theirBet = COUNTER_THEIR_BET;
     var theirAsk = COUNTER_THEIR_ASK;
 
-    // Slider = the market spread. Find what both sides are asking.
+    // Slider = the market spread: from best counter bid to highest ask.
     var mySideNum = bet.side === 1 ? 0 : 1;
-    var myBestBid = 0;    // best existing counter on my side (floor)
-    var otherBestAsk = 0; // best ask on the other side (ceiling)
+    var otherSideNum = bet.side;
+    var bestBid = 0;     // best existing counter on my side (floor)
+    var highestAsk = 0;  // highest wantstake on either side (ceiling)
     OPEN_BETS.forEach(function(b) {
         if (b.proposition !== bet.proposition || b.phase !== 0) return;
         var bBet = parseFloat(b.amount) / (1 + ESCROW_RATE);
         var bWant = parseFloat(b.wantstake || "0") / (1 + ESCROW_RATE);
         if (b.side === mySideNum) {
             // My side — best existing bid (tightens from below)
-            if (bBet > myBestBid) myBestBid = bBet;
-        } else {
-            // Other side — their ask (ceiling)
-            if (bWant > otherBestAsk) otherBestAsk = bWant;
+            if (bBet > bestBid) bestBid = bBet;
         }
+        // Track highest ask from either side (the full range)
+        if (bWant > highestAsk) highestAsk = bWant;
     });
-    var sliderMin = myBestBid > 0 ? myBestBid : 0;
-    var sliderMax = otherBestAsk > 0 ? otherBestAsk : theirAsk;
+    var sliderMin = bestBid > 0 ? bestBid : 0;
+    var sliderMax = highestAsk > 0 ? highestAsk : theirAsk;
     if (sliderMax <= sliderMin) sliderMax = sliderMin + 1;
     var spread = sliderMax - sliderMin;
     // Clean step: 0.01, 0.1, 0.5, or 1.0 — always lands on round numbers
