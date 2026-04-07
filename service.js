@@ -23,10 +23,12 @@ MDS.init(function(msg) {
     if (msg.event === "inited") {
         initDB(function() {
             registerContract(function() {
-                MDS.cmd("coinnotify action:add address:" + WAGER_MAIL_ADDRESS, function() {
-                    MDS.log("Wager service started. Contract=" + WAGER_SCRIPT_ADDRESS + " Mail=" + WAGER_MAIL_ADDRESS);
+                loadWalletKeys(function() {
+                    MDS.cmd("coinnotify action:add address:" + WAGER_MAIL_ADDRESS, function() {
+                        MDS.log("Wager service started. Contract=" + WAGER_SCRIPT_ADDRESS + " Mail=" + WAGER_MAIL_ADDRESS);
+                    });
+                    syncBetCoins();
                 });
-                syncBetCoins();
             });
         });
     }
