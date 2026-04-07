@@ -160,7 +160,8 @@ function postBet(params, callback) {
             "6": "" + params.side,
             "7": "" + params.wantstake,
             "12": strToHex(params.market || ""),
-            "13": "" + (params.settlement || "0")
+            "13": "" + (params.settlement || "0"),
+            "15": MY_MXKEY || ""
         });
 
         var cmd = "send amount:" + params.stake + " address:" + WAGER_SCRIPT_ADDRESS + " state:" + stateObj;
@@ -276,6 +277,12 @@ function fillBet(bet, callback) {
                                                 MDS.cmd("txndelete id:" + txid);
                                                 if (pr && pr.status) {
                                                     notify("Bet matched! Waiting for confirmation...", "ok");
+                                                    // Notify owner + arbiter via ChainMail
+                                                    var ownerMx = bet.ownermxkey || "";
+                                                    var arbMx = bet.arbitermxkey || "";
+                                                    if (ownerMx || arbMx) {
+                                                        notifyBetMatched(bet.coinid, totalPot, ownerMx, arbMx);
+                                                    }
                                                     callback(true, null);
                                                 } else {
                                                     notify("Post failed — " + (pr ? pr.error || "unknown" : "no response"), "err");
@@ -318,7 +325,9 @@ function setFillState(txid, bet, callback) {
         10: ownerStake,                  // ownerstake (= @AMOUNT at fill time)
         12: bet.propositionHex || strToHex(bet.proposition || ""), // raw hex preserved
         13: bet.settlement || "0",       // settlement block
-        14: "0"                          // refresh flag (must be set — Java VM crashes on unset STATE)
+        14: "0",                         // refresh flag (must be set — Java VM crashes on unset STATE)
+        15: bet.ownermxkey || "",         // owner's Maxima key (for ChainMail)
+        16: MY_MXKEY || ""               // counter's Maxima key (for ChainMail)
     };
     setTxnState(txid, states, callback);
 }
@@ -722,9 +731,9 @@ function refreshCoin(coin, callback) {
             MDS.cmd("txnoutput id:" + txid + " amount:" + coin.amount + " address:" + WAGER_SCRIPT_ADDRESS + " storestate:true", function(r2) {
                 if (!r2.status) { MDS.cmd("txndelete id:" + txid); if (callback) callback(false); return; }
 
-                // Copy all state ports + ensure 0-14 exist (Java VM crashes on unset STATE)
+                // Copy all state ports + ensure 0-16 exist (Java VM crashes on unset STATE)
                 var states = {};
-                for (var p = 0; p <= 14; p++) states[p] = "0";
+                for (var p = 0; p <= 16; p++) states[p] = "0";
                 coin.state.forEach(function(s) { states[s.port] = s.data; });
                 states[14] = "1"; // refresh flag
 
@@ -851,6 +860,8 @@ function parseBetCoin(coin) {
         proposition: hexToStr(getStateVal(coin, 12)),
         propositionHex: getStateVal(coin, 12),
         settlement: getStateVal(coin, 13),
+        ownermxkey: getStateVal(coin, 15),
+        countermxkey: getStateVal(coin, 16),
         isMine: isMyKey(getStateVal(coin, 0)),
         isMyCounter: isMyKey(getStateVal(coin, 8)),
         isMyArb: isMyKey(getStateVal(coin, 2)),

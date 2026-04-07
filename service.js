@@ -213,8 +213,8 @@ function checkAndRefreshCoins() {
                         var ports = [];
                         var setPorts = {};
                         coin.state.forEach(function(s) { ports.push(s.port + ":" + s.data); setPorts[s.port] = true; });
-                        // Ensure ALL ports 0-14 exist — Java VM crashes on unset STATE in SAMESTATE
-                        for (var p = 0; p <= 14; p++) {
+                        // Ensure ALL ports 0-16 exist — Java VM crashes on unset STATE
+                        for (var p = 0; p <= 16; p++) {
                             if (!setPorts[p]) ports.push(p + ":0");
                         }
                         // Override port 14 = 1 (refresh flag)
