@@ -161,7 +161,7 @@ function postBet(params, callback) {
             "7": "" + params.wantstake,
             "12": strToHex(params.market || ""),
             "13": "" + (params.settlement || "0"),
-            "15": MY_MXKEY || ""
+            "15": strToHex(MY_MXKEY || "")
         });
 
         var cmd = "send amount:" + params.stake + " address:" + WAGER_SCRIPT_ADDRESS + " state:" + stateObj;
@@ -327,7 +327,7 @@ function setFillState(txid, bet, callback) {
         13: bet.settlement || "0",       // settlement block
         14: "0",                         // refresh flag (must be set — Java VM crashes on unset STATE)
         15: bet.ownermxkey || "",         // owner's Maxima key (for ChainMail)
-        16: MY_MXKEY || ""               // counter's Maxima key (for ChainMail)
+        16: strToHex(MY_MXKEY || "")      // counter's Maxima key (hex-encoded, for ChainMail)
     };
     setTxnState(txid, states, callback);
 }
@@ -855,8 +855,8 @@ function parseBetCoin(coin) {
         proposition: hexToStr(getStateVal(coin, 12)),
         propositionHex: getStateVal(coin, 12),
         settlement: getStateVal(coin, 13),
-        ownermxkey: getStateVal(coin, 15),
-        countermxkey: getStateVal(coin, 16),
+        ownermxkey: hexToStr(getStateVal(coin, 15)),
+        countermxkey: hexToStr(getStateVal(coin, 16)),
         isMine: isMyKey(getStateVal(coin, 0)),
         isMyCounter: isMyKey(getStateVal(coin, 8)),
         isMyArb: isMyKey(getStateVal(coin, 2)),
