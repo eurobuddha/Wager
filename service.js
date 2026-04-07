@@ -25,9 +25,11 @@ MDS.init(function(msg) {
             registerContract(function() {
                 loadWalletKeys(function() {
                     MDS.cmd("coinnotify action:add address:" + WAGER_MAIL_ADDRESS, function() {
+                        COINNOTIFY_SET = true;
                         MDS.log("Wager service started. Contract=" + WAGER_SCRIPT_ADDRESS + " Mail=" + WAGER_MAIL_ADDRESS);
                     });
                     syncBetCoins();
+                    scanUnprocessedMail();
                 });
             });
         });
