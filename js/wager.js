@@ -346,11 +346,10 @@ function cancelBet(coinid, callback) {
             MDS.cmd("txninput id:" + txid + " coinid:" + coinid, function(r1) {
                 if (!r1.status) { cleanupTxn(txid); notify("Input failed", "err"); callback(false, "input failed"); return; }
 
-                MDS.cmd("coins coinid:" + coinid, function(coinRes) {
-                    if (!coinRes.status || !coinRes.response || coinRes.response.length === 0) {
+                findCoinByIdOnChain(coinid, function(coin) {
+                    if (!coin) {
                         cleanupTxn(txid); notify("Coin not found", "err"); callback(false, "coin not found"); return;
                     }
-                    var coin = coinRes.response[0];
                     var ownerAddr = getStateVal(coin, 1);
                     var amt = coin.amount;
 
@@ -412,11 +411,10 @@ function selfSettle(coinid, outcome, callback) {
             MDS.cmd("txninput id:" + txid + " coinid:" + coinid, function(r1) {
                 if (!r1.status) { cleanupTxn(txid); callback(false, "input failed"); return; }
 
-                MDS.cmd("coins coinid:" + coinid, function(coinRes) {
-                    if (!coinRes.status || !coinRes.response || coinRes.response.length === 0) {
+                findCoinByIdOnChain(coinid, function(coin) {
+                    if (!coin) {
                         cleanupTxn(txid); callback(false, "coin not found"); return;
                     }
-                    var coin = coinRes.response[0];
                     var totalPot = parseFloat(coin.amount);
                     var ownerSide = parseInt(getStateVal(coin, 6));
                     var ownerAddr = getStateVal(coin, 1);
@@ -514,11 +512,10 @@ function resolveBet(coinid, outcome, callback) {
             MDS.cmd("txninput id:" + txid + " coinid:" + coinid, function(r1) {
                 if (!r1.status) { cleanupTxn(txid); notify("Input failed", "err"); callback(false, "input failed"); return; }
 
-                MDS.cmd("coins coinid:" + coinid, function(coinRes) {
-                    if (!coinRes.status || !coinRes.response || coinRes.response.length === 0) {
+                findCoinByIdOnChain(coinid, function(coin) {
+                    if (!coin) {
                         cleanupTxn(txid); notify("Coin not found", "err"); callback(false, "coin not found"); return;
                     }
-                    var coin = coinRes.response[0];
                     var totalPot = parseFloat(coin.amount);
                     var ownerSide = parseInt(getStateVal(coin, 6));
                     var ownerAddr = getStateVal(coin, 1);
@@ -614,11 +611,10 @@ function timeoutBet(coinid, callback) {
             MDS.cmd("txninput id:" + txid + " coinid:" + coinid, function(r1) {
                 if (!r1.status) { cleanupTxn(txid); notify("Input failed", "err"); callback(false, "input failed"); return; }
 
-                MDS.cmd("coins coinid:" + coinid, function(coinRes) {
-                    if (!coinRes.status || !coinRes.response || coinRes.response.length === 0) {
+                findCoinByIdOnChain(coinid, function(coin) {
+                    if (!coin) {
                         cleanupTxn(txid); notify("Coin not found", "err"); callback(false, "coin not found"); return;
                     }
-                    var coin = coinRes.response[0];
                     var ownerStake = getStateVal(coin, 10);
                     var ownerAddr = getStateVal(coin, 1);
                     var counterAddr = getStateVal(coin, 9);
@@ -672,11 +668,10 @@ function collectExpired(coinid, callback) {
         MDS.cmd("txninput id:" + txid + " coinid:" + coinid, function(r1) {
             if (!r1.status) { MDS.cmd("txndelete id:" + txid); callback(false); return; }
 
-            MDS.cmd("coins coinid:" + coinid, function(coinRes) {
-                if (!coinRes.status || !coinRes.response || coinRes.response.length === 0) {
+            findCoinByIdOnChain(coinid, function(coin) {
+                if (!coin) {
                     MDS.cmd("txndelete id:" + txid); callback(false); return;
                 }
-                var coin = coinRes.response[0];
                 var ownerAddr = getStateVal(coin, 1);
                 var amt = coin.amount;
 
@@ -924,6 +919,17 @@ function addMultipleInputs(txid, coins, idx, callback) {
     MDS.cmd("txninput id:" + txid + " coinid:" + coins[idx].coinid, function(res) {
         if (!res.status) { callback(false); return; }
         addMultipleInputs(txid, coins, idx + 1, callback);
+    });
+}
+
+// Find a coin by coinid — uses coins address: (works on all nodes) not coins coinid: (fails on trackall-discovered coins)
+function findCoinByIdOnChain(coinid, callback) {
+    MDS.cmd("coins address:" + WAGER_SCRIPT_ADDRESS, function(res) {
+        if (!res.status || !res.response) { callback(null); return; }
+        for (var i = 0; i < res.response.length; i++) {
+            if (res.response[i].coinid === coinid) { callback(res.response[i]); return; }
+        }
+        callback(null);
     });
 }
 
