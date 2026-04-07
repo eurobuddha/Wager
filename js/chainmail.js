@@ -1,5 +1,5 @@
 /**
- * Wager — ChainMail Messaging Layer (adapted from Escrow)
+ * Wager — ChainMail Messaging Layer
  *
  * Sends encrypted messages on-chain using state port 99.
  * All messages go to a fixed address. Recipients detect messages
@@ -7,6 +7,10 @@
  *
  * Only requirement to message someone: their Maxima public key (Mx...).
  * Sender's key is automatically embedded in the encryption.
+ *
+ * Based on PocketShop/miniMerch proven patterns:
+ * - Direct hex encoding (no URL-encode layer)
+ * - getState99() handles both NOTIFYCOIN object and coins array formats
  */
 
 /* Fixed on-chain address for all Wager ChainMail (hex for "WAGERMAIL") */
@@ -15,15 +19,44 @@ var WAGER_MAIL_ADDRESS = "0x57414745524D41494C";
 /* Send amount for ChainMail carrier transaction */
 var CHAINMAIL_AMOUNT = "0.001";
 
-/**
- * URL-safe encoding for command transport.
- */
-function URLencodeString(str) {
-    return encodeURIComponent(str).split("'").join("%27");
+// -- Hex encode/decode for ChainMail payloads --
+
+function cmTextToHex(str) {
+    var hex = '';
+    for (var i = 0; i < str.length; i++) {
+        hex += str.charCodeAt(i).toString(16).padStart(2, '0');
+    }
+    return hex;
 }
 
-function URLdecodeString(str) {
-    return decodeURIComponent(str).split("%27").join("'");
+function cmHexToText(hex) {
+    if (hex && hex.substring(0, 2) === '0x') hex = hex.substring(2);
+    var text = '';
+    for (var i = 0; i < hex.length; i += 2) {
+        text += String.fromCharCode(parseInt(hex.substr(i, 2), 16));
+    }
+    return text;
+}
+
+/**
+ * Extract state port 99 data from a coin's state.
+ * Handles BOTH formats:
+ *   - NOTIFYCOIN: state is object — coin.state[99] or coin.state['99']
+ *   - coins command: state is array — [{port:99, data:'0x...'}]
+ */
+function getState99(state) {
+    if (!state) return null;
+    if (Array.isArray(state)) {
+        for (var i = 0; i < state.length; i++) {
+            if (state[i] && (state[i].port === 99 || state[i].port === '99') && state[i].data)
+                return state[i].data;
+        }
+        return null;
+    }
+    if (typeof state === 'object') {
+        return state[99] || state['99'] || null;
+    }
+    return null;
 }
 
 /**
@@ -76,64 +109,45 @@ function getMyKeys(callback) {
  */
 function sendChainMail(recipientMxKey, payload, callback) {
     try {
-        /* Add a random ID for deduplication */
         if (!payload.randomid) {
             payload.randomid = "0x" + genRandomHex(32);
         }
 
-        /* JSON → URL-encoded string → hex */
-        var strVersion = URLencodeString(JSON.stringify(payload));
+        // Direct hex encoding — no URL-encode layer (miniMerch/PocketShop pattern)
+        var hexData = cmTextToHex(JSON.stringify(payload));
 
-        MDS.cmd('convert from:string to:hex data:"' + strVersion + '"', function(convRes) {
-            if (!convRes.status) {
-                MDS.log("ERROR chainmail convert: " + JSON.stringify(convRes));
-                if (callback) callback(false, "Failed to encode message");
+        // Encrypt with recipient's Maxima key
+        MDS.cmd("maxmessage action:encrypt publickey:" + recipientMxKey + " data:" + hexData, function(encRes) {
+            if (!encRes || !encRes.status) {
+                MDS.log("ERROR chainmail encrypt: " + JSON.stringify(encRes));
+                if (callback) callback(false, "Invalid recipient key or encryption failed");
                 return;
             }
 
-            var hexData = convRes.response.conversion;
+            // Build state with encrypted data in port 99
+            var state = {};
+            state[99] = encRes.response.data;
 
-            /* Encrypt with recipient's Maxima key */
-            MDS.cmd("maxmessage action:encrypt publickey:" + recipientMxKey + " data:" + hexData, function(encRes) {
-                if (!encRes.status) {
-                    MDS.log("ERROR chainmail encrypt: " + JSON.stringify(encRes));
-                    if (callback) callback(false, "Invalid recipient key or encryption failed");
-                    return;
-                }
+            // Check mode for send vs sendpoll
+            MDS.cmd("checkmode", function(modeRes) {
+                var locked = modeRes.response.dblocked;
+                var sendCmd = locked ? "send" : "sendpoll";
 
-                /* Build state with encrypted data in port 99 */
-                var state = {};
-                state[99] = encRes.response.data;
+                var txn = sendCmd + " amount:" + CHAINMAIL_AMOUNT +
+                          " address:" + WAGER_MAIL_ADDRESS +
+                          " state:" + JSON.stringify(state);
 
-                /* Check mode: sendpoll for normal, send for locked nodes */
-                MDS.cmd("checkmode", function(modeRes) {
-                    var locked = modeRes.response.dblocked;
-                    var readmode = !modeRes.response.writemode;
-
-                    /* sendpoll doesn't work through pending if node is locked */
-                    var sendCmd = locked ? "send" : "sendpoll";
-
-                    var txn = sendCmd + " amount:" + CHAINMAIL_AMOUNT +
-                              " address:" + WAGER_MAIL_ADDRESS +
-                              " state:" + JSON.stringify(state);
-
-                    MDS.cmd(txn, function(txnRes) {
-                        if (txnRes.status) {
-                            MDS.log("ChainMail sent to " + recipientMxKey.substring(0, 20) + "...");
-                            if (callback) callback(true, null, false);
-                        } else if (txnRes.pending) {
-                            /* READ mode — tx is pending user approval */
-                            MDS.log("ChainMail pending approval for " + recipientMxKey.substring(0, 20) + "...");
-                            if (callback) callback(true, null, true);
-                        } else {
-                            MDS.log("ERROR chainmail send: " + JSON.stringify(txnRes));
-                            if (locked && !readmode) {
-                                if (callback) callback(false, "Node is locked. Unlock your node or use the Pending MiniDapp.", false);
-                            } else {
-                                if (callback) callback(false, txnRes.error || "Transaction failed", false);
-                            }
-                        }
-                    });
+                MDS.cmd(txn, function(txnRes) {
+                    if (txnRes.status) {
+                        MDS.log("ChainMail sent to " + recipientMxKey.substring(0, 20) + "...");
+                        if (callback) callback(true, null, false);
+                    } else if (txnRes.pending) {
+                        MDS.log("ChainMail pending approval for " + recipientMxKey.substring(0, 20) + "...");
+                        if (callback) callback(true, null, true);
+                    } else {
+                        MDS.log("ERROR chainmail send: " + JSON.stringify(txnRes));
+                        if (callback) callback(false, txnRes.error || "Transaction failed", false);
+                    }
                 });
             });
         });
@@ -153,39 +167,28 @@ function sendChainMail(recipientMxKey, payload, callback) {
 function decryptChainMail(encryptedData, callback) {
     try {
         MDS.cmd("maxmessage action:decrypt data:" + encryptedData, function(decRes) {
-            if (!decRes.status) {
-                /* Not for us — ignore */
+            if (!decRes || !decRes.status) {
                 if (callback) callback(false, null, null);
                 return;
             }
 
-            /* Check signature validity */
-            if (!decRes.response.message.valid) {
-                MDS.log("WARN: Invalid signature on ChainMail message");
+            if (!decRes.response || !decRes.response.message || !decRes.response.message.valid) {
                 if (callback) callback(false, null, null);
                 return;
             }
 
-            /* Extract sender's Mx public key (for replies) */
             var senderMxKey = decRes.response.message.mxpublickey;
             var hexData = decRes.response.message.data;
 
-            /* Hex → string → JSON */
-            MDS.cmd("convert from:HEX to:string data:" + hexData, function(convRes) {
-                if (!convRes.status) {
-                    if (callback) callback(false, null, null);
-                    return;
-                }
-
-                try {
-                    var jsonStr = URLdecodeString(convRes.response.conversion);
-                    var message = JSON.parse(jsonStr);
-                    if (callback) callback(true, message, senderMxKey);
-                } catch (e) {
-                    MDS.log("ERROR chainmail parse: " + e);
-                    if (callback) callback(false, null, null);
-                }
-            });
+            // Direct hex-to-text decode (no URL-decode, no convert command)
+            try {
+                var jsonStr = cmHexToText(hexData);
+                var message = JSON.parse(jsonStr);
+                if (callback) callback(true, message, senderMxKey);
+            } catch (e) {
+                MDS.log("ERROR chainmail parse: " + e);
+                if (callback) callback(false, null, null);
+            }
         });
     } catch (e) {
         MDS.log("ERROR chainmail decrypt exception: " + e);

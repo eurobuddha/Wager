@@ -36,20 +36,19 @@ MDS.init(function(msg) {
     }
 
     else if (msg.event === "NOTIFYCOIN") {
-        var notifyCoin = msg.data.coin;
-        var state99data = null;
-        if (msg.data.address === WAGER_MAIL_ADDRESS && notifyCoin && notifyCoin.state) {
-            for (var i = 0; i < notifyCoin.state.length; i++) {
-                if (notifyCoin.state[i].port === 99) { state99data = notifyCoin.state[i].data; break; }
-            }
-        }
+        var notifyCoin = msg.data && msg.data.coin;
+        if (!notifyCoin || msg.data.address !== WAGER_MAIL_ADDRESS) { /* skip */ }
+        else {
+        var state99data = getState99(notifyCoin.state);
         if (state99data) {
+            MDS.log("NOTIFYCOIN: found state99, attempting decrypt...");
             decryptChainMail(state99data, function(success, message, senderMxKey) {
                 if (success && message) {
                     processMessage(message, senderMxKey);
                 }
             });
         }
+        } // else (address matched)
     }
 
     else if (msg.event === "NEWBLOCK") {
@@ -188,10 +187,7 @@ function scanUnprocessedMail() {
         // Only process recent coins (age < 50 blocks = ~40 min)
         var recent = res.response.filter(function(c) { return parseInt(c.age) < 50 && !c.spent; });
         recent.forEach(function(coin) {
-            var state99 = null;
-            for (var i = 0; i < coin.state.length; i++) {
-                if (coin.state[i].port === 99) { state99 = coin.state[i].data; break; }
-            }
+            var state99 = getState99(coin.state);
             if (state99) {
                 decryptChainMail(state99, function(success, message, senderMxKey) {
                     if (success && message) {
