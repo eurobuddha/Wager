@@ -193,8 +193,8 @@ function initApp() {
                 initDB(function() {
                     // Register coinnotify for ChainMail (mInbox pattern)
                     MDS.cmd("coinnotify action:add address:" + WAGER_MAIL_ADDRESS);
-                    MDS.log("Wager v0.9.9 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
-                    notify("Wager v0.9.9 ready", "ok");
+                    MDS.log("Wager v1.0.0 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    notify("Wager v1.0.0 ready", "ok");
                     refreshBalance();
                     refreshBetsAndProposals(function() { renderCurrentView(); });
                 });
@@ -522,14 +522,15 @@ function renderMarketsView(el) {
                     if (againstWant === 0 || wt < againstWant) { againstWant = wt; }
                 });
 
-                // Bet size = original poster's stake (the wager amount)
-                var betSize = Math.max(forBet, againstBet);
+                // Bet size = the smaller stake (the original proposition amount)
+                var betSize = Math.min(forBet || againstBet, againstBet || forBet);
+                if (betSize === 0) betSize = Math.max(forBet, againstBet);
 
-                // Spread: what each side ASKS from counters (the counter market range)
+                // Spread: what each side STAKES (their offer to the market)
                 var forPrice = 0, againstPrice = 0;
                 if (m.forBets.length > 0 && m.againstBets.length > 0) {
-                    forPrice = forWant;        // what FOR asks from counters
-                    againstPrice = againstWant; // what AGAINST asks from counters
+                    forPrice = forBet;          // what FOR stakes
+                    againstPrice = againstBet;  // what AGAINST stakes
                 }
 
                 var spreadHtml = '';
