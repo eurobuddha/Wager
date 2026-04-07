@@ -350,8 +350,8 @@ function cancelBet(coinid, callback) {
                 }
             }
             var actualCoinid = coin ? coin.coinid : coinid;
-            var ownerAddr = coin ? getStateVal(coin, 1) : "";
-            var amt = coin ? coin.amount : "0";
+            var ownerAddr = coin ? getStateVal(coin, 1) : (bet ? bet.owneraddr : "");
+            var amt = coin ? coin.amount : (bet ? bet.amount : "0");
 
         MDS.cmd("txncreate id:" + txid, function(r0) {
             if (!r0.status) { releaseTxnLock(); notify("txncreate failed", "err"); callback(false, "txncreate failed"); return; }
