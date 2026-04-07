@@ -47,12 +47,16 @@ MDS.init(function(msg) {
         if (!WAGER_SCRIPT_ADDRESS) {
             registerContract();
         }
+        // Ensure coinnotify is registered (lost after update/restart)
+        ensureCoinNotify();
         // Auto-refresh stale coins to keep them alive across cascade
         checkAndRefreshCoins();
     }
 
     else if (msg.event === "MDS_TIMER_60SECONDS") {
         syncBetCoins();
+        ensureCoinNotify();
+        scanUnprocessedMail();
     }
 
     else if (msg.event === "MDSCOMMS") {
@@ -148,6 +152,46 @@ function handleSettleReject(message, senderMxKey) {
 function handleDispute(message, senderMxKey) {
     MDS.log("DISPUTE: arbiter must resolve bet " + (message.betid || "?"));
     MDS.notify("Dispute! You must resolve a bet. Open Wager to decide.");
+}
+
+/**
+ * Ensure coinnotify is registered for ChainMail address.
+ * Re-registers on every NEWBLOCK in case it was lost after update/restart.
+ */
+var COINNOTIFY_SET = false;
+function ensureCoinNotify() {
+    if (COINNOTIFY_SET || !WAGER_MAIL_ADDRESS) return;
+    MDS.cmd("coinnotify action:add address:" + WAGER_MAIL_ADDRESS, function(res) {
+        if (res && res.status) {
+            COINNOTIFY_SET = true;
+            MDS.log("ChainMail coinnotify registered: " + WAGER_MAIL_ADDRESS);
+        }
+    });
+}
+
+/**
+ * Scan for unprocessed ChainMail — catches messages missed during downtime/update.
+ */
+function scanUnprocessedMail() {
+    if (!WAGER_MAIL_ADDRESS) return;
+    MDS.cmd("coins address:" + WAGER_MAIL_ADDRESS, function(res) {
+        if (!res.status || !res.response) return;
+        // Only process recent coins (age < 50 blocks = ~40 min)
+        var recent = res.response.filter(function(c) { return parseInt(c.age) < 50 && !c.spent; });
+        recent.forEach(function(coin) {
+            var state99 = null;
+            for (var i = 0; i < coin.state.length; i++) {
+                if (coin.state[i].port === 99) { state99 = coin.state[i].data; break; }
+            }
+            if (state99) {
+                decryptChainMail(state99, function(success, message, senderMxKey) {
+                    if (success && message) {
+                        processMessage(message, senderMxKey);
+                    }
+                });
+            }
+        });
+    });
 }
 
 /**
