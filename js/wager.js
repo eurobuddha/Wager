@@ -983,13 +983,14 @@ function notifyBetMatched(betid, pot, ownerMxKey, arbMxKey, callback) {
     if (total === 0 && callback) callback(true);
 }
 
-function sendSettlePropose(counterMxKey, betid, outcome, txnHex, callback) {
+function sendSettlePropose(counterMxKey, betid, outcome, txnHex, proposition, callback) {
     if (!counterMxKey) { if (callback) callback(false, "No counter Mx key"); return; }
     sendChainMail(counterMxKey, {
         type: "SETTLE_PROPOSE",
         betid: betid,
         outcome: outcome,
         txnhex: txnHex,
+        proposition: proposition || "",
         sender_name: MY_MXNAME,
         sender_mxkey: MY_MXKEY
     }, function(ok, err) { if (callback) callback(ok, err); });

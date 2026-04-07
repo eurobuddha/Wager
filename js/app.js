@@ -135,6 +135,9 @@ MDS.init(function(msg) {
     }
 });
 
+// Track processed mail coinids to avoid re-decrypting every 10s
+var PROCESSED_MAIL = {};
+
 // Scan for unprocessed ChainMail in the app context (mirrors service.js scan)
 function scanForChainMail() {
     if (!WAGER_MAIL_ADDRESS) return;
@@ -142,13 +145,21 @@ function scanForChainMail() {
         if (!res || !res.status || !res.response) return;
         var recent = res.response.filter(function(c) { return parseInt(c.age) < 50 && !c.spent; });
         recent.forEach(function(coin) {
+            if (PROCESSED_MAIL[coin.coinid]) return; // already tried this coin
             var s99 = getState99(coin.state);
             if (s99) {
+                PROCESSED_MAIL[coin.coinid] = true;
                 decryptChainMail(s99, function(success, message, senderMxKey) {
                     if (success && message && message.type === "SETTLE_PROPOSE" && message.betid) {
-                        // Check if already stored
                         messageExists(message.randomid, function(exists) {
                             if (!exists) {
+                                // Include proposition in stored data for matching after coinid changes
+                                var storeData = message;
+                                if (!storeData.proposition) {
+                                    // Try to find proposition from matched bets
+                                    var mb = MATCHED_BETS.find(function(b) { return b.coinid === message.betid; });
+                                    if (mb) storeData.proposition = mb.proposition;
+                                }
                                 notify("Settlement proposal received!", "ok");
                                 insertMessage({
                                     randomid: message.randomid || "0x" + Date.now(),
@@ -156,7 +167,7 @@ function scanForChainMail() {
                                     type: message.type,
                                     sender_mxkey: senderMxKey || "",
                                     sender_name: message.sender_name || "",
-                                    data: JSON.stringify(message),
+                                    data: JSON.stringify(storeData),
                                     direction: "received"
                                 });
                                 refreshBetsAndProposals(renderCurrentView);
@@ -182,8 +193,8 @@ function initApp() {
                 initDB(function() {
                     // Register coinnotify for ChainMail (mInbox pattern)
                     MDS.cmd("coinnotify action:add address:" + WAGER_MAIL_ADDRESS);
-                    MDS.log("Wager v0.9.5 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
-                    notify("Wager v0.9.5 ready", "ok");
+                    MDS.log("Wager v0.9.6 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    notify("Wager v0.9.6 ready", "ok");
                     refreshBalance();
                     refreshBetsAndProposals(function() { renderCurrentView(); });
                 });
@@ -245,15 +256,23 @@ function refreshBetsAndProposals(callback) {
     refreshBets(function() {
         loadPendingProposals(function(rows) {
             PENDING_PROPOSALS = {};
-            // Build set of active matched coinids
-            var matchedIds = {};
-            MATCHED_BETS.forEach(function(b) { matchedIds[b.coinid] = true; });
+            // Match proposals to matched bets by proposition text (coinid changes with auto-refresh)
             rows.forEach(function(row) {
                 try {
                     var data = JSON.parse(row.DATA);
-                    var coinid = data.betid || "";
-                    if (coinid && matchedIds[coinid]) {
-                        PENDING_PROPOSALS[coinid] = {
+                    var proposalBetid = data.betid || "";
+                    // Try direct coinid match first
+                    var matchedBet = MATCHED_BETS.find(function(b) { return b.coinid === proposalBetid; });
+                    // If no direct match, find by proposition (coinid changes after refresh)
+                    if (!matchedBet && data.proposition) {
+                        matchedBet = MATCHED_BETS.find(function(b) { return b.proposition === data.proposition; });
+                    }
+                    // Last resort: if only one matched bet, assume it's the target
+                    if (!matchedBet && MATCHED_BETS.length === 1) {
+                        matchedBet = MATCHED_BETS[0];
+                    }
+                    if (matchedBet) {
+                        PENDING_PROPOSALS[matchedBet.coinid] = {
                             outcome: data.outcome,
                             txnhex: data.txnhex,
                             sender_mxkey: data.sender_mxkey || row.SENDER_MXKEY || "",
@@ -1035,7 +1054,7 @@ function doPropose(coinid, outcome) {
         if (ok && txnHex) {
             var counterMxKey = bet.isMine ? bet.countermxkey : bet.ownermxkey;
             if (counterMxKey) {
-                sendSettlePropose(counterMxKey, coinid, outcome, txnHex, function() {
+                sendSettlePropose(counterMxKey, coinid, outcome, txnHex, bet.proposition, function() {
                     notify("Proposal sent — waiting for counterparty", "ok");
                 });
             } else {
