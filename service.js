@@ -16,6 +16,7 @@
 MDS.load("./js/chainmail.js");
 MDS.load("./js/db.js");
 MDS.load("./js/contract.js");
+MDS.load("./js/wager.js");
 
 MDS.init(function(msg) {
 
