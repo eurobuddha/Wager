@@ -109,6 +109,13 @@ function getMyKeys(callback) {
  */
 function sendChainMail(recipientMxKey, payload, callback) {
     try {
+        // Validate MxKey format — must start with "Mx" (not raw 0x binary)
+        if (!recipientMxKey || recipientMxKey.substring(0, 2) !== "Mx") {
+            MDS.log("ERROR chainmail: invalid MxKey format: " + (recipientMxKey || "null").substring(0, 20));
+            if (callback) callback(false, "Invalid MxKey format");
+            return;
+        }
+
         if (!payload.randomid) {
             payload.randomid = "0x" + genRandomHex(32);
         }
@@ -168,11 +175,13 @@ function decryptChainMail(encryptedData, callback) {
     try {
         MDS.cmd("maxmessage action:decrypt data:" + encryptedData, function(decRes) {
             if (!decRes || !decRes.status) {
+                // Not for us — silent skip
                 if (callback) callback(false, null, null);
                 return;
             }
 
             if (!decRes.response || !decRes.response.message || !decRes.response.message.valid) {
+                // Invalid signature or not for us
                 if (callback) callback(false, null, null);
                 return;
             }
@@ -180,13 +189,35 @@ function decryptChainMail(encryptedData, callback) {
             var senderMxKey = decRes.response.message.mxpublickey;
             var hexData = decRes.response.message.data;
 
-            // Direct hex-to-text decode (no URL-decode, no convert command)
+            // Try direct hex decode first (v0.9.0+ format)
             try {
                 var jsonStr = cmHexToText(hexData);
                 var message = JSON.parse(jsonStr);
+                MDS.log("ChainMail received: type=" + (message.type || "?") + " from " + (senderMxKey || "").substring(0, 20));
                 if (callback) callback(true, message, senderMxKey);
+                return;
             } catch (e) {
-                MDS.log("ERROR chainmail parse: " + e);
+                // Direct hex failed — try old URL-decode format (v0.8.x and earlier)
+            }
+
+            // Fallback: old format (URL-encoded then hex-converted via MDS convert)
+            try {
+                MDS.cmd("convert from:HEX to:string data:" + hexData, function(convRes) {
+                    if (!convRes || !convRes.status) {
+                        if (callback) callback(false, null, null);
+                        return;
+                    }
+                    try {
+                        var jsonStr = decodeURIComponent(convRes.response.conversion.split("%27").join("'"));
+                        var message = JSON.parse(jsonStr);
+                        MDS.log("ChainMail received (old format): type=" + (message.type || "?"));
+                        if (callback) callback(true, message, senderMxKey);
+                    } catch (e2) {
+                        MDS.log("ChainMail decrypt: both formats failed");
+                        if (callback) callback(false, null, null);
+                    }
+                });
+            } catch (e3) {
                 if (callback) callback(false, null, null);
             }
         });

@@ -185,6 +185,7 @@ function scanUnprocessedMail() {
         if (!res.status || !res.response) return;
         // Only process recent coins (age < 50 blocks = ~40 min)
         var recent = res.response.filter(function(c) { return parseInt(c.age) < 50 && !c.spent; });
+        if (recent.length > 0) MDS.log("Scanning " + recent.length + " recent mail coin(s)...");
         recent.forEach(function(coin) {
             var state99 = getState99(coin.state);
             if (state99) {

@@ -110,8 +110,8 @@ function initApp() {
                 loadMaximaIdentity(function() {
                 notify("Initializing database...", "info");
                 initDB(function() {
-                    MDS.log("Wager v0.9.0 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
-                    notify("Wager v0.9.0 ready", "ok");
+                    MDS.log("Wager v0.9.1 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    notify("Wager v0.9.1 ready", "ok");
                     refreshBalance();
                     refreshBetsAndProposals(function() { renderCurrentView(); });
                 });
@@ -684,7 +684,7 @@ function doFill(coinid) {
         notify("Taking bet — building transaction...", "info");
         fillBet(bet, function(ok, err) {
             if (ok) {
-                notify("Bet matched!", "ok");
+                notify("Bet filled — waiting for on-chain confirmation (2-3 blocks)...", "info");
                 refreshBetsAndProposals(renderCurrentView);
             } else {
                 notify("Fill failed: " + (err || "unknown"), "err");

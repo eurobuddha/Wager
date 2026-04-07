@@ -194,7 +194,7 @@ function postBet(params, callback) {
                     myrole: "owner",
                     status: "OPEN"
                 });
-                notify("Bet posted — waiting for confirmation", "ok");
+                notify("Bet posted — confirming on-chain (2-3 blocks, ~2 min)...", "info");
                 callback(true, null);
             } else {
                 var err = res.error || "Failed to post bet";
@@ -276,7 +276,7 @@ function fillBet(bet, callback) {
                                                 releaseTxnLock();
                                                 MDS.cmd("txndelete id:" + txid);
                                                 if (pr && pr.status) {
-                                                    notify("Bet matched! Waiting for confirmation...", "ok");
+                                                    notify("Transaction posted — confirming on-chain (2-3 blocks, ~2 min)...", "info");
                                                     // Notify owner + arbiter via ChainMail
                                                     var ownerMx = bet.ownermxkey || "";
                                                     var arbMx = bet.arbitermxkey || "";
