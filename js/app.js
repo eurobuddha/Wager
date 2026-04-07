@@ -193,8 +193,8 @@ function initApp() {
                 initDB(function() {
                     // Register coinnotify for ChainMail (mInbox pattern)
                     MDS.cmd("coinnotify action:add address:" + WAGER_MAIL_ADDRESS);
-                    MDS.log("Wager v0.9.6 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
-                    notify("Wager v0.9.6 ready", "ok");
+                    MDS.log("Wager v0.9.7 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    notify("Wager v0.9.7 ready", "ok");
                     refreshBalance();
                     refreshBetsAndProposals(function() { renderCurrentView(); });
                 });
@@ -871,7 +871,7 @@ function showCounterModal() {
         '<div class="form-group">' +
         '<label>Counter their ask of ' + theirAsk.toFixed(2) + ' MINIMA</label>' +
         '<div class="counter__spread">' +
-        '<span class="counter__end counter__end--mine">' + sliderMin.toFixed(2) + '<br/><small>' + (myBestBid > 0 ? 'best bid' : 'min') + '</small></span>' +
+        '<span class="counter__end counter__end--mine">' + sliderMin.toFixed(2) + '<br/><small>' + (bestBid > 0 ? 'best bid' : 'min') + '</small></span>' +
         '<div class="counter__sliderWrap">' +
         '<div class="counter__slider">' +
         '<button class="btn btn--ghost btn--sm" onclick="adjustCounterAmt(-' + sliderStep + ')">&#9664;</button>' +
