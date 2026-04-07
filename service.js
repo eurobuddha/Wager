@@ -209,9 +209,15 @@ function checkAndRefreshCoins() {
                     MDS.cmd("txnoutput id:" + txid + " amount:" + coin.amount + " address:" + WAGER_SCRIPT_ADDRESS + " storestate:true", function(r2) {
                         if (!r2.status) { MDS.cmd("txndelete id:" + txid); idx++; refreshNext(); return; }
 
-                        // Copy all state + set port 14 = 1 (refresh flag)
+                        // Copy all state + set missing ports to 0 + port 14 = 1 (refresh flag)
                         var ports = [];
-                        coin.state.forEach(function(s) { ports.push(s.port + ":" + s.data); });
+                        var setPorts = {};
+                        coin.state.forEach(function(s) { ports.push(s.port + ":" + s.data); setPorts[s.port] = true; });
+                        // Ensure ALL ports 0-14 exist — Java VM crashes on unset STATE in SAMESTATE
+                        for (var p = 0; p <= 14; p++) {
+                            if (!setPorts[p]) ports.push(p + ":0");
+                        }
+                        // Override port 14 = 1 (refresh flag)
                         ports.push("14:1");
 
                         var pidx = 0;

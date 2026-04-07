@@ -722,8 +722,9 @@ function refreshCoin(coin, callback) {
             MDS.cmd("txnoutput id:" + txid + " amount:" + coin.amount + " address:" + WAGER_SCRIPT_ADDRESS + " storestate:true", function(r2) {
                 if (!r2.status) { MDS.cmd("txndelete id:" + txid); if (callback) callback(false); return; }
 
-                // Copy all state ports from the coin + set port 14 = 1 (refresh flag)
+                // Copy all state ports + ensure 0-14 exist (Java VM crashes on unset STATE)
                 var states = {};
+                for (var p = 0; p <= 14; p++) states[p] = "0";
                 coin.state.forEach(function(s) { states[s.port] = s.data; });
                 states[14] = "1"; // refresh flag
 
