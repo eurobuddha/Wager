@@ -37,18 +37,17 @@ MDS.init(function(msg) {
 
     else if (msg.event === "NOTIFYCOIN") {
         var notifyCoin = msg.data && msg.data.coin;
-        if (!notifyCoin || msg.data.address !== WAGER_MAIL_ADDRESS) { /* skip */ }
-        else {
-        var state99data = getState99(notifyCoin.state);
-        if (state99data) {
-            MDS.log("NOTIFYCOIN: found state99, attempting decrypt...");
-            decryptChainMail(state99data, function(success, message, senderMxKey) {
-                if (success && message) {
-                    processMessage(message, senderMxKey);
-                }
-            });
+        if (notifyCoin && msg.data.address === WAGER_MAIL_ADDRESS) {
+            var state99data = getState99(notifyCoin.state);
+            if (state99data) {
+                MDS.log("NOTIFYCOIN: found state99, attempting decrypt...");
+                decryptChainMail(state99data, function(success, message, senderMxKey) {
+                    if (success && message) {
+                        processMessage(message, senderMxKey);
+                    }
+                });
+            }
         }
-        } // else (address matched)
     }
 
     else if (msg.event === "NEWBLOCK") {
