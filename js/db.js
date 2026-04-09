@@ -218,7 +218,27 @@ function messageExists(randomid, callback) {
 }
 
 function loadPendingProposals(callback) {
-    MDS.sql("SELECT * FROM messages WHERE type='SETTLE_PROPOSE' AND direction='received' ORDER BY created DESC LIMIT 50", function(res) {
+    // Only load recent proposals (last 2 hours) to prevent stale proposals from old bets
+    var cutoff = Date.now() - 7200000;
+    MDS.sql("SELECT * FROM messages WHERE type='SETTLE_PROPOSE' AND direction='received' AND created > " + cutoff + " ORDER BY created DESC LIMIT 50", function(res) {
+        callback(res.status ? (res.rows || []) : []);
+    });
+}
+
+// -- Transaction History --
+
+function logTx(type, amount, direction, market, detail, callback) {
+    MDS.sql(
+        "INSERT INTO activity (msg, type, timestamp) VALUES (" +
+        "'" + sqlEsc(direction + " " + amount + " MINIMA | " + type + " | " + (market || "") + (detail ? " | " + detail : "")) + "', " +
+        "'" + sqlEsc(direction) + "', " +
+        Date.now() + ")",
+        callback
+    );
+}
+
+function loadHistory(callback) {
+    MDS.sql("SELECT * FROM activity ORDER BY timestamp DESC LIMIT 100", function(res) {
         callback(res.status ? (res.rows || []) : []);
     });
 }

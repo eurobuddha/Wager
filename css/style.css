@@ -26,6 +26,7 @@ body {
     color: var(--text);
     line-height: 1.5;
     min-height: 100vh;
+    padding-top: env(safe-area-inset-top, 0px);
 }
 
 /* -- Nav -- */
@@ -336,9 +337,14 @@ input::placeholder { color: var(--text2); opacity: 0.5; }
     letter-spacing: 0.5px;
 }
 
-.betcard__want {
+.betcard__size {
     background: rgba(245, 158, 11, 0.15);
     color: var(--warn);
+    font-size: 11px;
+}
+.betcard__price {
+    background: rgba(200, 120, 0, 0.15);
+    color: #c87800;
     font-size: 11px;
 }
 .betcard__role {
@@ -747,6 +753,36 @@ input::placeholder { color: var(--text2); opacity: 0.5; }
     line-height: 1.8;
     margin-top: 12px;
 }
+
+/* -- Chat -- */
+.betcard__chatrow {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 12px; background: var(--bg3); border-top: 1px solid var(--border);
+}
+.betcard__chatpreview {
+    flex: 1; font-size: 12px; color: var(--text2);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.chatpreview__count {
+    background: var(--accent); color: #fff; font-size: 10px; font-weight: 700;
+    padding: 1px 5px; border-radius: 8px; margin-right: 4px;
+}
+.betcard__chatinput {
+    flex: 2; padding: 4px 8px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 4px; color: var(--text); font-size: 12px; min-width: 0;
+}
+.betcard__chatinput:focus { border-color: var(--accent); outline: none; }
+
+/* -- History -- */
+.history { display: flex; flex-direction: column; gap: 2px; }
+.history__row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 12px; background: var(--bg2); border-radius: 6px;
+    font-size: 13px;
+}
+.history__time { color: var(--text2); min-width: 100px; font-size: 12px; }
+.history__desc { flex: 1; color: var(--text); }
+.history__status { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; background: rgba(255,255,255,0.05); }
 
 /* -- Responsive -- */
 @media (max-width: 640px) {

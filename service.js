@@ -27,12 +27,14 @@ MDS.init(function(msg) {
         initDB(function() {
             registerContract(function() {
                 loadWalletKeys(function() {
-                    MDS.cmd("coinnotify action:add address:" + WAGER_MAIL_ADDRESS, function() {
-                        COINNOTIFY_SET = true;
-                        MDS.log("Wager service started. Contract=" + WAGER_SCRIPT_ADDRESS + " Mail=" + WAGER_MAIL_ADDRESS);
+                    loadSettlePending(function() {
+                        MDS.cmd("coinnotify action:add address:" + WAGER_MAIL_ADDRESS, function() {
+                            COINNOTIFY_SET = true;
+                            MDS.log("Wager service started. Contract=" + WAGER_SCRIPT_ADDRESS + " Mail=" + WAGER_MAIL_ADDRESS);
+                        });
+                        syncBetCoins();
+                        scanUnprocessedMail();
                     });
-                    syncBetCoins();
-                    scanUnprocessedMail();
                 });
             });
         });
@@ -64,10 +66,17 @@ MDS.init(function(msg) {
         checkAndRefreshCoins();
     }
 
-    if (msg.event === "MDS_TIMER_60SECONDS") {
+    if (msg.event === "MDS_TIMER_10SECONDS") {
         syncBetCoins();
         ensureCoinNotify();
         scanUnprocessedMail();
+        // Expire stale settle-pending entries (>30 min)
+        var now = Date.now();
+        var expired = false;
+        for (var prop in SETTLE_PENDING) {
+            if (now - SETTLE_PENDING[prop] > SETTLE_PENDING_TTL) { delete SETTLE_PENDING[prop]; expired = true; }
+        }
+        if (expired) persistSettlePending();
     }
 
     if (msg.event === "MDSCOMMS") {
@@ -75,6 +84,14 @@ MDS.init(function(msg) {
             try {
                 var req = JSON.parse(msg.data.message);
                 if (req.action === "refresh") syncBetCoins();
+                if (req.action === "settle_pending" && req.proposition) {
+                    SETTLE_PENDING[req.proposition] = Date.now();
+                    persistSettlePending();
+                }
+                if (req.action === "settle_cleared" && req.proposition) {
+                    delete SETTLE_PENDING[req.proposition];
+                    persistSettlePending();
+                }
             } catch (e) {}
         }
     }
@@ -107,6 +124,7 @@ function processMessage(message, senderMxKey) {
         else if (message.type === "SETTLE_ACCEPT") handleSettleAccept(message, senderMxKey);
         else if (message.type === "SETTLE_REJECT") handleSettleReject(message, senderMxKey);
         else if (message.type === "DISPUTE") handleDispute(message, senderMxKey);
+        else if (message.type === "CHAT_MESSAGE") handleChatMessage(message, senderMxKey);
     });
 }
 
@@ -125,11 +143,20 @@ function handleBetMatched(message, senderMxKey) {
     MDS.log("BET_MATCHED: bet " + (message.betid || "?") + " is live");
     MDS.notify("Bet matched! Pot: " + (message.pot || "?") + " MINIMA");
 
-    if (message.betid && message.counter_mxkey) {
-        updateBetMxKeys(message.betid, "countermxkey", message.counter_mxkey);
+    // Update MxKeys — match by betid OR market (betid=coinid from filler, doesn't match owner's generated betid)
+    if (message.counter_mxkey) {
+        var ck = message.counter_mxkey.replace(/'/g, "''");
+        MDS.sql("UPDATE bets SET countermxkey='" + ck + "' WHERE betid='" + (message.betid || "").replace(/'/g, "''") + "'");
+        if (message.market) {
+            MDS.sql("UPDATE bets SET countermxkey='" + ck + "' WHERE market='" + (message.market || "").replace(/'/g, "''") + "' AND countermxkey=''");
+        }
     }
-    if (message.betid && message.owner_mxkey) {
-        updateBetMxKeys(message.betid, "ownermxkey", message.owner_mxkey);
+    if (message.owner_mxkey) {
+        var ok = message.owner_mxkey.replace(/'/g, "''");
+        MDS.sql("UPDATE bets SET ownermxkey='" + ok + "' WHERE betid='" + (message.betid || "").replace(/'/g, "''") + "'");
+        if (message.market) {
+            MDS.sql("UPDATE bets SET ownermxkey='" + ok + "' WHERE market='" + (message.market || "").replace(/'/g, "''") + "' AND ownermxkey=''");
+        }
     }
 }
 
@@ -137,8 +164,10 @@ function handleBetMatched(message, senderMxKey) {
  * Bettor proposes an outcome with a partially signed transaction.
  */
 function handleSettlePropose(message, senderMxKey) {
-    MDS.log("SETTLE_PROPOSE: " + (message.outcome === 1 ? "TRUE" : "FALSE") + " proposed for bet " + (message.betid || "?"));
-    MDS.notify("Settlement proposed: " + (message.outcome === 1 ? "TRUE" : "FALSE") + " — review in Wager app");
+    var outcomeLabel = parseInt(message.outcome) === 1 ? "TRUE" : "FALSE";
+    MDS.log("SETTLE_PROPOSE: " + outcomeLabel + " proposed for bet " + (message.betid || "?"));
+    MDS.notify("Counterparty proposes " + outcomeLabel + " — open Wager to Accept (0% fee) or Reject");
+    if (message.proposition) { SETTLE_PENDING[message.proposition] = Date.now(); persistSettlePending(); }
 }
 
 /**
@@ -146,7 +175,8 @@ function handleSettlePropose(message, senderMxKey) {
  */
 function handleSettleAccept(message, senderMxKey) {
     MDS.log("SETTLE_ACCEPT: bet " + (message.betid || "?") + " settled by agreement");
-    MDS.notify("Bet settled by agreement — 0% fee!");
+    MDS.notify("Counterparty accepted — settled at 0% fee! Winnings confirming on-chain...");
+    if (message.proposition) { delete SETTLE_PENDING[message.proposition]; persistSettlePending(); }
 }
 
 /**
@@ -155,6 +185,7 @@ function handleSettleAccept(message, senderMxKey) {
 function handleSettleReject(message, senderMxKey) {
     MDS.log("SETTLE_REJECT: bet " + (message.betid || "?") + " — counterparty disagrees");
     MDS.notify("Settlement rejected — awaiting arbiter");
+    if (message.proposition) { delete SETTLE_PENDING[message.proposition]; persistSettlePending(); }
 }
 
 /**
@@ -166,16 +197,52 @@ function handleDispute(message, senderMxKey) {
 }
 
 /**
+ * Bettor-to-bettor chat message.
+ */
+function handleChatMessage(message, senderMxKey) {
+    var sender = message.sender_name || "Bettor";
+    var text = (message.message || "").substring(0, 100);
+    MDS.log("CHAT from " + sender + ": " + text);
+    MDS.notify(sender + ": " + text);
+}
+
+/**
  * Ensure coinnotify is registered for ChainMail address.
  * Re-registers on every NEWBLOCK in case it was lost after update/restart.
  */
-var COINNOTIFY_SET = false;
+// Propositions with active settle proposals — don't refresh these coins
+// Keys = proposition text, values = timestamp (ms). Expires after 30 min.
+var SETTLE_PENDING = {};
+var SETTLE_PENDING_TTL = 1800000; // 30 minutes
+var SETTLE_PENDING_KEY = "wager_settle_pending";
+
+function persistSettlePending() {
+    try { MDS.keypair.set(SETTLE_PENDING_KEY, JSON.stringify(SETTLE_PENDING)); } catch(e) {}
+}
+function loadSettlePending(callback) {
+    MDS.keypair.get(SETTLE_PENDING_KEY, function(val) {
+        if (val && val.value) {
+            try {
+                var loaded = JSON.parse(val.value);
+                var now = Date.now();
+                for (var p in loaded) {
+                    if (now - loaded[p] < SETTLE_PENDING_TTL) SETTLE_PENDING[p] = loaded[p];
+                }
+            } catch(e) {}
+        }
+        if (callback) callback();
+    });
+}
+
+// Re-register coinnotify periodically — registrations can be lost on MDS update
+var COINNOTIFY_LAST = 0;
 function ensureCoinNotify() {
-    if (COINNOTIFY_SET || !WAGER_MAIL_ADDRESS) return;
+    if (!WAGER_MAIL_ADDRESS) return;
+    var now = Date.now();
+    if (now - COINNOTIFY_LAST < 300000) return; // Re-register every 5 minutes
     MDS.cmd("coinnotify action:add address:" + WAGER_MAIL_ADDRESS, function(res) {
         if (res && res.status) {
-            COINNOTIFY_SET = true;
-            MDS.log("ChainMail coinnotify registered: " + WAGER_MAIL_ADDRESS);
+            COINNOTIFY_LAST = now;
         }
     });
 }
@@ -187,8 +254,8 @@ function scanUnprocessedMail() {
     if (!WAGER_MAIL_ADDRESS) return;
     MDS.cmd("coins address:" + WAGER_MAIL_ADDRESS, function(res) {
         if (!res.status || !res.response) return;
-        // Only process recent coins (age < 50 blocks = ~40 min)
-        var recent = res.response.filter(function(c) { return parseInt(c.age) < 50 && !c.spent; });
+        // Process coins up to 30 blocks old (~25 min)
+        var recent = res.response.filter(function(c) { return parseInt(c.age) < 30 && !c.spent; });
         if (recent.length > 0) MDS.log("Scanning " + recent.length + " recent mail coin(s)...");
         recent.forEach(function(coin) {
             var state99 = getState99(coin.state);
@@ -233,10 +300,15 @@ function checkAndRefreshCoins() {
             var age = parseInt(coin.age) || 0;
             if (age >= REFRESH_AGE && parseFloat(coin.amount) > 0.001) {
                 var ownerKey = getStateVal(coin, 0);
-                var counterKey = getStateVal(coin, 8);
                 var phase = getStateVal(coin, 4);
                 var canSign = isMyKey(ownerKey);
-                if (phase === "1") canSign = canSign || isMyKey(counterKey);
+                if (phase === "1") {
+                    // Skip refresh if a settle proposal is pending for this coin's proposition
+                    var prop = hexToStr(getStateVal(coin, 12));
+                    if (prop && SETTLE_PENDING[prop]) return;
+                    var counterKey = getStateVal(coin, 8);
+                    canSign = canSign || isMyKey(counterKey);
+                }
                 if (canSign) stale.push(coin);
             }
         });
@@ -286,6 +358,9 @@ function checkAndRefreshCoins() {
                         }
 
                         function doSign() {
+                            // Phase 1 refresh needs MAST proof (V3 contract)
+                            var phase = getStateVal(coin, 4);
+                            function afterMast() {
                             MDS.cmd("txnsign id:" + txid + " publickey:" + sigKey, function(sr) {
                                 if (!sr || !sr.status) {
                                     MDS.log("Auto-refresh sign failed for " + coin.coinid.substring(0, 16));
@@ -313,6 +388,22 @@ function checkAndRefreshCoins() {
                                     });
                                 });
                             });
+                            } // afterMast
+
+                            if (phase === "1") {
+                                // Attach MAST proof for phase 1 refresh
+                                var mastScripts = {};
+                                mastScripts[MAST_REFRESH_SCRIPT] = MAST_REFRESH_PROOF;
+                                MDS.cmd("txnscript id:" + txid + " scripts:" + JSON.stringify(mastScripts), function(ms) {
+                                    if (!ms || !ms.status) {
+                                        MDS.log("MAST script attach failed: " + (ms ? ms.error : ""));
+                                        MDS.cmd("txndelete id:" + txid); idx++; refreshNext(); return;
+                                    }
+                                    afterMast();
+                                });
+                            } else {
+                                afterMast(); // Phase 0 — no MAST needed
+                            }
                         }
 
                         setNextState();

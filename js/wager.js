@@ -161,7 +161,8 @@ function postBet(params, callback) {
             "7": "" + params.wantstake,
             "12": strToHex(params.market || ""),
             "13": "" + (params.settlement || "0"),
-            "15": strToHex(MY_MXKEY || "")
+            "15": strToHex(MY_MXKEY || ""),
+            "17": strToHex(params.arbitermxkey || "")
         });
 
         var cmd = "send amount:" + params.stake + " address:" + WAGER_SCRIPT_ADDRESS + " state:" + stateObj;
@@ -189,12 +190,14 @@ function postBet(params, callback) {
                     counterstake: params.wantstake,
                     ownerpk: MY_PUBKEY,
                     owneraddr: MY_HEX_ADDR,
+                    ownermxkey: MY_MXKEY,
                     phase: 0,
                     timeout: params.timeout,
                     myrole: "owner",
                     status: "OPEN"
                 });
-                notify("Bet posted — confirming on-chain (2-3 blocks, ~2 min)...", "info");
+                notify("Bet submitted — waiting for on-chain confirmation (~2 min)...", "info");
+                logTx("POST", params.stake, "OUT", params.market, (params.side === 1 ? "FOR" : "AGAINST") + " wants " + params.wantstake);
                 callback(true, null);
             } else {
                 var err = res.error || "Failed to post bet";
@@ -212,6 +215,37 @@ function postBet(params, callback) {
 function fillBet(bet, callback) {
     acquireTxnLock(function() {
         var txid = "fill_" + Date.now();
+
+        // Fetch coin FRESH to avoid stale coinid (auto-refresh changes coinid)
+        notify("Step 1/6 — Verifying bet coin...", "info");
+        findCoinByIdOnChain(bet.coinid, function(freshCoin) {
+            if (!freshCoin) {
+                // Coinid changed — try to find by proposition
+                MDS.cmd("coins address:" + WAGER_SCRIPT_ADDRESS, function(cres) {
+                    var found = null;
+                    if (cres.status && cres.response) {
+                        cres.response.forEach(function(c) {
+                            if (c.spent) return;
+                            var p = getStateVal(c, 4);
+                            if (p !== "0") return;
+                            var prop = hexToStr(getStateVal(c, 12));
+                            if (prop === bet.proposition && getStateVal(c, 6) === "" + bet.side) found = c;
+                        });
+                    }
+                    if (found) {
+                        bet = parseBetCoin(found);
+                        doFillWithBet();
+                    } else {
+                        releaseTxnLock(); notify("Bet coin not found — may have been refreshed or taken", "err");
+                        callback(false, "coin not found"); return;
+                    }
+                });
+            } else {
+                doFillWithBet();
+            }
+        });
+
+        function doFillWithBet() {
         var ownerStake = bet.amount;
         var counterStake = bet.wantstake;
         if (!counterStake || parseFloat(counterStake) <= 0) {
@@ -222,23 +256,23 @@ function fillBet(bet, callback) {
         }
         var totalPot = (parseFloat(ownerStake) + parseFloat(counterStake)).toFixed(8);
 
-        notify("Step 1/6 — Creating fill transaction...", "info");
+        notify("Step 2/6 — Creating fill transaction...", "info");
 
         MDS.cmd("txncreate id:" + txid, function(r0) {
             if (!r0.status) { releaseTxnLock(); notify("txncreate failed", "err"); callback(false, "txncreate failed"); return; }
 
-            notify("Step 2/6 — Adding bet coin as input...", "info");
+            notify("Step 3/6 — Adding bet coin as input...", "info");
             MDS.cmd("txninput id:" + txid + " coinid:" + bet.coinid, function(r1) {
                 if (!r1.status) { cleanupTxn(txid); notify("Bet input failed", "err"); callback(false, "bet input failed"); return; }
 
-                notify("Step 3/6 — Finding " + counterStake + " MINIMA to fund...", "info");
+                notify("Step 4/7 — Finding " + counterStake + " MINIMA to fund...", "info");
                 findCoins("0x00", counterStake, function(result) {
                     if (!result) { cleanupTxn(txid); notify("Insufficient funds (need " + counterStake + " MINIMA)", "err"); callback(false, "Insufficient funds"); return; }
 
                     addMultipleInputs(txid, result.coins, 0, function(ok) {
                         if (!ok) { cleanupTxn(txid); notify("Funding input failed", "err"); callback(false, "Funding input failed"); return; }
 
-                        notify("Step 4/6 — Building outputs (pot=" + totalPot + ")...", "info");
+                        notify("Step 5/7 — Building outputs (pot=" + totalPot + ")...", "info");
                         MDS.cmd("txnoutput id:" + txid + " amount:" + totalPot + " address:" + WAGER_SCRIPT_ADDRESS + " storestate:true", function(r2) {
                             if (!r2.status) { cleanupTxn(txid); notify("Pot output failed", "err"); callback(false, "Pot output failed"); return; }
 
@@ -247,7 +281,7 @@ function fillBet(bet, callback) {
                                 setFillState(txid, bet, function(stateOk) {
                                     if (!stateOk) { cleanupTxn(txid); notify("State set failed", "err"); callback(false, "State set failed"); return; }
 
-                                    notify("Step 5/6 — Signing transaction...", "info");
+                                    notify("Step 6/7 — Signing transaction...", "info");
                                     MDS.cmd("txnsign id:" + txid + " publickey:auto", function(signRes) {
                                         if (isPending(signRes)) {
                                             releaseTxnLock();
@@ -263,7 +297,7 @@ function fillBet(bet, callback) {
                                             return;
                                         }
 
-                                        notify("Step 6/6 — Posting to network...", "info");
+                                        notify("Step 7/7 — Posting to network...", "info");
                                         MDS.cmd("txnbasics id:" + txid, function(br) {
                                             if (!br || !br.status) {
                                                 releaseTxnLock();
@@ -276,12 +310,28 @@ function fillBet(bet, callback) {
                                                 releaseTxnLock();
                                                 MDS.cmd("txndelete id:" + txid);
                                                 if (pr && pr.status) {
-                                                    notify("Transaction posted — confirming on-chain (2-3 blocks, ~2 min)...", "info");
+                                                    notify("Fill submitted — waiting for on-chain confirmation (~2 min)...", "info");
+                                                    logTx("FILL", counterStake, "OUT", bet.proposition || "", "Matched bet — pot " + totalPot);
+                                                    // Store filler's bet record in DB (critical for MxKey delivery)
+                                                    insertBet({
+                                                        betid: bet.coinid,
+                                                        market: bet.proposition || "",
+                                                        arbpk: bet.arbpk || "", arbaddr: bet.arbaddr || "",
+                                                        side: bet.side === 1 ? 0 : 1,
+                                                        ownerstake: bet.amount,
+                                                        counterstake: counterStake,
+                                                        ownerpk: bet.ownerpk, owneraddr: bet.owneraddr,
+                                                        ownermxkey: bet.ownermxkey || "",
+                                                        counterpk: MY_PUBKEY, counteraddr: MY_HEX_ADDR,
+                                                        countermxkey: MY_MXKEY,
+                                                        phase: 1, timeout: bet.timeout || 5000,
+                                                        myrole: "counter", status: "MATCHED"
+                                                    });
                                                     // Notify owner + arbiter via ChainMail
                                                     var ownerMx = bet.ownermxkey || "";
                                                     var arbMx = bet.arbitermxkey || "";
                                                     if (ownerMx || arbMx) {
-                                                        notifyBetMatched(bet.coinid, totalPot, ownerMx, arbMx);
+                                                        notifyBetMatched(bet.coinid, totalPot, ownerMx, arbMx, bet.proposition || "");
                                                     }
                                                     callback(true, null);
                                                 } else {
@@ -305,7 +355,8 @@ function fillBet(bet, callback) {
                 });
             });
         });
-    });
+    } // doFillWithBet
+    }); // acquireTxnLock
 }
 
 function setFillState(txid, bet, callback) {
@@ -327,7 +378,8 @@ function setFillState(txid, bet, callback) {
         13: bet.settlement || "0",       // settlement block
         14: "0",                         // refresh flag (must be set — Java VM crashes on unset STATE)
         15: bet.ownermxkey || "",         // owner's Maxima key (for ChainMail)
-        16: strToHex(MY_MXKEY || "")      // counter's Maxima key (hex-encoded, for ChainMail)
+        16: strToHex(MY_MXKEY || ""),     // counter's Maxima key (hex-encoded, for ChainMail)
+        17: bet.arbitermxkeyHex || ""     // arbiter's Maxima key (preserved from post)
     };
     setTxnState(txid, states, callback);
 }
@@ -427,15 +479,46 @@ function selfSettle(coinid, outcome, callback) {
                     var ownerAddr = getStateVal(coin, 1);
                     var counterAddr = getStateVal(coin, 9);
 
-                    var winnerAddr = (outcome === ownerSide) ? ownerAddr : counterAddr;
+                    var ownerLock = parseFloat(getStateVal(coin, 10));
+                    var counterLock = totalPot - ownerLock;
+                    var isVoid = (outcome === 2);
 
-                    // Single output — winner takes all, 0% fee
-                    MDS.cmd("txnoutput id:" + txid + " amount:" + totalPot.toFixed(8) + " address:" + winnerAddr + " storestate:false", function(r2) {
-                        if (!r2.status) { cleanupTxn(txid); callback(false, "output failed"); return; }
+                    var out0Addr, out0Amt, out1Addr, out1Amt;
+                    if (isVoid) {
+                        // Void: each side gets their lock back, 0% fee
+                        out0Addr = ownerAddr;  out0Amt = ownerLock.toFixed(8);
+                        out1Addr = counterAddr; out1Amt = counterLock.toFixed(8);
+                    } else {
+                        // Win/lose: winner gets pot - loser's escrow, loser gets escrow back
+                        var ownerWins = (outcome === ownerSide);
+                        var loserLock = ownerWins ? counterLock : ownerLock;
+                        var loserEscrow = Math.floor((loserLock / 5) * 1e8) / 1e8;
+                        out0Addr = ownerWins ? ownerAddr : counterAddr;
+                        out0Amt = (totalPot - loserEscrow).toFixed(8);
+                        out1Addr = ownerWins ? counterAddr : ownerAddr;
+                        out1Amt = loserEscrow.toFixed(8);
+                    }
 
-                        // Sign with auto (our key — first signature)
+                    // Output 0
+                    MDS.cmd("txnoutput id:" + txid + " amount:" + out0Amt + " address:" + out0Addr + " storestate:false", function(r2) {
+                        if (!r2.status) { cleanupTxn(txid); callback(false, "output 0 failed"); return; }
+
+                    // Output 1
+                    MDS.cmd("txnoutput id:" + txid + " amount:" + out1Amt + " address:" + out1Addr + " storestate:false", function(r2b) {
+                        if (!r2b.status) { cleanupTxn(txid); callback(false, "output 1 failed"); return; }
+
+                        // STATE(11)=outcome (required by contract VERIFYOUT) + STATE(14)=0
+                        MDS.cmd("txnstate id:" + txid + " port:11 value:" + outcome, function() {
+                        MDS.cmd("txnstate id:" + txid + " port:14 value:0", function() {
+
+                        // Void (outcome=2) uses MAST leaf — attach proof
+                        function afterMastVoid() {
+
+                        // Sign with our SPECIFIC key — NO txnbasics here (co-signer does it once before post)
+                        var myKey = isMyKey(getStateVal(coin, 0)) ? getStateVal(coin, 0) : getStateVal(coin, 8);
+                        if (!isMyKey(myKey)) { MDS.log("WARNING: neither owner nor counter key is ours"); }
                         notify("Signing settlement proposal...", "info");
-                        MDS.cmd("txnsign id:" + txid + " publickey:auto", function(signRes) {
+                        MDS.cmd("txnsign id:" + txid + " publickey:" + myKey, function(signRes) {
                             if (isPending(signRes)) {
                                 releaseTxnLock();
                                 handlePending(txid, callback);
@@ -460,6 +543,21 @@ function selfSettle(coinid, outcome, callback) {
                                 callback(false, signRes ? signRes.error : "sign failed");
                             }
                         });
+                    } // afterMastVoid
+
+                    if (isVoid) {
+                        var ms = {}; ms[MAST_VOID_SCRIPT] = MAST_VOID_PROOF;
+                        MDS.cmd("txnscript id:" + txid + " scripts:" + JSON.stringify(ms), function(mr) {
+                            if (!mr || !mr.status) { cleanupTxn(txid); callback(false, "MAST void proof failed"); return; }
+                            afterMastVoid();
+                        });
+                    } else {
+                        afterMastVoid();
+                    }
+
+                    }); // txnstate port:14
+                    }); // txnstate port:11
+                    }); // txnoutput 1
                     });
                 });
             });
@@ -468,13 +566,15 @@ function selfSettle(coinid, outcome, callback) {
 }
 
 // Co-sign and post a self-settle transaction (called by the counter-party)
-function cosignAndPost(txnHex, callback) {
+// sigKey = the specific public key this node must sign with (port 0 or 8 from the coin)
+function cosignAndPost(txnHex, sigKey, callback) {
+    if (!sigKey) { notify("No signing key available", "err"); callback(false, "no signing key"); return; }
     var txid = "cosign_" + Date.now();
     notify("Importing settlement transaction...", "info");
     MDS.cmd("txnimport id:" + txid + " data:" + txnHex, function(r1) {
         if (!r1 || !r1.status) { notify("Import failed", "err"); callback(false, "import failed"); return; }
-        notify("Co-signing...", "info");
-        MDS.cmd("txnsign id:" + txid + " publickey:auto", function(r2) {
+        notify("Co-signing with " + sigKey.substring(0, 16) + "...", "info");
+        MDS.cmd("txnsign id:" + txid + " publickey:" + sigKey, function(r2) {
             if (isPending(r2)) {
                 handlePending(txid, callback);
                 return;
@@ -482,23 +582,24 @@ function cosignAndPost(txnHex, callback) {
             if (!r2 || !r2.status) { notify("Co-sign failed", "err"); MDS.cmd("txndelete id:" + txid); callback(false, "cosign failed"); return; }
             notify("Posting settlement...", "info");
             MDS.cmd("txnbasics id:" + txid, function(br) {
-                if (!br || !br.status) {
-                    notify("txnbasics failed", "err");
-                    MDS.cmd("txndelete id:" + txid);
-                    callback(false, "txnbasics failed");
-                    return;
-                }
-                MDS.cmd("txnpost id:" + txid, function(pr) {
-                    MDS.cmd("txndelete id:" + txid);
-                    if (pr && pr.status) {
-                        notify("Settled — 0% fee!", "ok");
-                        callback(true, null);
+            if (!br || !br.status) { MDS.log("SETTLE txnbasics failed: " + JSON.stringify(br)); MDS.cmd("txndelete id:" + txid); callback(false, "txnbasics failed"); return; }
+            MDS.cmd("txnpost id:" + txid, function(pr) {
+                MDS.cmd("txndelete id:" + txid);
+                if (pr && pr.status) {
+                    // Don't claim "Settled" — txnpost success = mempool only, not on-chain
+                    callback(true, null);
+                } else {
+                    var errMsg = pr ? pr.error : "post failed";
+                    if (errMsg && (errMsg.indexOf("not found") >= 0 || errMsg.indexOf("does not exist") >= 0)) {
+                        notify("Proposal expired — coin was refreshed. Ask counterparty to re-propose.", "err");
+                        callback(false, "stale proposal");
                     } else {
-                        notify("Settlement post failed", "err");
-                        callback(false, pr ? pr.error : "post failed");
+                        notify("Settlement post failed: " + errMsg, "err");
+                        callback(false, errMsg);
                     }
-                });
+                }
             });
+            }); // txnbasics
         });
     });
 }
@@ -636,6 +737,12 @@ function timeoutBet(coinid, callback) {
                             // Must set STATE(14)=0 — Java VM crashes on unset STATE ports
                             MDS.cmd("txnstate id:" + txid + " port:14 value:0", function() {
 
+                            // Attach MAST proof for timeout path (V3 contract)
+                            var mastScripts = {};
+                            mastScripts[MAST_TIMEOUT_SCRIPT] = MAST_TIMEOUT_PROOF;
+                            MDS.cmd("txnscript id:" + txid + " scripts:" + JSON.stringify(mastScripts), function(ms) {
+                            if (!ms || !ms.status) { cleanupTxn(txid); notify("MAST proof failed", "err"); callback(false, "MAST failed"); return; }
+
                             notify("Posting timeout refund...", "info");
                             MDS.cmd("txnbasics id:" + txid, function(br) {
                                 if (!br || !br.status) {
@@ -654,6 +761,7 @@ function timeoutBet(coinid, callback) {
                                     }
                                 });
                             });
+                            }); // txnscript MAST
                             }); // txnstate port:14
                         });
                     });
@@ -840,7 +948,35 @@ function refreshBets(callback) {
         });
 
         MDS.log("Refreshed: " + OPEN_BETS.length + " open, " + MATCHED_BETS.length + " matched");
-        if (callback) callback();
+
+        // Enrich matched bets with MxKeys from DB (ports 15/16 are unreliable)
+        enrichMxKeys(function() {
+            if (callback) callback();
+        });
+    });
+}
+
+function enrichMxKeys(callback) {
+    if (MATCHED_BETS.length === 0) { callback(); return; }
+    // Query bets DB + messages DB for stored MxKeys
+    MDS.sql("SELECT betid, ownermxkey, countermxkey, arbitermxkey, market FROM bets WHERE ownermxkey != '' OR countermxkey != '' OR arbitermxkey != ''", function(res) {
+        var dbKeys = {};
+        if (res.status && res.rows) {
+            res.rows.forEach(function(r) {
+                var entry = { owner: r.OWNERMXKEY || "", counter: r.COUNTERMXKEY || "", arbiter: r.ARBITERMXKEY || "" };
+                if (r.MARKET) dbKeys[r.MARKET] = entry;
+                if (r.BETID) dbKeys[r.BETID] = entry;
+            });
+        }
+        MATCHED_BETS.forEach(function(bet) {
+            var stored = dbKeys[bet.coinid] || dbKeys[bet.proposition] || null;
+            if (stored) {
+                if (!bet.ownermxkey && stored.owner) bet.ownermxkey = stored.owner;
+                if (!bet.countermxkey && stored.counter) bet.countermxkey = stored.counter;
+                if (!bet.arbitermxkey && stored.arbiter) bet.arbitermxkey = stored.arbiter;
+            }
+        });
+        callback();
     });
 }
 
@@ -864,8 +1000,10 @@ function parseBetCoin(coin) {
         settlement: getStateVal(coin, 13),
         ownermxkey: (function(){ var k = hexToStr(getStateVal(coin, 15)); return k && k.substring(0,2) === "Mx" ? k : ""; })(),
         countermxkey: (function(){ var k = hexToStr(getStateVal(coin, 16)); return k && k.substring(0,2) === "Mx" ? k : ""; })(),
-        isMine: isMyKey(getStateVal(coin, 0)),
-        isMyCounter: isMyKey(getStateVal(coin, 8)),
+        arbitermxkey: (function(){ var k = hexToStr(getStateVal(coin, 17)); return k && k.substring(0,2) === "Mx" ? k : ""; })(),
+        arbitermxkeyHex: getStateVal(coin, 17),
+        isMine: (function() { var k = getStateVal(coin, 0); var r = isMyKey(k); if (!r && k) MDS.log("NOT MY KEY port0: " + k.substring(0,20) + "... keys=" + Object.keys(MY_KEYS).length); return r; })(),
+        isMyCounter: (function() { var k = getStateVal(coin, 8); var r = isMyKey(k); if (!r && k) MDS.log("NOT MY KEY port8: " + k.substring(0,20) + "... keys=" + Object.keys(MY_KEYS).length); return r; })(),
         isMyArb: isMyKey(getStateVal(coin, 2)),
         created: coin.created || "0",
         age: parseInt(coin.age) || 0
@@ -973,11 +1111,12 @@ function notifyArbiter(betid, arbMxKey, market, stake, callback) {
     }, function(ok) { if (callback) callback(ok); });
 }
 
-function notifyBetMatched(betid, pot, ownerMxKey, arbMxKey, callback) {
+function notifyBetMatched(betid, pot, ownerMxKey, arbMxKey, market, callback) {
     var payload = {
         type: "BET_MATCHED",
         betid: betid,
         pot: pot,
+        market: market || "",
         counter_mxkey: MY_MXKEY,
         owner_mxkey: ownerMxKey,
         sender_name: MY_MXNAME
@@ -1003,19 +1142,21 @@ function sendSettlePropose(counterMxKey, betid, outcome, txnHex, proposition, ca
     }, function(ok, err) { if (callback) callback(ok, err); });
 }
 
-function sendSettleAccept(proposerMxKey, betid, callback) {
+function sendSettleAccept(proposerMxKey, betid, proposition, callback) {
     if (!proposerMxKey) { if (callback) callback(false); return; }
     sendChainMail(proposerMxKey, {
         type: "SETTLE_ACCEPT",
         betid: betid,
+        proposition: proposition || "",
         sender_name: MY_MXNAME
     }, function(ok) { if (callback) callback(ok); });
 }
 
-function sendSettleReject(proposerMxKey, arbMxKey, betid, callback) {
+function sendSettleReject(proposerMxKey, arbMxKey, betid, proposition, callback) {
     var payload = {
         type: "SETTLE_REJECT",
         betid: betid,
+        proposition: proposition || "",
         sender_name: MY_MXNAME
     };
     if (proposerMxKey) sendChainMail(proposerMxKey, payload);
