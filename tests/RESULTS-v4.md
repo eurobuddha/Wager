@@ -42,6 +42,17 @@ BigDecimal `MathContext(64, DOWN)` and the KISS VM agree bit-for-bit.
 - **Single-signature settle `txnexport` = 4861 bytes.** Fits a single 8 KB comms chunk →
   **the top-ranked risk (settlement transport size) is retired**; SETTLE_TXN chunking is a
   safety margin, not a routine path.
+- **`txnlist` JSON shape** (gates CoSigner/TxnInspect): `response.transaction.{inputs[],
+  outputs[], state[{port,data}]}`; outputs carry `storestate` boolean; txn state carries port 20.
+
+## Settlement backstop (Phase 6 — the CRITICAL fix, defense in depth)
+
+- A tampered self-settle that steals the escrow (winner takes the whole pot, loser gets 0) —
+  even when co-signed and posted — is **rejected by the contract on-chain**; the matched coin
+  is not consumed. `VERIFYOUT` enforces the exact `pot−le` / `le` split.
+- This is the on-chain backstop *behind* CoSigner's 7-point pre-sign validation (which refuses
+  to sign such a txn in the first place). The class of "sign away my funds" attacks is dead at
+  both layers.
 
 ## Not yet covered (tracked for completion of Phase 0)
 
