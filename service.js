@@ -16,7 +16,18 @@
 MDS.load("./js/chainmail.js");
 MDS.load("./js/db.js");
 MDS.load("./js/contract.js");
-MDS.load("./js/wager.js");
+MDS.load("./js/identity.js");
+MDS.load("./js/state.js");
+MDS.load("./js/txn.js");
+
+// Track current block for computing coin age (coins response has 'created' but not 'age')
+var SERVICE_BLOCK = 0;
+
+function coinAge(coin) {
+    if (coin.age !== undefined && coin.age !== null) return parseInt(coin.age) || 0;
+    if (SERVICE_BLOCK > 0 && coin.created) return Math.max(0, SERVICE_BLOCK - parseInt(coin.created));
+    return 0;
+}
 
 MDS.init(function(msg) {
 
@@ -24,6 +35,7 @@ MDS.init(function(msg) {
     // Events fire independently, else-if can block later handlers
 
     if (msg.event === "inited") {
+        MDS.cmd("block", function(br) { if (br.status) SERVICE_BLOCK = parseInt(br.response.block) || 0; });
         initDB(function() {
             registerContract(function() {
                 loadWalletKeys(function() {
@@ -59,6 +71,7 @@ MDS.init(function(msg) {
     }
 
     if (msg.event === "NEWBLOCK") {
+        try { SERVICE_BLOCK = parseInt(msg.data.txpow.header.block) || SERVICE_BLOCK; } catch(e) {}
         if (!WAGER_SCRIPT_ADDRESS) {
             registerContract();
         }
@@ -254,8 +267,12 @@ function scanUnprocessedMail() {
     if (!WAGER_MAIL_ADDRESS) return;
     MDS.cmd("coins address:" + WAGER_MAIL_ADDRESS, function(res) {
         if (!res.status || !res.response) return;
-        // Process coins up to 30 blocks old (~25 min)
-        var recent = res.response.filter(function(c) { return parseInt(c.age) < 30 && !c.spent; });
+        // Process recent unspent coins — coinAge() handles missing .age field
+        var recent = res.response.filter(function(c) {
+            if (c.spent) return false;
+            var age = coinAge(c);
+            return age === 0 || age < 50;
+        });
         if (recent.length > 0) MDS.log("Scanning " + recent.length + " recent mail coin(s)...");
         recent.forEach(function(coin) {
             var state99 = getState99(coin.state);
@@ -292,12 +309,32 @@ var REFRESH_RUNNING = false;
 function checkAndRefreshCoins() {
     if (!WAGER_SCRIPT_ADDRESS || REFRESH_RUNNING) return;
 
+    // HOUSEKEEPING FIX: Check permission mode before attempting txnsign.
+    // In "read" mode, every txnsign creates a pending action in MiniHub.
+    // At REFRESH_AGE=1200, this would create one pending action per day per coin.
+    // Skip auto-refresh entirely if not in write/bypass mode.
+    MDS.cmd("checkmode", function(modeRes) {
+        if (modeRes && modeRes.response && modeRes.response.mode === "READ") {
+            MDS.log("Skipping auto-refresh — app is in READ mode (would create pending actions)");
+            return;
+        }
+        doRefreshCoins();
+    });
+}
+
+function doRefreshCoins() {
+
+    // Read settle-pending from shared keypair (app.js writes, service.js reads)
+    MDS.keypair.get("wager_settle_pending", function(spVal) {
+        var settlePending = {};
+        try { if (spVal && spVal.value) settlePending = JSON.parse(spVal.value); } catch(e) {}
+
     MDS.cmd("coins address:" + WAGER_SCRIPT_ADDRESS, function(res) {
         if (!res.status || !res.response) return;
 
         var stale = [];
         res.response.forEach(function(coin) {
-            var age = parseInt(coin.age) || 0;
+            var age = coinAge(coin);
             if (age >= REFRESH_AGE && parseFloat(coin.amount) > 0.001) {
                 var ownerKey = getStateVal(coin, 0);
                 var phase = getStateVal(coin, 4);
@@ -305,7 +342,7 @@ function checkAndRefreshCoins() {
                 if (phase === "1") {
                     // Skip refresh if a settle proposal is pending for this coin's proposition
                     var prop = hexToStr(getStateVal(coin, 12));
-                    if (prop && SETTLE_PENDING[prop]) return;
+                    if (prop && settlePending[prop]) return;
                     var counterKey = getStateVal(coin, 8);
                     canSign = canSign || isMyKey(counterKey);
                 }
@@ -379,7 +416,7 @@ function checkAndRefreshCoins() {
                                     MDS.cmd("txnpost id:" + txid, function(pr) {
                                         MDS.cmd("txndelete id:" + txid);
                                         if (pr && pr.status) {
-                                            MDS.log("Auto-refreshed: " + coin.coinid.substring(0, 16) + " (age was " + coin.age + ")");
+                                            MDS.log("Auto-refreshed: " + coin.coinid.substring(0, 16) + " (age was " + coinAge(coin) + ")");
                                         } else {
                                             MDS.log("Auto-refresh post failed: " + (pr ? pr.error : ""));
                                         }
@@ -414,4 +451,5 @@ function checkAndRefreshCoins() {
 
         refreshNext();
     });
+    }); // keypair get
 }

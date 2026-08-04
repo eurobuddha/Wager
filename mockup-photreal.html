@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Openly — Photorealistic Mixer</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{
+    font-family:'Manrope',sans-serif;font-size:13px;line-height:1.45;
+    /* Brushed aluminum chassis */
+    background:linear-gradient(175deg,#2A2D35 0%,#1E2028 30%,#1A1C22 60%,#16181E 100%);
+    color:#D0CEC8;
+    max-width:440px;margin:0 auto;min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+    /* Subtle vertical brushed metal texture */
+    background-image:
+        repeating-linear-gradient(90deg,rgba(255,255,255,0.01) 0px,transparent 1px,transparent 3px),
+        linear-gradient(175deg,#2A2D35 0%,#1A1C22 100%);
+}
+
+/* ============================================================
+   PHYSICAL DEVICE FRAME
+   The whole app sits inside a "device" with beveled edges,
+   screws, and a milled aluminum feel.
+   ============================================================ */
+
+/* Top panel — brushed steel header bar with milled channel */
+.topbar{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:10px 18px;
+    /* Milled aluminum panel */
+    background:linear-gradient(180deg,#3A3D48 0%,#2E3038 50%,#282A32 100%);
+    /* Physical bevel: bright top edge, dark bottom edge */
+    border-top:1px solid rgba(255,255,255,0.08);
+    border-bottom:1px solid rgba(0,0,0,0.5);
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.05),
+        0 2px 4px rgba(0,0,0,0.4),
+        0 4px 8px rgba(0,0,0,0.2);
+    position:sticky;top:0;z-index:100;
+}
+.brand{font-weight:800;font-size:17px;letter-spacing:-0.5px;color:#E0DDD6;text-shadow:0 1px 2px rgba(0,0,0,0.5);}
+.nav{display:flex;gap:2px;}
+.nav button{
+    background:none;border:none;padding:6px 8px;border-radius:6px;cursor:pointer;
+    color:#555860;transition:all 0.2s;
+}
+.nav button.on{
+    color:#7BBFFF;
+    /* Backlit LED effect */
+    text-shadow:0 0 6px rgba(123,191,255,0.4);
+    background:radial-gradient(ellipse at center,rgba(123,191,255,0.08),transparent 70%);
+}
+.nav button svg{width:17px;height:17px;stroke-width:1.8;fill:none;stroke:currentColor;display:block;}
+.bal{font-size:11px;font-weight:800;color:#C0BDB6;text-shadow:0 1px 1px rgba(0,0,0,0.5);font-variant-numeric:tabular-nums;}
+.blk{font-size:8px;color:#555860;}
+
+/* LED strip under topbar — subtle accent lighting */
+.led-strip{height:2px;background:linear-gradient(90deg,transparent 10%,rgba(123,191,255,0.15) 30%,rgba(0,214,126,0.1) 50%,rgba(255,71,87,0.1) 70%,transparent 90%);}
+
+/* Activity — recessed LCD panel */
+.log{
+    margin:8px 12px;border-radius:8px;padding:8px 12px;
+    /* LCD screen effect: dark with slight backlight glow */
+    background:linear-gradient(180deg,#0A0C10 0%,#0C0E14 100%);
+    border:2px solid #1A1C22;
+    /* Inset bezel around the screen */
+    box-shadow:
+        inset 0 2px 6px rgba(0,0,0,0.6),
+        inset 0 -1px 0 rgba(255,255,255,0.02),
+        /* Outer bevel */
+        0 1px 0 rgba(255,255,255,0.04),
+        0 -1px 0 rgba(0,0,0,0.3);
+    max-height:110px;overflow-y:auto;
+}
+.log-title{font-size:7px;font-weight:700;color:#2A3040;text-transform:uppercase;letter-spacing:2px;margin-bottom:2px;}
+.log-row{display:flex;gap:6px;padding:2px 0;font-size:10px;line-height:1.3;font-variant-numeric:tabular-nums;}
+.log-time{color:#2A3040;font-weight:600;min-width:32px;font-family:monospace;font-size:9px;}
+.log-msg{color:#4A5060;}
+.log-ok .log-msg{color:#00D67E;text-shadow:0 0 4px rgba(0,214,126,0.2);}
+.log-warn .log-msg{color:#FFB800;text-shadow:0 0 4px rgba(255,184,0,0.2);}
+
+/* ============================================================
+   MARKET CARD — physical raised panel with beveled edges
+   Like a module on a mixing desk
+   ============================================================ */
+.card{
+    margin:6px 12px 10px;border-radius:12px;overflow:hidden;
+    /* Multi-layer material: dark base with slight metallic sheen */
+    background:linear-gradient(170deg,#252830 0%,#1E2028 40%,#1A1C24 100%);
+    /* Physical bevel: 4-sided edge lighting */
+    border:1px solid rgba(255,255,255,0.03);
+    border-top-color:rgba(255,255,255,0.06);
+    border-left-color:rgba(255,255,255,0.04);
+    border-bottom-color:rgba(0,0,0,0.3);
+    border-right-color:rgba(0,0,0,0.2);
+    /* Depth: lifted off the surface */
+    box-shadow:
+        /* Top highlight reflection */
+        inset 0 1px 0 rgba(255,255,255,0.04),
+        /* Ambient occlusion underneath */
+        0 2px 3px rgba(0,0,0,0.3),
+        0 6px 12px rgba(0,0,0,0.2),
+        0 12px 24px rgba(0,0,0,0.1);
+    transition:transform 0.2s cubic-bezier(0.2,0,0,1),box-shadow 0.2s;
+}
+.card:hover{
+    transform:translateY(-1px);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 4px 8px rgba(0,0,0,0.35),0 12px 24px rgba(0,0,0,0.25),0 20px 40px rgba(0,0,0,0.1);
+}
+.card-head{padding:12px 14px 4px;}
+.card-prop{font-size:14px;font-weight:800;letter-spacing:-0.3px;line-height:1.25;color:#E0DDD6;text-shadow:0 1px 2px rgba(0,0,0,0.4);}
+.card-meta{font-size:9px;color:#4A5060;margin-top:3px;display:flex;gap:8px;}
+
+/* ============================================================
+   ODDS BAR — physical slider channel with illuminated fill
+   Like a VU meter on a mixing desk
+   ============================================================ */
+.obar{
+    display:flex;margin:8px 12px;height:32px;border-radius:6px;overflow:hidden;
+    /* Recessed channel cut into the panel */
+    background:#0A0C10;
+    border:1px solid rgba(0,0,0,0.4);
+    box-shadow:
+        inset 0 3px 6px rgba(0,0,0,0.5),
+        inset 0 1px 2px rgba(0,0,0,0.3),
+        0 1px 0 rgba(255,255,255,0.03);
+}
+.obar-t{
+    /* Illuminated green segment — like an LED bar */
+    background:linear-gradient(180deg,#00FF8C,#00D67E 30%,#00B86B 70%,#008A52);
+    color:#0A0C10;font-weight:800;font-size:10px;
+    display:flex;align-items:center;padding:0 10px;min-width:44px;
+    text-shadow:0 0 4px rgba(0,255,140,0.3);
+    /* Inner bevel on the bar itself */
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.3),
+        inset 0 -1px 0 rgba(0,0,0,0.2),
+        /* Glow cast onto surrounding surface */
+        0 0 12px rgba(0,214,126,0.2),
+        0 0 24px rgba(0,214,126,0.06);
+}
+.obar-f{
+    background:linear-gradient(180deg,#FF7A80,#FF4757 30%,#E6303A 70%,#B82530);
+    color:white;font-weight:800;font-size:10px;
+    display:flex;align-items:center;justify-content:flex-end;padding:0 10px;min-width:44px;
+    text-shadow:0 1px 2px rgba(0,0,0,0.3);
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.2),
+        inset 0 -1px 0 rgba(0,0,0,0.2),
+        0 0 12px rgba(255,71,87,0.15),
+        0 0 24px rgba(255,71,87,0.05);
+}
+.obar-e{
+    flex:1;display:flex;align-items:center;justify-content:center;
+    font-size:8px;color:#2A3040;font-weight:700;letter-spacing:0.5px;
+}
+
+/* Position indicator — LED dot */
+.pos{font-size:10px;font-weight:600;padding:4px 14px 0;display:flex;align-items:center;gap:5px;color:#5A6070;}
+.dot{width:8px;height:8px;border-radius:50%;}
+.dot-t{background:radial-gradient(circle at 35% 35%,#80FFB8,#00D67E 50%,#008A52);box-shadow:0 0 4px rgba(0,214,126,0.6),0 0 12px rgba(0,214,126,0.2);}
+.dot-f{background:radial-gradient(circle at 35% 35%,#FFA0A5,#FF4757 50%,#B82530);box-shadow:0 0 4px rgba(255,71,87,0.6),0 0 12px rgba(255,71,87,0.2);}
+
+/* ============================================================
+   BUTTONS — physical pushbuttons with 3D bevel
+   Press animation pushes them INTO the surface
+   ============================================================ */
+.btns{display:flex;gap:6px;padding:8px 12px 12px;}
+.btn{
+    padding:9px 12px;border-radius:8px;font-family:inherit;font-size:11px;font-weight:700;
+    border:none;cursor:pointer;flex:1;text-align:center;
+    /* 3D button: beveled top, shadowed bottom */
+    border-top:1px solid rgba(255,255,255,0.15);
+    border-bottom:2px solid rgba(0,0,0,0.4);
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.1),
+        0 2px 4px rgba(0,0,0,0.3),
+        0 4px 8px rgba(0,0,0,0.15);
+    transition:all 0.1s;
+    /* Slightly convex surface */
+    position:relative;
+}
+.btn::after{
+    content:"";position:absolute;top:0;left:10%;right:10%;height:40%;
+    background:linear-gradient(180deg,rgba(255,255,255,0.06),transparent);
+    border-radius:8px 8px 50% 50%;
+    pointer-events:none;
+}
+.btn:active{
+    transform:translateY(2px);
+    border-bottom-width:0;
+    border-top:1px solid rgba(0,0,0,0.2);
+    box-shadow:inset 0 2px 4px rgba(0,0,0,0.3);
+}
+.btn-t{background:linear-gradient(180deg,#00E87E,#00A651);color:#0A0C10;text-shadow:0 1px 0 rgba(255,255,255,0.1);}
+.btn-t:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,0.15),0 0 16px rgba(0,214,126,0.25),0 4px 8px rgba(0,0,0,0.3);}
+.btn-f{background:linear-gradient(180deg,#FF5A63,#D92B35);color:white;text-shadow:0 1px 1px rgba(0,0,0,0.2);}
+.btn-f:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,0.1),0 0 16px rgba(255,71,87,0.25),0 4px 8px rgba(0,0,0,0.3);}
+.btn-g{background:linear-gradient(180deg,#32353E,#282A32);color:#8890A0;border-top-color:rgba(255,255,255,0.06);}
+.btn-a{background:linear-gradient(180deg,#5AADFF,#1A7AE6);color:white;text-shadow:0 1px 1px rgba(0,0,0,0.2);}
+.btn-a:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,0.15),0 0 16px rgba(77,158,255,0.25),0 4px 8px rgba(0,0,0,0.3);}
+
+/* ============================================================
+   LIVE BET — module with accent strip light
+   ============================================================ */
+.live{
+    margin:6px 12px 10px;border-radius:12px;overflow:hidden;
+    background:linear-gradient(170deg,#252830,#1E2028 40%,#1A1C24);
+    border:1px solid rgba(255,255,255,0.03);
+    border-top-color:rgba(255,255,255,0.06);
+    border-bottom-color:rgba(0,0,0,0.3);
+    /* Accent LED strip on left edge */
+    border-left:3px solid #4D9EFF;
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.04),
+        0 4px 12px rgba(0,0,0,0.3),
+        0 12px 24px rgba(0,0,0,0.1),
+        /* LED glow from left strip */
+        -3px 0 12px rgba(77,158,255,0.06);
+}
+.live-tag{
+    padding:7px 12px;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;
+    color:#7BBFFF;
+    background:linear-gradient(90deg,rgba(123,191,255,0.05),transparent 60%);
+    display:flex;align-items:center;gap:5px;
+    text-shadow:0 0 8px rgba(123,191,255,0.3);
+}
+.pulse{
+    width:6px;height:6px;border-radius:50%;
+    background:radial-gradient(circle at 40% 40%,#AAD4FF,#4D9EFF 60%);
+    box-shadow:0 0 4px rgba(77,158,255,0.6);
+    animation:p 2s ease infinite;
+}
+@keyframes p{0%,100%{box-shadow:0 0 4px rgba(77,158,255,0.6),0 0 0 0 rgba(77,158,255,0.3);}50%{box-shadow:0 0 4px rgba(77,158,255,0.6),0 0 0 8px rgba(77,158,255,0);}}
+
+.rows{padding:2px 12px 8px;}
+.row{display:flex;justify-content:space-between;font-size:11px;padding:2px 0;}
+.row dt{color:#4A5060;}
+.row dd{font-weight:700;font-variant-numeric:tabular-nums;}
+.t{color:#00D67E;text-shadow:0 0 4px rgba(0,214,126,0.15);}
+.f{color:#FF4757;text-shadow:0 0 4px rgba(255,71,87,0.15);}
+
+/* Proposal — backlit alert panel */
+.proposal{
+    margin:6px 10px;padding:12px;border-radius:10px;
+    background:linear-gradient(135deg,rgba(77,158,255,0.06),rgba(77,158,255,0.02));
+    border:2px solid rgba(77,158,255,0.25);
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.02),
+        0 0 16px rgba(77,158,255,0.06),
+        0 4px 12px rgba(0,0,0,0.2);
+}
+.pr-from{font-size:8px;font-weight:800;color:#7BBFFF;text-transform:uppercase;letter-spacing:0.5px;text-shadow:0 0 6px rgba(123,191,255,0.2);}
+.pr-text{font-size:12px;font-weight:800;margin:3px 0;color:#E0DDD6;}
+.pr-detail{font-size:9px;color:#5A6070;margin-bottom:8px;line-height:1.3;}
+
+/* Chat — dark recessed comms panel */
+.chat{
+    border-top:1px solid rgba(0,0,0,0.3);padding:8px 12px;
+    background:linear-gradient(180deg,#0E1018,#0A0C12);
+    box-shadow:inset 0 2px 4px rgba(0,0,0,0.4);
+}
+.chat-title{font-size:7px;font-weight:700;color:#2A3040;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px;}
+.bub{max-width:80%;padding:6px 10px;border-radius:10px;font-size:11px;margin-bottom:3px;line-height:1.35;}
+.bub-t{
+    background:linear-gradient(180deg,#1E2130,#1A1C28);
+    color:#8890A0;border-bottom-left-radius:3px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.02),0 1px 2px rgba(0,0,0,0.2);
+}
+.bub-m{
+    background:linear-gradient(180deg,#2A2E3A,#242830);
+    color:#C8C5BE;margin-left:auto;border-bottom-right-radius:3px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.03),0 1px 2px rgba(0,0,0,0.2);
+}
+.bub-n{font-size:7px;font-weight:700;color:#3A3E4A;margin-bottom:1px;}
+.chat-input{display:flex;gap:4px;margin-top:6px;}
+.chat-field{
+    flex:1;padding:7px 10px;
+    border:1px solid rgba(255,255,255,0.04);border-radius:14px;
+    font-family:inherit;font-size:11px;outline:none;
+    background:linear-gradient(180deg,#12141C,#0E1018);color:#C8C5BE;
+    box-shadow:inset 0 1px 3px rgba(0,0,0,0.3);
+}
+.chat-field:focus{border-color:rgba(123,191,255,0.2);box-shadow:inset 0 1px 3px rgba(0,0,0,0.3),0 0 6px rgba(123,191,255,0.06);}
+.chat-send{
+    width:30px;height:30px;border-radius:50%;
+    background:linear-gradient(180deg,#5AADFF,#1A7AE6);color:white;
+    border:none;border-top:1px solid rgba(255,255,255,0.15);border-bottom:1px solid rgba(0,0,0,0.3);
+    font-size:12px;cursor:pointer;
+    box-shadow:0 0 8px rgba(77,158,255,0.12),0 2px 4px rgba(0,0,0,0.3);
+    display:flex;align-items:center;justify-content:center;
+}
+
+/* Settle — recessed sub-panel */
+.settle{
+    margin:4px 10px 8px;padding:8px;border-radius:8px;
+    background:linear-gradient(180deg,#0E1018,#0A0C12);
+    box-shadow:inset 0 2px 4px rgba(0,0,0,0.4),0 1px 0 rgba(255,255,255,0.02);
+    border:1px solid rgba(0,0,0,0.2);
+}
+.stq{font-size:10px;font-weight:700;margin-bottom:4px;color:#5A6070;}
+.stq em{font-style:normal;color:#7BBFFF;font-weight:800;text-shadow:0 0 4px rgba(123,191,255,0.15);}
+
+/* Win — celebration with neon glow */
+.win{
+    margin:6px 12px 10px;padding:20px;text-align:center;border-radius:12px;
+    background:linear-gradient(135deg,rgba(0,214,126,0.06),rgba(0,214,126,0.02));
+    border:2px solid rgba(0,214,126,0.35);
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.02),
+        0 0 30px rgba(0,214,126,0.08),
+        0 0 60px rgba(0,214,126,0.03),
+        0 4px 12px rgba(0,0,0,0.25);
+}
+.win-t{font-size:24px;font-weight:800;color:#00D67E;text-shadow:0 0 16px rgba(0,214,126,0.4),0 2px 0 rgba(0,0,0,0.3);}
+.win-amt{font-size:18px;font-weight:800;color:#E0DDD6;margin:4px 0;text-shadow:0 1px 2px rgba(0,0,0,0.4);}
+.win-d{font-size:11px;color:#5A6070;}
+
+h2{font-size:15px;font-weight:800;letter-spacing:-0.2px;margin:4px 14px 8px;color:#C0BDB6;text-shadow:0 1px 2px rgba(0,0,0,0.4);}
+
+/* Bottom edge — chassis rim with screw detail */
+.chassis-bottom{
+    height:6px;margin:0 12px;border-radius:0 0 4px 4px;
+    background:linear-gradient(180deg,#16181E,#1A1C22 50%,#22242C);
+    border-top:1px solid rgba(0,0,0,0.3);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.02);
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+    <div class="brand"><b>O</b>pen<b>l</b>y</div>
+    <div class="nav">
+        <button class="on"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></button>
+        <button><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg></button>
+        <button><svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg></button>
+        <button><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+        <button><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg></button>
+    </div>
+    <div style="text-align:right"><div class="bal">4,049.75</div><div class="blk">#2,043,735</div></div>
+</div>
+<div class="led-strip"></div>
+
+<div class="log">
+    <div class="log-title">Activity</div>
+    <div class="log-row log-ok"><span class="log-time">19:03</span><span class="log-msg">YOU WON! +10.00 MINIMA — "BTC breaks 73000"</span></div>
+    <div class="log-row"><span class="log-time">19:02</span><span class="log-msg">Settlement accepted. 0% fee.</span></div>
+    <div class="log-row log-ok"><span class="log-time">19:00</span><span class="log-msg">Proposal: FALSE — "ETH above 4k"</span></div>
+    <div class="log-row log-warn"><span class="log-time">18:56</span><span class="log-msg">Sit tight — 1-3 blocks to confirm.</span></div>
+    <div class="log-row"><span class="log-time">18:53</span><span class="log-msg">TRUE: 10.00 + 2.50 escrow = 12.50 locked</span></div>
+</div>
+
+<div style="padding:4px 0 40px">
+
+<div class="win">
+    <div class="win-t">YOU WON!</div>
+    <div class="win-amt">+10.00 MINIMA</div>
+    <div class="win-d">"BTC breaks 73000" — TRUE · 0% fee</div>
+</div>
+
+<h2>Markets</h2>
+
+<div class="card">
+    <div class="card-head"><div class="card-prop">BTC breaks 73000 on MEXC spot</div><div class="card-meta"><span>TRUE 20 — FALSE 5</span><span>in 10</span><span>2 bets</span></div></div>
+    <div class="obar"><div class="obar-t" style="flex:20">TRUE 20</div><div class="obar-f" style="flex:5">FALSE 5</div></div>
+    <div class="pos"><div class="dot dot-t"></div>You: TRUE 10 — profit 10 if right</div>
+    <div class="btns"><button class="btn btn-g">Cancel</button><button class="btn btn-f">Counter FALSE</button></div>
+</div>
+
+<div class="card">
+    <div class="card-head"><div class="card-prop">Arsenal win the league 2026</div><div class="card-meta"><span>TRUE 15 — FALSE —</span><span>in 15</span></div></div>
+    <div class="obar"><div class="obar-t" style="flex:15">TRUE 15</div><div class="obar-e">NEEDS FALSE</div></div>
+    <div class="btns"><button class="btn btn-f">Counter FALSE</button></div>
+</div>
+
+<h2>My Bets</h2>
+
+<div class="live">
+    <div class="live-tag"><div class="pulse"></div> Live</div>
+    <div class="card-head"><div class="card-prop">ETH above 4k by end of Q2</div></div>
+    <div class="rows">
+        <div class="row"><dt>You said</dt><dd class="t">TRUE · 10.00</dd></div>
+        <div class="row"><dt>They said</dt><dd class="f">FALSE · 5.00</dd></div>
+        <div class="row"><dt>If TRUE</dt><dd class="t">+5.00</dd></div>
+        <div class="row"><dt>If FALSE</dt><dd class="f">-10.00</dd></div>
+    </div>
+
+    <div class="proposal">
+        <div class="pr-from">Counterparty says:</div>
+        <div class="pr-text">"ETH above 4k" is FALSE</div>
+        <div class="pr-detail">Agree? Disagree invokes arbiter — escrow forfeit, 10% fee.</div>
+        <div class="btns" style="padding:0"><button class="btn btn-t">Agree</button><button class="btn btn-f">Disagree</button></div>
+    </div>
+
+    <div class="settle">
+        <div class="stq">Is <em>"ETH above 4k"</em> TRUE or FALSE?</div>
+        <div class="btns" style="padding:0"><button class="btn btn-t">TRUE</button><button class="btn btn-f">FALSE</button><button class="btn btn-g">Void</button></div>
+    </div>
+
+    <div class="chat">
+        <div class="chat-title">Comms</div>
+        <div class="bub-n">alice</div>
+        <div class="bub bub-t">ETH peaked at 3847 — close but no</div>
+        <div class="bub-n" style="text-align:right">You</div>
+        <div class="bub bub-m">Fair enough, agreeing FALSE</div>
+        <div class="bub-n">alice</div>
+        <div class="bub bub-t">GG, good bet</div>
+        <div class="chat-input"><input class="chat-field" placeholder="Message..."><button class="chat-send">›</button></div>
+    </div>
+</div>
+
+<div style="margin:0 12px"><button class="btn btn-a" style="width:100%;padding:13px;font-size:13px;border-radius:10px">Post Proposition</button></div>
+
+</div>
+
+<div class="chassis-bottom"></div>
+
+</body>
+</html>

@@ -1,0 +1,320 @@
+{
+  "communities": {
+    "0": [
+      "tests_test_transactions",
+      "tests_test_transactions_cmd",
+      "tests_test_transactions_get_balance",
+      "tests_test_transactions_get_coins_at_contract",
+      "tests_test_transactions_get_key",
+      "tests_test_transactions_get_sendable",
+      "tests_test_transactions_get_state",
+      "tests_test_transactions_hex_to_str",
+      "tests_test_transactions_main",
+      "tests_test_transactions_rationale_110",
+      "tests_test_transactions_rationale_124",
+      "tests_test_transactions_rationale_137",
+      "tests_test_transactions_rationale_152",
+      "tests_test_transactions_rationale_184",
+      "tests_test_transactions_rationale_198",
+      "tests_test_transactions_rationale_214",
+      "tests_test_transactions_rationale_224",
+      "tests_test_transactions_rationale_234",
+      "tests_test_transactions_rationale_268",
+      "tests_test_transactions_rationale_369",
+      "tests_test_transactions_rationale_454",
+      "tests_test_transactions_rationale_640",
+      "tests_test_transactions_rationale_69",
+      "tests_test_transactions_rationale_775",
+      "tests_test_transactions_rationale_86",
+      "tests_test_transactions_rationale_864",
+      "tests_test_transactions_rationale_98",
+      "tests_test_transactions_report",
+      "tests_test_transactions_str_to_hex",
+      "tests_test_transactions_test_arbiter_resolve",
+      "tests_test_transactions_test_cancel_bet",
+      "tests_test_transactions_test_chainmail",
+      "tests_test_transactions_test_post_and_fill",
+      "tests_test_transactions_test_post_bet",
+      "tests_test_transactions_test_self_settle",
+      "tests_test_transactions_wait_for_coin",
+      "tests_test_transactions_wait_for_coin_consumed",
+      "tests_test_transactions_wait_for_no_coins"
+    ],
+    "1": [
+      "js_txn",
+      "js_txn_acquiretxnlock",
+      "js_txn_addmultipleinputs",
+      "js_txn_calccounterodds",
+      "js_txn_calcodds",
+      "js_txn_cancelbet",
+      "js_txn_cleanuptxn",
+      "js_txn_collectexpired",
+      "js_txn_cosignandpost",
+      "js_txn_fillbet",
+      "js_txn_findcoinbyidonchain",
+      "js_txn_findcoins",
+      "js_txn_gcd",
+      "js_txn_generatebetid",
+      "js_txn_notifyarbiter",
+      "js_txn_notifybetmatched",
+      "js_txn_postbet",
+      "js_txn_releasetxnlock",
+      "js_txn_resolvebet",
+      "js_txn_selfsettle",
+      "js_txn_sendsettleaccept",
+      "js_txn_sendsettlepropose",
+      "js_txn_sendsettlereject",
+      "js_txn_setfillstate",
+      "js_txn_settxnstate",
+      "js_txn_signandpostarbiter",
+      "js_txn_timeoutbet"
+    ],
+    "2": [
+      "js_db",
+      "js_db_createtables",
+      "js_db_deletebet",
+      "js_db_initdb",
+      "js_db_insertbet",
+      "js_db_insertmarket",
+      "js_db_insertmessage",
+      "js_db_loadactivity",
+      "js_db_loadallbets",
+      "js_db_loadbet",
+      "js_db_loadhistory",
+      "js_db_loadmarkets",
+      "js_db_loadpendingproposals",
+      "js_db_logactivity",
+      "js_db_logtx",
+      "js_db_messageexists",
+      "js_db_sqlesc",
+      "js_db_updatebetcoin",
+      "js_db_updatebetfill",
+      "js_db_updatebetmxkeys",
+      "js_db_updatebetoutcome",
+      "js_db_updatebetstatus"
+    ],
+    "3": [
+      "js_app_esc",
+      "js_app_initdesktopresize",
+      "js_app_renderactivitypanelhtml",
+      "js_app_renderactivityview",
+      "js_app_renderarbiterview",
+      "js_app_renderchatpanelhtml",
+      "js_app_renderdesktopdashboard",
+      "js_app_renderhistoryview",
+      "js_app_renderlivebet",
+      "js_app_rendermarketspanelhtml",
+      "js_app_rendermarketsview",
+      "js_app_rendermybetspanelhtml",
+      "js_app_rendermybetsview",
+      "js_app_renderquestioncard",
+      "js_app_scanforchainmail",
+      "js_app_selectbetforchat",
+      "js_app_sendchatdirect",
+      "js_app_updatechatpreviews"
+    ],
+    "4": [
+      "service",
+      "service_checkandrefreshcoins",
+      "service_coinage",
+      "service_dorefreshcoins",
+      "service_ensurecoinnotify",
+      "service_handlebetcreated",
+      "service_handlebetmatched",
+      "service_handlechatmessage",
+      "service_handledispute",
+      "service_handlesettleaccept",
+      "service_handlesettlepropose",
+      "service_handlesettlereject",
+      "service_loadsettlepending",
+      "service_persistsettlepending",
+      "service_processmessage",
+      "service_scanunprocessedmail",
+      "service_syncbetcoins"
+    ],
+    "5": [
+      "js_app",
+      "js_app_adjustcounteramt",
+      "js_app_closecountermodal",
+      "js_app_docounter",
+      "js_app_dofill",
+      "js_app_dopost",
+      "js_app_fmtamt",
+      "js_app_ispending",
+      "js_app_pickside",
+      "js_app_showcountermodal",
+      "js_app_showstatus",
+      "js_app_submitcounter",
+      "js_app_updateblock",
+      "js_app_updatecounterpreview",
+      "js_app_updateoddspreview"
+    ],
+    "6": [
+      "js_app_clearallpending",
+      "js_app_clearproposal",
+      "js_app_completepending",
+      "js_app_doacceptproposal",
+      "js_app_dopropose",
+      "js_app_dorejectproposal",
+      "js_app_doresolve",
+      "js_app_dotimeout",
+      "js_app_handlepending",
+      "js_app_notify",
+      "js_app_notifyservice"
+    ],
+    "7": [
+      "mds",
+      "mds_base64toarraybuffer",
+      "mds_base64tohex",
+      "mds_getstatevariable",
+      "mds_hextobase64",
+      "mds_httppostasync",
+      "mds_httppostasyncpoll",
+      "mds_mdspostmessage",
+      "mds_polllistener",
+      "mds_postmdsfail",
+      "mds_recurseuploadmds"
+    ],
+    "8": [
+      "js_identity",
+      "js_identity_fetchandstoreidentity",
+      "js_identity_hextostr",
+      "js_identity_ismykey",
+      "js_identity_loadidentity",
+      "js_identity_loadmaximaidentity",
+      "js_identity_loadwalletkeys",
+      "js_identity_rationale_140",
+      "js_identity_rationale_230",
+      "js_identity_strtohex"
+    ],
+    "9": [
+      "js_app_docancel",
+      "js_app_isdesktop",
+      "js_app_openpostindesktop",
+      "js_app_rendercurrentview",
+      "js_app_renderhousekeepingview",
+      "js_app_rendermoreview",
+      "js_app_renderpostview",
+      "js_app_showview",
+      "js_app_toggledesktopmode"
+    ],
+    "10": [
+      "js_chainmail",
+      "js_chainmail_cmhextotext",
+      "js_chainmail_cmtexttohex",
+      "js_chainmail_decryptchainmail",
+      "js_chainmail_genrandomhex",
+      "js_chainmail_getmykeys",
+      "js_chainmail_getmymaximainfo",
+      "js_chainmail_getstate99",
+      "js_chainmail_sendchainmail"
+    ],
+    "11": [
+      "js_state",
+      "js_state_autoacceptdualproposals",
+      "js_state_enrichmxkeys",
+      "js_state_getstateval",
+      "js_state_parsebetcoin",
+      "js_state_rationale_216",
+      "js_state_rationale_291",
+      "js_state_refreshbets",
+      "js_state_refreshbetsandproposals"
+    ],
+    "12": [
+      "js_app_initapp",
+      "js_app_nextonboardslide",
+      "js_app_refreshbalance",
+      "js_app_renderonboardslide",
+      "js_app_showonboardingifneeded"
+    ],
+    "13": [
+      "js_contract",
+      "js_contract_registercontract"
+    ]
+  },
+  "cohesion": {
+    "0": 0.10668563300142248,
+    "1": 0.15954415954415954,
+    "2": 0.15151515151515152,
+    "3": 0.16993464052287582,
+    "4": 0.22058823529411764,
+    "5": 0.22857142857142856,
+    "6": 0.23636363636363636,
+    "7": 0.2727272727272727,
+    "8": 0.2222222222222222,
+    "9": 0.2777777777777778,
+    "10": 0.3055555555555556,
+    "11": 0.3888888888888889,
+    "12": 0.4,
+    "13": 1.0
+  },
+  "gods": [
+    {
+      "id": "js_app_rendercurrentview",
+      "label": "renderCurrentView()",
+      "degree": 23
+    },
+    {
+      "id": "js_app_notify",
+      "label": "notify()",
+      "degree": 16
+    },
+    {
+      "id": "js_db_sqlesc",
+      "label": "sqlEsc()",
+      "degree": 14
+    },
+    {
+      "id": "tests_test_transactions_cmd",
+      "label": "cmd()",
+      "degree": 13
+    },
+    {
+      "id": "js_app_esc",
+      "label": "esc()",
+      "degree": 12
+    },
+    {
+      "id": "js_txn_releasetxnlock",
+      "label": "releaseTxnLock()",
+      "degree": 10
+    },
+    {
+      "id": "service_processmessage",
+      "label": "processMessage()",
+      "degree": 9
+    },
+    {
+      "id": "tests_test_transactions_test_post_bet",
+      "label": "test_post_bet()",
+      "degree": 9
+    },
+    {
+      "id": "tests_test_transactions_test_post_and_fill",
+      "label": "test_post_and_fill()",
+      "degree": 9
+    },
+    {
+      "id": "tests_test_transactions_main",
+      "label": "main()",
+      "degree": 9
+    }
+  ],
+  "surprises": [
+    {
+      "source": "autoAcceptDualProposals()",
+      "target": "renderCurrentView()",
+      "source_files": [
+        "js/state.js",
+        "js/app.js"
+      ],
+      "confidence": "INFERRED",
+      "relation": "indirect_call",
+      "why": "inferred connection - not explicitly stated in source; bridges separate communities"
+    }
+  ],
+  "tokens": {
+    "input": 0,
+    "output": 0
+  }
+}

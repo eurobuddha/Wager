@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wager — Redesign v2</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+    --bg: #F7F6F3;
+    --card: #FFFFFF;
+    --border: #E8E6E1;
+    --text: #1A1A1A;
+    --dim: #6B6966;
+    --muted: #A09D98;
+    --yes: #0D9B52;
+    --yes-bg: #E6F7ED;
+    --no: #D93636;
+    --no-bg: #FDE8E8;
+    --accent: #4338CA;
+    --accent-bg: #EEF2FF;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08);
+    --shadow-up: 0 -4px 20px rgba(0,0,0,0.1);
+    --r: 16px;
+    --rs: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: 'Manrope', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    max-width: 420px;
+    margin: 0 auto;
+    min-height: 100vh;
+    font-size: 15px;
+    line-height: 1.5;
+}
+.page { padding: 0 16px 100px; }
+
+/* ============================================================
+   DESIGN NOTES (for review only — not in final app)
+   ============================================================ */
+.note {
+    background: #FFFBEB;
+    border-left: 4px solid #F59E0B;
+    padding: 12px 14px;
+    font-size: 12px;
+    color: #92400E;
+    margin: 16px 0;
+    border-radius: 0 var(--rs) var(--rs) 0;
+}
+.divider {
+    background: #1A1A1A;
+    color: white;
+    text-align: center;
+    padding: 14px;
+    font-size: 13px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    margin-top: 60px;
+}
+.divider:first-child { margin-top: 0; }
+
+/* ============================================================
+   ONBOARDING — 3 slides, shown once on first open
+   ============================================================ */
+.onboard {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 40px 30px;
+    background: var(--card);
+}
+.onboard__icon { font-size: 64px; margin-bottom: 20px; }
+.onboard__title {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin-bottom: 12px;
+}
+.onboard__body {
+    font-size: 16px;
+    color: var(--dim);
+    max-width: 300px;
+    margin-bottom: 32px;
+}
+.onboard__body strong { color: var(--text); }
+.onboard__dots {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+}
+.onboard__dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+}
+.onboard__dot.active { background: var(--accent); width: 24px; border-radius: 4px; }
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 28px;
+    border-radius: var(--rs);
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+}
+.btn--big { width: 100%; padding: 16px; font-size: 16px; border-radius: var(--r); }
+.btn--accent { background: var(--accent); color: white; }
+.btn--yes { background: var(--yes); color: white; }
+.btn--no { background: var(--no); color: white; }
+.btn--ghost { background: none; border: 2px solid var(--border); color: var(--text); }
+.btn--ghost:active { background: var(--bg); }
+.btn--sm { padding: 8px 16px; font-size: 13px; }
+.btn--pill { border-radius: 50px; }
+
+/* ============================================================
+   TOP BAR
+   ============================================================ */
+.topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+}
+.topbar__brand { font-weight: 800; font-size: 20px; }
+.topbar__bal { font-size: 13px; font-weight: 700; }
+.topbar__block { font-size: 11px; color: var(--muted); }
+
+/* ============================================================
+   BOTTOM NAV
+   ============================================================ */
+.bottomnav {
+    position: fixed; bottom: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 100%; max-width: 420px;
+    display: flex;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    padding: 8px 0 max(env(safe-area-inset-bottom), 8px);
+    z-index: 100;
+}
+.nav__tab {
+    flex: 1;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 3px; padding: 6px 0;
+    background: none; border: none;
+    color: var(--muted);
+    font-family: inherit; font-size: 10px; font-weight: 700;
+    cursor: pointer;
+}
+.nav__tab.active { color: var(--accent); }
+.nav__icon { font-size: 20px; }
+
+/* ============================================================
+   QUESTION CARD — the new bet card
+   "Will X happen?" with YES / NO buttons
+   ============================================================ */
+.qcard {
+    background: var(--card);
+    border-radius: var(--r);
+    box-shadow: var(--shadow);
+    margin-bottom: 12px;
+    overflow: hidden;
+}
+.qcard__question {
+    padding: 16px 16px 8px;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.35;
+}
+.qcard__meta {
+    padding: 0 16px 4px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+/* Odds bar — visual, no numbers needed to understand */
+.oddsbar {
+    display: flex;
+    margin: 8px 16px;
+    height: 40px;
+    border-radius: var(--rs);
+    overflow: hidden;
+    font-size: 13px;
+    font-weight: 700;
+    color: white;
+}
+.oddsbar__yes {
+    background: var(--yes);
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 12px;
+    transition: flex 0.3s;
+}
+.oddsbar__no {
+    background: var(--no);
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 12px;
+    transition: flex 0.3s;
+}
+.oddsbar__open {
+    flex: 1;
+    background: repeating-linear-gradient(90deg, var(--bg) 0, var(--bg) 6px, var(--border) 6px, var(--border) 7px);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--muted); font-size: 12px; font-weight: 600;
+}
+
+/* Yes/No action row */
+.qcard__actions {
+    display: flex;
+    gap: 10px;
+    padding: 10px 16px 16px;
+}
+.qcard__actions .btn { flex: 1; }
+
+/* Your position tag */
+.qcard__position {
+    display: inline-block;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 50px;
+    margin: 0 16px 8px;
+}
+.qcard__position--yes { background: var(--yes-bg); color: var(--yes); }
+.qcard__position--no { background: var(--no-bg); color: var(--no); }
+
+/* ============================================================
+   "BET YES" FLOW — step-by-step, foolproof
+   Replaces modal. Full-screen bottom sheet.
+   ============================================================ */
+.sheet {
+    background: var(--card);
+    border-radius: 24px 24px 0 0;
+    padding: 20px;
+    box-shadow: var(--shadow-up);
+    margin-top: 20px;
+}
+.sheet__handle {
+    width: 40px; height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 0 auto 20px;
+}
+.sheet__title {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin-bottom: 4px;
+}
+.sheet__subtitle {
+    font-size: 13px;
+    color: var(--dim);
+    margin-bottom: 20px;
+}
+
+/* Step indicator */
+.steps {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 20px;
+}
+.step {
+    flex: 1; height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+}
+.step.done { background: var(--accent); }
+.step.current { background: var(--accent); opacity: 0.5; }
+
+/* Amount input — BIG, obvious */
+.amount-input {
+    text-align: center;
+    margin: 20px 0;
+}
+.amount-input__label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--dim);
+    margin-bottom: 8px;
+}
+.amount-input__value {
+    font-size: 48px;
+    font-weight: 800;
+    letter-spacing: -2px;
+}
+.amount-input__unit {
+    font-size: 16px;
+    color: var(--muted);
+    font-weight: 600;
+}
+.amount-input__slider {
+    width: 100%;
+    margin: 12px 0;
+    -webkit-appearance: none;
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(to right, var(--accent) 0%, var(--accent) 40%, var(--border) 40%);
+}
+.amount-input__slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 2px 6px rgba(67,56,202,0.3);
+    cursor: pointer;
+}
+.amount-input__range {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 600;
+}
+
+/* Payout preview — the "aha" moment */
+.payout {
+    background: var(--bg);
+    border-radius: var(--r);
+    padding: 16px;
+    margin: 16px 0;
+}
+.payout__row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 14px;
+}
+.payout__row--highlight {
+    font-weight: 800;
+    font-size: 16px;
+    padding: 10px 0 6px;
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+}
+.payout__win { color: var(--yes); }
+.payout__lose { color: var(--no); }
+
+/* ============================================================
+   MATCHED BET — "IT'S ON" state
+   ============================================================ */
+.livebet {
+    background: var(--card);
+    border-radius: var(--r);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+.livebet__status {
+    padding: 8px 16px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.livebet__status--live { background: var(--accent-bg); color: var(--accent); }
+.livebet__status--won { background: var(--yes-bg); color: var(--yes); }
+.livebet__status--lost { background: var(--no-bg); color: var(--no); }
+
+.livebet__question {
+    padding: 12px 16px 4px;
+    font-size: 16px;
+    font-weight: 700;
+}
+.livebet__stakes {
+    padding: 4px 16px 12px;
+}
+.livebet__row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    padding: 3px 0;
+}
+.livebet__row dt { color: var(--dim); }
+.livebet__row dd { font-weight: 700; }
+
+/* "What happened?" — settlement prompt */
+.settle {
+    padding: 16px;
+    border-top: 1px solid var(--border);
+}
+.settle__prompt {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+.settle__explain {
+    font-size: 12px;
+    color: var(--dim);
+    margin-bottom: 12px;
+}
+.settle__buttons {
+    display: flex;
+    gap: 10px;
+}
+.settle__buttons .btn { flex: 1; }
+
+/* Proposal received */
+.incoming {
+    margin: 12px 16px;
+    padding: 14px;
+    background: var(--accent-bg);
+    border-radius: var(--rs);
+    border: 2px solid var(--accent);
+}
+.incoming__who {
+    font-size: 12px;
+    color: var(--accent);
+    font-weight: 700;
+    margin-bottom: 2px;
+}
+.incoming__what {
+    font-size: 16px;
+    font-weight: 800;
+    margin-bottom: 4px;
+}
+.incoming__fee {
+    font-size: 12px;
+    color: var(--dim);
+    margin-bottom: 10px;
+}
+.incoming__actions { display: flex; gap: 8px; }
+.incoming__actions .btn { flex: 1; }
+
+/* Chat bubble */
+.chat {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+}
+.chat__messages {
+    max-height: 120px;
+    overflow-y: auto;
+    margin-bottom: 8px;
+}
+.chat__bubble {
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-size: 13px;
+    margin-bottom: 4px;
+    max-width: 80%;
+}
+.chat__bubble--them {
+    background: var(--bg);
+    color: var(--text);
+    margin-right: auto;
+}
+.chat__bubble--me {
+    background: var(--accent);
+    color: white;
+    margin-left: auto;
+}
+.chat__name {
+    font-size: 10px;
+    color: var(--muted);
+    font-weight: 700;
+    margin-bottom: 1px;
+}
+.chat__input-row {
+    display: flex;
+    gap: 8px;
+}
+.chat__input {
+    flex: 1;
+    padding: 10px 14px;
+    border-radius: 24px;
+    border: 2px solid var(--border);
+    font-family: inherit;
+    font-size: 13px;
+    outline: none;
+}
+.chat__input:focus { border-color: var(--accent); }
+.chat__send {
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: white;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+/* ============================================================
+   TOAST — auto-dismiss notifications
+   ============================================================ */
+.toast {
+    position: fixed; top: 70px; left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 32px); max-width: 388px;
+    padding: 14px 16px;
+    border-radius: var(--rs);
+    font-size: 14px; font-weight: 600;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 200;
+    display: flex; align-items: center; gap: 10px;
+}
+.toast__icon { font-size: 20px; }
+.toast--ok { background: var(--yes-bg); color: var(--yes); }
+.toast--alert { background: var(--accent-bg); color: var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     ONBOARDING SLIDE 1 of 3
+     ============================================================ -->
+<div class="divider">Onboarding — Slide 1 of 3</div>
+<div class="note">
+    First-time users only. 3 taps and they understand the whole app.
+    Stored in keypair so it never shows again.
+</div>
+
+<div class="onboard">
+    <div class="onboard__icon">🤝</div>
+    <div class="onboard__title">Bet on anything</div>
+    <div class="onboard__body">
+        Make a prediction. Someone disagrees?<br>
+        <strong>Put your money where your mouth is.</strong>
+    </div>
+    <div class="onboard__dots">
+        <div class="onboard__dot active"></div>
+        <div class="onboard__dot"></div>
+        <div class="onboard__dot"></div>
+    </div>
+    <button class="btn btn--accent btn--big">Next</button>
+</div>
+
+<!-- ============================================================
+     ONBOARDING SLIDE 2
+     ============================================================ -->
+<div class="divider">Onboarding — Slide 2 of 3</div>
+
+<div class="onboard">
+    <div class="onboard__icon">⚖️</div>
+    <div class="onboard__title">Fair by design</div>
+    <div class="onboard__body">
+        If you both agree on the result: <strong>0% fee</strong>.<br>
+        If you disagree, a trusted arbiter decides for a <strong>10% fee</strong>.<br><br>
+        A small escrow keeps everyone honest.
+    </div>
+    <div class="onboard__dots">
+        <div class="onboard__dot"></div>
+        <div class="onboard__dot active"></div>
+        <div class="onboard__dot"></div>
+    </div>
+    <button class="btn btn--accent btn--big">Next</button>
+</div>
+
+<!-- ============================================================
+     ONBOARDING SLIDE 3
+     ============================================================ -->
+<div class="divider">Onboarding — Slide 3 of 3</div>
+
+<div class="onboard">
+    <div class="onboard__icon">🔐</div>
+    <div class="onboard__title">Trustless. On-chain.</div>
+    <div class="onboard__body">
+        No middleman holds your money.<br>
+        Every bet is a <strong>smart contract</strong> on Minima.<br>
+        Only the rules can move the funds.
+    </div>
+    <div class="onboard__dots">
+        <div class="onboard__dot"></div>
+        <div class="onboard__dot"></div>
+        <div class="onboard__dot active"></div>
+    </div>
+    <button class="btn btn--accent btn--big">Start Betting</button>
+</div>
+
+<!-- ============================================================
+     MARKETS — simple questions with YES/NO
+     ============================================================ -->
+<div class="divider">Markets</div>
+<div class="note">
+    Every bet is a question. You answer YES or NO.
+    The odds bar shows the money behind each side at a glance.
+    No jargon. No "FOR/AGAINST". Just questions.
+</div>
+
+<div class="topbar">
+    <div class="topbar__brand">Wager</div>
+    <div>
+        <div class="topbar__bal">4,054.75 M</div>
+        <div class="topbar__block">#2,043,240</div>
+    </div>
+</div>
+
+<div class="toast toast--alert">
+    <span class="toast__icon">📩</span>
+    Your counterparty says YES — tap to respond
+</div>
+
+<div class="page" style="padding-top:16px;">
+
+    <!-- Question card with both sides -->
+    <div class="qcard">
+        <div class="qcard__question">Will BTC be above 80k by Friday?</div>
+        <div class="qcard__meta">5M vs 10M &middot; 2 bettors &middot; 35 min ago</div>
+        <div class="oddsbar">
+            <div class="oddsbar__yes" style="flex:5">YES 5M</div>
+            <div class="oddsbar__no" style="flex:10">NO 10M</div>
+        </div>
+        <div class="qcard__actions">
+            <button class="btn btn--yes btn--pill">Bet YES</button>
+            <button class="btn btn--no btn--pill">Bet NO</button>
+        </div>
+    </div>
+
+    <!-- Open question — no counter yet -->
+    <div class="qcard">
+        <div class="qcard__question">Will ETH flip BNB market cap in Q2?</div>
+        <div class="qcard__meta">3M on NO &middot; waiting for YES side</div>
+        <div class="oddsbar">
+            <div class="oddsbar__open">Waiting for YES</div>
+            <div class="oddsbar__no" style="flex:3">NO 3M</div>
+        </div>
+        <div class="qcard__position qcard__position--no">You bet NO</div>
+        <div class="qcard__actions">
+            <button class="btn btn--yes btn--pill">Bet YES</button>
+        </div>
+    </div>
+
+    <!-- Question with your position -->
+    <div class="qcard">
+        <div class="qcard__question">Will it rain in London on Saturday?</div>
+        <div class="qcard__meta">2M vs 2M &middot; even odds</div>
+        <div class="oddsbar">
+            <div class="oddsbar__yes" style="flex:1">YES 2M</div>
+            <div class="oddsbar__no" style="flex:1">NO 2M</div>
+        </div>
+        <div class="qcard__position qcard__position--yes">You bet YES &middot; win 4M</div>
+        <div class="qcard__actions">
+            <button class="btn btn--ghost btn--pill btn--sm" style="flex:none">View bet</button>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================
+     "BET YES" FLOW — 2-step sheet
+     Step 1: How much?
+     ============================================================ -->
+<div class="divider">Bet YES Flow — Step 1: How much?</div>
+<div class="note">
+    User tapped "Bet YES" on BTC 80k. This sheet slides up.
+    ONE number to choose: how much you're betting.
+    The slider goes from minimum to maximum (their ask).
+    Everything else is calculated for you.
+</div>
+
+<div class="sheet">
+    <div class="sheet__handle"></div>
+    <div class="steps">
+        <div class="step done"></div>
+        <div class="step current"></div>
+        <div class="step"></div>
+    </div>
+    <div class="sheet__title">Bet YES</div>
+    <div class="sheet__subtitle">Will BTC be above 80k by Friday?</div>
+
+    <div class="amount-input">
+        <div class="amount-input__label">Your bet</div>
+        <div>
+            <span class="amount-input__value">8</span>
+            <span class="amount-input__unit">MINIMA</span>
+        </div>
+        <input type="range" class="amount-input__slider" min="1" max="10" value="8">
+        <div class="amount-input__range">
+            <span>1 M (min)</span>
+            <span>10 M (their ask)</span>
+        </div>
+    </div>
+
+    <div class="payout">
+        <div class="payout__row">
+            <span>You're betting</span>
+            <strong>8 MINIMA</strong>
+        </div>
+        <div class="payout__row">
+            <span>Against their</span>
+            <strong>5 MINIMA</strong>
+        </div>
+        <div class="payout__row payout__row--highlight">
+            <span>If you're right</span>
+            <strong class="payout__win">You win 5 MINIMA</strong>
+        </div>
+        <div class="payout__row">
+            <span>If you're wrong</span>
+            <strong class="payout__lose">You lose 8 MINIMA</strong>
+        </div>
+        <div class="payout__row" style="font-size:12px;color:var(--muted);padding-top:8px;">
+            <span>Escrow held (returned if you agree)</span>
+            <span>2 M</span>
+        </div>
+    </div>
+
+    <button class="btn btn--yes btn--big">Confirm — Bet 8M on YES</button>
+    <div style="text-align:center;margin-top:10px;">
+        <button class="btn btn--ghost btn--sm btn--pill">Cancel</button>
+    </div>
+</div>
+
+<!-- ============================================================
+     MY BETS — Live bet with chat + settlement
+     ============================================================ -->
+<div class="divider">My Bets — Live</div>
+<div class="note">
+    No "FOR/AGAINST". Just: what did you bet, what's at stake.
+    "What happened?" is the settlement prompt — plain English.
+    Chat is always visible. Proposal banner is impossible to miss.
+</div>
+
+<div class="page" style="padding-top:16px;">
+
+    <div class="livebet">
+        <div class="livebet__status livebet__status--live">LIVE &middot; Waiting for result</div>
+        <div class="livebet__question">Will BTC be above 80k by Friday?</div>
+
+        <div class="livebet__stakes">
+            <div class="livebet__row"><dt>You bet</dt><dd>YES &middot; 5 MINIMA</dd></div>
+            <div class="livebet__row"><dt>They bet</dt><dd>NO &middot; 10 MINIMA</dd></div>
+            <div class="livebet__row"><dt>If you win</dt><dd style="color:var(--yes)">+10 MINIMA</dd></div>
+            <div class="livebet__row"><dt>If you lose</dt><dd style="color:var(--no)">-5 MINIMA</dd></div>
+        </div>
+
+        <!-- Incoming proposal — can't miss it -->
+        <div class="incoming">
+            <div class="incoming__who">Your counterparty says:</div>
+            <div class="incoming__what">"YES — it happened"</div>
+            <div class="incoming__fee">Agree = 0% fee &middot; Disagree = arbiter decides (10%)</div>
+            <div class="incoming__actions">
+                <button class="btn btn--yes">Agree</button>
+                <button class="btn btn--no">Disagree</button>
+            </div>
+        </div>
+
+        <!-- Settlement prompt -->
+        <div class="settle">
+            <div class="settle__prompt">What happened?</div>
+            <div class="settle__explain">If your counterparty agrees, you settle at 0% fee. If not, the arbiter decides.</div>
+            <div class="settle__buttons">
+                <button class="btn btn--yes btn--pill">It happened</button>
+                <button class="btn btn--no btn--pill">It didn't</button>
+                <button class="btn btn--ghost btn--pill btn--sm" style="flex:0.5">Void</button>
+            </div>
+        </div>
+
+        <!-- Chat -->
+        <div class="chat">
+            <div class="chat__messages">
+                <div class="chat__name">eurobuddha</div>
+                <div class="chat__bubble chat__bubble--them">I have declared TRUE</div>
+                <div style="text-align:right">
+                    <div class="chat__name" style="text-align:right">You</div>
+                    <div class="chat__bubble chat__bubble--me">Checking now, one sec</div>
+                </div>
+                <div class="chat__name">eurobuddha</div>
+                <div class="chat__bubble chat__bubble--them">BTC hit 81.2k at 19:45 UTC ✓</div>
+            </div>
+            <div class="chat__input-row">
+                <input class="chat__input" placeholder="Message...">
+                <button class="chat__send">&#9654;</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Won bet -->
+    <div class="livebet" style="opacity:0.7;">
+        <div class="livebet__status livebet__status--won">WON &middot; +10 MINIMA</div>
+        <div class="livebet__question">Will it rain in London on Saturday?</div>
+        <div class="livebet__stakes">
+            <div class="livebet__row"><dt>You bet</dt><dd>YES &middot; 2M</dd></div>
+            <div class="livebet__row"><dt>Settled</dt><dd style="color:var(--yes)">You won 4 MINIMA</dd></div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================
+     POST — Create a new question
+     ============================================================ -->
+<div class="divider">Post — Create a Question</div>
+<div class="note">
+    Simple form. The question IS the proposition.
+    Side picker is YES/NO not FOR/AGAINST.
+    Live preview shows exactly what will happen.
+</div>
+
+<div class="page" style="padding-top:16px;">
+    <div style="background:var(--card);border-radius:var(--r);padding:20px;box-shadow:var(--shadow);">
+
+        <div style="font-size:20px;font-weight:800;margin-bottom:16px;">Ask a question</div>
+
+        <div style="margin-bottom:16px;">
+            <div style="font-size:12px;font-weight:700;color:var(--dim);margin-bottom:6px;">THE QUESTION</div>
+            <input style="width:100%;padding:12px 16px;border:2px solid var(--border);border-radius:var(--rs);font-family:inherit;font-size:15px;outline:none;" placeholder="Will something happen?" value="Will BTC hit 100k in 2026?">
+        </div>
+
+        <div style="margin-bottom:16px;">
+            <div style="font-size:12px;font-weight:700;color:var(--dim);margin-bottom:6px;">YOUR ANSWER</div>
+            <div style="display:flex;border-radius:var(--rs);overflow:hidden;border:2px solid var(--border);">
+                <div style="flex:1;padding:12px;text-align:center;font-weight:700;background:var(--yes);color:white;">YES</div>
+                <div style="flex:1;padding:12px;text-align:center;font-weight:700;color:var(--muted);">NO</div>
+            </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+            <div>
+                <div style="font-size:12px;font-weight:700;color:var(--dim);margin-bottom:6px;">YOUR BET</div>
+                <input style="width:100%;padding:12px;border:2px solid var(--border);border-radius:var(--rs);font-family:inherit;font-size:16px;font-weight:700;text-align:center;outline:none;" value="10" type="number">
+            </div>
+            <div>
+                <div style="font-size:12px;font-weight:700;color:var(--dim);margin-bottom:6px;">THEY MUST BET</div>
+                <input style="width:100%;padding:12px;border:2px solid var(--border);border-radius:var(--rs);font-family:inherit;font-size:16px;font-weight:700;text-align:center;outline:none;" value="10" type="number">
+            </div>
+        </div>
+
+        <div class="payout" style="margin-bottom:16px;">
+            <div class="payout__row"><span>If you're right</span><strong class="payout__win">You win 10 MINIMA</strong></div>
+            <div class="payout__row"><span>If you're wrong</span><strong class="payout__lose">You lose 10 MINIMA</strong></div>
+            <div class="payout__row" style="font-size:12px;color:var(--muted);"><span>Total locked (inc. escrow)</span><span>12.5 M</span></div>
+        </div>
+
+        <button class="btn btn--accent btn--big">Post Question</button>
+    </div>
+</div>
+
+<!-- ============================================================
+     ARBITER VIEW
+     ============================================================ -->
+<div class="divider">Arbiter — Resolve Disputes</div>
+<div class="note">
+    Arbiter sees the question, both stakes, and two big buttons.
+    Their fee is shown prominently. No ambiguity.
+</div>
+
+<div class="page" style="padding-top:16px;">
+    <div style="background:var(--card);border-radius:var(--r);padding:20px;box-shadow:var(--shadow);border-left:4px solid var(--accent);">
+        <div style="font-size:11px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Awaiting your decision</div>
+        <div style="font-size:17px;font-weight:700;margin-bottom:12px;">Will BTC be above 80k by Friday?</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
+            <div style="background:var(--bg);border-radius:var(--rs);padding:10px;text-align:center;">
+                <div style="font-size:11px;color:var(--muted);font-weight:700;">YES side</div>
+                <div style="font-size:18px;font-weight:800;">5 M</div>
+            </div>
+            <div style="background:var(--bg);border-radius:var(--rs);padding:10px;text-align:center;">
+                <div style="font-size:11px;color:var(--muted);font-weight:700;">NO side</div>
+                <div style="font-size:18px;font-weight:800;">10 M</div>
+            </div>
+        </div>
+        <div style="text-align:center;font-size:14px;font-weight:700;color:var(--accent);margin-bottom:16px;">
+            Your fee: 1.50 MINIMA
+        </div>
+        <div style="display:flex;gap:10px;">
+            <button class="btn btn--yes" style="flex:1;padding:16px;font-size:16px;">YES happened</button>
+            <button class="btn btn--no" style="flex:1;padding:16px;font-size:16px;">NO it didn't</button>
+        </div>
+    </div>
+</div>
+
+<div style="height:100px"></div>
+
+<!-- Bottom nav -->
+<div class="bottomnav">
+    <button class="nav__tab active"><span class="nav__icon">📊</span>Markets</button>
+    <button class="nav__tab"><span class="nav__icon">➕</span>Post</button>
+    <button class="nav__tab"><span class="nav__icon">🎯</span>My Bets</button>
+    <button class="nav__tab"><span class="nav__icon">⋯</span>More</button>
+</div>
+
+</body>
+</html>

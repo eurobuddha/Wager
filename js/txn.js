@@ -1,54 +1,78 @@
 /**
- * Wager V2 — Transaction Builders
+ * ============================================================================
+ * WAGER — Transaction Builders Module
+ * ============================================================================
  *
- * All transaction construction for the prediction market:
- *   postBet()        — Create a new bet (send to script address)
- *   fillBet()        — Match an existing bet (phase 0→1)
- *   cancelBet()      — Owner cancels unmatched bet (phase 0)
- *   resolveBet()     — Arbiter declares outcome (phase 1)
- *   timeoutBet()     — Refund both sides after arbiter timeout (phase 1)
- *   collectExpired() — Return expired unmatched bets to owner (phase 0)
- *   refreshCoin()    — Spend and recreate coin to reset @COINAGE (keep alive)
+ * PURPOSE:
+ *   All on-chain transaction construction for the prediction market.
+ *   Each function builds a Minima transaction with the correct inputs,
+ *   outputs, state variables, and signatures, then posts to the network.
+ *
+ * TRANSACTION BUILDERS:
+ *   postBet(params, cb)              — Create a new bet (send to script address)
+ *   fillBet(bet, cb)                 — Match an existing bet (phase 0→1)
+ *   cancelBet(coinid, cb)            — Owner cancels unmatched bet (phase 0)
+ *   selfSettle(coinid, outcome, cb)  — Build partially-signed settlement (both sign)
+ *   cosignAndPost(txnHex, sigKey, cb)— Co-sign imported tx and post
+ *   resolveBet(coinid, outcome, cb)  — Arbiter declares outcome (10% fee)
+ *   timeoutBet(coinid, cb)           — Refund both after timeout (MAST path)
+ *   collectExpired(coinid, cb)       — Return expired open bets to owner
+ *
+ * HELPERS:
+ *   generateBetId()                  — Unique hex ID for bet DB records
+ *   setFillState(txid, bet, cb)      — Set all state ports for fill transaction
+ *   setTxnState(txid, states, cb)    — Set multiple state ports sequentially
+ *   findCoins(tokenid, amount, cb)   — Find sendable coins totaling >= amount
+ *   addMultipleInputs(txid, coins, idx, cb) — Add array of coins as inputs
+ *   findCoinByIdOnChain(coinid, cb)  — Find coin by ID at contract address
+ *   cleanupTxn(txid)                 — Release lock + delete transaction
+ *
+ * MATH:
+ *   calcOdds(bet, want)              — Simplified ratio (e.g. "2:1")
+ *   calcCounterOdds(bet, want)       — Inverse odds
+ *   gcd(a, b)                        — Greatest common divisor
+ *
+ * CHAINMAIL NOTIFICATION WRAPPERS:
+ *   notifyArbiter(...)               — BET_CREATED to arbiter
+ *   notifyBetMatched(...)            — BET_MATCHED to owner + arbiter
+ *   sendSettlePropose(...)           — SETTLE_PROPOSE to counterparty
+ *   sendSettleAccept(...)            — SETTLE_ACCEPT to proposer
+ *   sendSettleReject(...)            — SETTLE_REJECT to proposer + DISPUTE to arbiter
+ *
+ * TRANSACTION PATTERNS (from minima-tx skill):
+ *   Standard: txncreate → txninput → txnoutput → txnstate → txnsign → txnbasics → txnpost
+ *   Self-settle proposer: txncreate → txninput → txnoutput → txnstate → txnsign → txnexport (NO basics)
+ *   Self-settle co-signer: txnimport → txnsign → txnbasics → txnpost (basics ONCE, by last signer)
+ *
+ * SECURITY NOTES:
+ *   - ALL transactions set STATE(14)=0. The KISS VM crashes on unset STATE ports.
+ *   - Self-settle signs with the SPECIFIC key from coin state (port 0 or 8),
+ *     never publickey:auto. auto doesn't find the right key for script addresses.
+ *   - fillBet fetches the coin FRESH before building the tx to handle stale coinids.
+ *   - cosignAndPost calls txnbasics exactly once (the co-signer's responsibility).
+ *   - txndelete is called on ALL error paths to prevent locking input coins.
+ *   - The escrow math: each side locks bet × 1.25. Escrow = lock / 5.
+ *     Self-settle: winner gets pot - loserEscrow, loser gets loserEscrow back.
+ *     Arbiter: winner gets 90%, arbiter gets 10%, loser gets nothing.
+ *     Void: each gets their lock back, 0% fee.
+ *
+ * DEPENDENCIES:
+ *   - identity.js (MY_PUBKEY, MY_HEX_ADDR, MY_MXKEY, MY_MXNAME, isMyKey, strToHex)
+ *   - state.js (ESCROW_RATE, REFRESH_AGE, getStateVal, parseBetCoin, OPEN_BETS)
+ *   - contract.js (WAGER_SCRIPT_ADDRESS, MAST_*_SCRIPT, MAST_*_PROOF)
+ *   - chainmail.js (sendChainMail)
+ *   - db.js (insertBet, logTx, insertMessage)
+ *
+ * LOADED BY:
+ *   - index.html (browser context, after state.js)
+ *   - service.js via MDS.load (background context, for refreshCoin reuse - future)
+ * ============================================================================
  */
 
-// -- Constants --
-var ESCROW_RATE = 0.25; // 25% escrow insurance on top of bet
-var REFRESH_AGE = 10;   // blocks before refresh (10 for testing, 1200 for production)
-var MY_MXKEY = "";      // This node's Maxima public key
-var MY_MXNAME = "";     // This node's Maxima name
 
-// -- Hex encode/decode for proposition text (state port 12) --
-
-function strToHex(str) {
-    var hex = "0x";
-    for (var i = 0; i < str.length; i++) {
-        hex += str.charCodeAt(i).toString(16).toUpperCase().padStart(2, "0");
-    }
-    return hex;
-}
-
-function hexToStr(hex) {
-    if (!hex) return "";
-    if (hex.startsWith("0x")) hex = hex.substring(2);
-    var str = "";
-    for (var i = 0; i < hex.length; i += 2) {
-        str += String.fromCharCode(parseInt(hex.substring(i, i + 2), 16));
-    }
-    return str;
-}
-
-// -- Identity --
-var MY_PUBKEY = "";
-var MY_HEX_ADDR = "";
-var MY_ADDR = "";
-var MY_KEYS = {};
-
-// -- State --
-var BETS = [];
-var OPEN_BETS = [];
-var MY_BETS = [];
-var MATCHED_BETS = [];
-var CURRENT_BLOCK = 0;
+// ============================================================================
+// TRANSACTION LOCK — Serializes on-chain operations
+// ============================================================================
 
 // -- Transaction lock (from Escrow pattern) --
 var TXN_LOCKED = false;
@@ -67,75 +91,9 @@ function releaseTxnLock() {
     }
 }
 
-// -- Identity Loading (from Limit pattern) --
-
-function loadIdentity(callback) {
-    MDS.keypair.get("wager_pubkey", function(kres) {
-        if (kres.status && kres.value && kres.value.length > 10) {
-            MY_PUBKEY = kres.value;
-            MDS.keypair.get("wager_hexaddr", function(k2) {
-                MY_HEX_ADDR = (k2.status && k2.value) ? k2.value : "";
-                MDS.keypair.get("wager_miniaddr", function(k3) {
-                    MY_ADDR = (k3.status && k3.value) ? k3.value : MY_HEX_ADDR;
-                    if (MY_PUBKEY && MY_HEX_ADDR) { callback(); return; }
-                    fetchAndStoreIdentity(callback);
-                });
-            });
-            return;
-        }
-        fetchAndStoreIdentity(callback);
-    });
-}
-
-function fetchAndStoreIdentity(callback) {
-    MDS.cmd("getaddress", function(res) {
-        if (!res.status) { callback(); return; }
-        MY_PUBKEY = res.response.publickey;
-        MY_HEX_ADDR = res.response.address;
-        MY_ADDR = res.response.miniaddress;
-        MDS.keypair.set("wager_pubkey", MY_PUBKEY, function() {
-            MDS.keypair.set("wager_hexaddr", MY_HEX_ADDR, function() {
-                MDS.keypair.set("wager_miniaddr", MY_ADDR, function() { callback(); });
-            });
-        });
-    });
-}
-
-function loadMaximaIdentity(callback) {
-    getMyMaximaInfo(function(info) {
-        if (info) {
-            MY_MXKEY = info.mxpublickey;
-            MY_MXNAME = info.name;
-            MDS.log("Maxima identity: " + MY_MXNAME + " (" + MY_MXKEY.substring(0, 20) + "...)");
-        }
-        if (callback) callback();
-    });
-}
-
-function loadWalletKeys(callback) {
-    MDS.cmd("keys", function(res) {
-        try {
-            if (res && res.status && res.response) {
-                var list = res.response.keys || res.response;
-                if (Array.isArray(list)) {
-                    for (var i = 0; i < list.length; i++) {
-                        var pk = list[i].publickey || list[i];
-                        if (pk && typeof pk === "string") MY_KEYS[pk] = true;
-                    }
-                }
-            }
-        } catch(e) { MDS.log("Keys error: " + e); }
-        if (MY_PUBKEY) MY_KEYS[MY_PUBKEY] = true;
-        MDS.log("Wallet keys loaded: " + Object.keys(MY_KEYS).length);
-        if (callback) callback();
-    });
-}
-
-function isMyKey(pubkey) {
-    return MY_KEYS[pubkey] === true;
-}
-
-// -- Generate Bet ID --
+// ============================================================================
+// TRANSACTION BUILDERS
+// ============================================================================
 
 function generateBetId() {
     return "0x" + Date.now().toString(16) + Math.random().toString(16).substring(2, 10);
@@ -167,8 +125,10 @@ function postBet(params, callback) {
 
         var cmd = "send amount:" + params.stake + " address:" + WAGER_SCRIPT_ADDRESS + " state:" + stateObj;
 
-        var sideLabel = params.side === 1 ? "FOR" : "AGAINST";
-        notify("Posting " + sideLabel + " bet: " + params.stake + " MINIMA...", "info");
+        var sideLabel = params.side === 1 ? "TRUE" : "FALSE";
+        var betOnly = (parseFloat(params.stake) / (1 + ESCROW_RATE)).toFixed(2);
+        var escrowAmt = (parseFloat(params.stake) - parseFloat(betOnly)).toFixed(2);
+        notify("Posting " + sideLabel + ": " + betOnly + " + " + escrowAmt + " honesty escrow = " + parseFloat(params.stake).toFixed(2) + " MINIMA locked", "info");
 
         MDS.cmd(cmd, function(res) {
             releaseTxnLock();
@@ -310,7 +270,10 @@ function fillBet(bet, callback) {
                                                 releaseTxnLock();
                                                 MDS.cmd("txndelete id:" + txid);
                                                 if (pr && pr.status) {
-                                                    notify("Fill submitted — waiting for on-chain confirmation (~2 min)...", "info");
+                                                    var myBetOnly = (parseFloat(counterStake) / (1 + ESCROW_RATE)).toFixed(2);
+                                                    var myEscrow = (parseFloat(counterStake) - parseFloat(myBetOnly)).toFixed(2);
+                                                    var mySide = bet.side === 1 ? "FALSE" : "TRUE";
+                                                    notify("Filled " + mySide + ": " + myBetOnly + " + " + myEscrow + " escrow = " + parseFloat(counterStake).toFixed(2) + " locked. Confirming on-chain (1-3 blocks).", "pending");
                                                     logTx("FILL", counterStake, "OUT", bet.proposition || "", "Matched bet — pot " + totalPot);
                                                     // Store filler's bet record in DB (critical for MxKey delivery)
                                                     insertBet({
@@ -808,217 +771,10 @@ function collectExpired(coinid, callback) {
 
 // -- Refresh Coin (keep alive across cascade) --
 // Spends and recreates coin at same address with identical state. Resets @COINAGE.
-// Phase 0: owner signs. Phase 1: owner OR counter signs.
-// STATE(14) = 1 tells the contract this is a refresh, not a cancel.
 
-function refreshCoin(coin, callback) {
-    var txid = "refresh_" + Date.now();
-    var phase = getStateVal(coin, 4);
-    var sigKey = null;
-
-    // Find a key we own that can sign
-    if (isMyKey(getStateVal(coin, 0))) {
-        sigKey = getStateVal(coin, 0); // owner
-    } else if (phase === "1" && isMyKey(getStateVal(coin, 8))) {
-        sigKey = getStateVal(coin, 8); // counter
-    }
-    if (!sigKey) {
-        MDS.log("Refresh: no signing key for coin " + coin.coinid.substring(0, 20));
-        if (callback) callback(false);
-        return;
-    }
-
-    MDS.log("Refreshing coin " + coin.coinid.substring(0, 20) + "... age=" + (coin.age || "?"));
-    notify("Refreshing bet (age " + (coin.age || "?") + " blocks)...", "info");
-
-    MDS.cmd("txncreate id:" + txid, function(r0) {
-        if (!r0.status) { MDS.log("Refresh txncreate failed"); if (callback) callback(false); return; }
-
-        MDS.cmd("txninput id:" + txid + " coinid:" + coin.coinid, function(r1) {
-            if (!r1.status) { MDS.cmd("txndelete id:" + txid); if (callback) callback(false); return; }
-
-            // Output: same amount, same address, storestate:true
-            MDS.cmd("txnoutput id:" + txid + " amount:" + coin.amount + " address:" + WAGER_SCRIPT_ADDRESS + " storestate:true", function(r2) {
-                if (!r2.status) { MDS.cmd("txndelete id:" + txid); if (callback) callback(false); return; }
-
-                // Copy all state ports + ensure 0-16 exist (Java VM crashes on unset STATE)
-                var states = {};
-                for (var p = 0; p <= 16; p++) states[p] = "0";
-                coin.state.forEach(function(s) { states[s.port] = s.data; });
-                states[14] = "1"; // refresh flag
-
-                setTxnState(txid, states, function(stateOk) {
-                    if (!stateOk) { MDS.cmd("txndelete id:" + txid); if (callback) callback(false); return; }
-
-                    MDS.cmd("txnsign id:" + txid + " publickey:" + sigKey, function(sr) {
-                        if (!sr || !sr.status) {
-                            MDS.log("Refresh sign failed");
-                            MDS.cmd("txndelete id:" + txid);
-                            if (callback) callback(false);
-                            return;
-                        }
-
-                        MDS.cmd("txnbasics id:" + txid, function(br) {
-                            if (!br || !br.status) {
-                                MDS.log("Refresh basics failed");
-                                MDS.cmd("txndelete id:" + txid);
-                                if (callback) callback(false);
-                                return;
-                            }
-
-                            MDS.cmd("txnpost id:" + txid, function(pr) {
-                                MDS.cmd("txndelete id:" + txid);
-                                if (pr && pr.status) {
-                                    notify("Bet refreshed — coin age reset", "ok");
-                                    MDS.log("Refreshed coin " + coin.coinid.substring(0, 20));
-                                    if (callback) callback(true);
-                                } else {
-                                    MDS.log("Refresh post failed: " + (pr ? pr.error : ""));
-                                    notify("Refresh failed", "err");
-                                    if (callback) callback(false);
-                                }
-                            });
-                        });
-                    });
-                });
-            });
-        });
-    });
-}
-
-// Scan all contract coins and refresh any that are getting stale
-function refreshStaleCoins(callback) {
-    if (!WAGER_SCRIPT_ADDRESS) { if (callback) callback(); return; }
-
-    MDS.cmd("coins address:" + WAGER_SCRIPT_ADDRESS, function(res) {
-        if (!res.status || !res.response) { if (callback) callback(); return; }
-
-        var stale = [];
-        res.response.forEach(function(coin) {
-            var age = parseInt(coin.age) || 0;
-            if (age >= REFRESH_AGE && parseFloat(coin.amount) > 0.001) {
-                var phase = getStateVal(coin, 4);
-                var canSign = isMyKey(getStateVal(coin, 0));
-                if (phase === "1") canSign = canSign || isMyKey(getStateVal(coin, 8));
-                if (canSign) stale.push(coin);
-            }
-        });
-
-        if (stale.length === 0) { if (callback) callback(); return; }
-
-        MDS.log("Found " + stale.length + " stale coin(s) to refresh");
-        notify("Refreshing " + stale.length + " stale bet(s)...", "info");
-
-        // Refresh one at a time to avoid conflicts
-        var idx = 0;
-        function next() {
-            if (idx >= stale.length) { if (callback) callback(); return; }
-            refreshCoin(stale[idx], function() {
-                idx++;
-                setTimeout(next, 2000); // pause between refreshes
-            });
-        }
-        next();
-    });
-}
-
-// -- Load On-Chain Bets --
-// Scans all coins at script address, categorizes by phase.
-
-function refreshBets(callback) {
-    if (!WAGER_SCRIPT_ADDRESS) { if (callback) callback(); return; }
-
-    MDS.cmd("coins address:" + WAGER_SCRIPT_ADDRESS, function(res) {
-        if (!res.status) { if (callback) callback(); return; }
-
-        var allCoins = res.response || [];
-        OPEN_BETS = [];
-        MATCHED_BETS = [];
-
-        allCoins.forEach(function(coin) {
-            if (coin.spent) return;
-            var phase = parseInt(getStateVal(coin, 4)) || 0;
-            var parsed = parseBetCoin(coin);
-
-            if (phase === 0) {
-                OPEN_BETS.push(parsed);
-            } else if (phase === 1) {
-                MATCHED_BETS.push(parsed);
-            }
-        });
-
-        MDS.log("Refreshed: " + OPEN_BETS.length + " open, " + MATCHED_BETS.length + " matched");
-
-        // Enrich matched bets with MxKeys from DB (ports 15/16 are unreliable)
-        enrichMxKeys(function() {
-            if (callback) callback();
-        });
-    });
-}
-
-function enrichMxKeys(callback) {
-    if (MATCHED_BETS.length === 0) { callback(); return; }
-    // Query bets DB + messages DB for stored MxKeys
-    MDS.sql("SELECT betid, ownermxkey, countermxkey, arbitermxkey, market FROM bets WHERE ownermxkey != '' OR countermxkey != '' OR arbitermxkey != ''", function(res) {
-        var dbKeys = {};
-        if (res.status && res.rows) {
-            res.rows.forEach(function(r) {
-                var entry = { owner: r.OWNERMXKEY || "", counter: r.COUNTERMXKEY || "", arbiter: r.ARBITERMXKEY || "" };
-                if (r.MARKET) dbKeys[r.MARKET] = entry;
-                if (r.BETID) dbKeys[r.BETID] = entry;
-            });
-        }
-        MATCHED_BETS.forEach(function(bet) {
-            var stored = dbKeys[bet.coinid] || dbKeys[bet.proposition] || null;
-            if (stored) {
-                if (!bet.ownermxkey && stored.owner) bet.ownermxkey = stored.owner;
-                if (!bet.countermxkey && stored.counter) bet.countermxkey = stored.counter;
-                if (!bet.arbitermxkey && stored.arbiter) bet.arbitermxkey = stored.arbiter;
-            }
-        });
-        callback();
-    });
-}
-
-function parseBetCoin(coin) {
-    return {
-        coinid: coin.coinid,
-        amount: coin.amount,
-        phase: parseInt(getStateVal(coin, 4)) || 0,
-        ownerpk: getStateVal(coin, 0),
-        owneraddr: getStateVal(coin, 1),
-        arbpk: getStateVal(coin, 2),
-        arbaddr: getStateVal(coin, 3),
-        timeout: parseInt(getStateVal(coin, 5)) || 5000,
-        side: parseInt(getStateVal(coin, 6)),
-        wantstake: getStateVal(coin, 7),
-        counterpk: getStateVal(coin, 8),
-        counteraddr: getStateVal(coin, 9),
-        ownerstake: getStateVal(coin, 10),
-        proposition: hexToStr(getStateVal(coin, 12)),
-        propositionHex: getStateVal(coin, 12),
-        settlement: getStateVal(coin, 13),
-        ownermxkey: (function(){ var k = hexToStr(getStateVal(coin, 15)); return k && k.substring(0,2) === "Mx" ? k : ""; })(),
-        countermxkey: (function(){ var k = hexToStr(getStateVal(coin, 16)); return k && k.substring(0,2) === "Mx" ? k : ""; })(),
-        arbitermxkey: (function(){ var k = hexToStr(getStateVal(coin, 17)); return k && k.substring(0,2) === "Mx" ? k : ""; })(),
-        arbitermxkeyHex: getStateVal(coin, 17),
-        isMine: (function() { var k = getStateVal(coin, 0); var r = isMyKey(k); if (!r && k) MDS.log("NOT MY KEY port0: " + k.substring(0,20) + "... keys=" + Object.keys(MY_KEYS).length); return r; })(),
-        isMyCounter: (function() { var k = getStateVal(coin, 8); var r = isMyKey(k); if (!r && k) MDS.log("NOT MY KEY port8: " + k.substring(0,20) + "... keys=" + Object.keys(MY_KEYS).length); return r; })(),
-        isMyArb: isMyKey(getStateVal(coin, 2)),
-        created: coin.created || "0",
-        age: parseInt(coin.age) || 0
-    };
-}
-
-// -- Helpers --
-
-function getStateVal(coin, port) {
-    if (!coin.state) return "";
-    for (var i = 0; i < coin.state.length; i++) {
-        if (coin.state[i].port === port) return coin.state[i].data;
-    }
-    return "";
-}
+// ============================================================================
+// HELPERS — Coin selection, state setting, cleanup
+// ============================================================================
 
 function setTxnState(txid, states, callback) {
     var ports = Object.keys(states);
@@ -1083,7 +839,11 @@ function cleanupTxn(txid) {
     MDS.cmd("txndelete id:" + txid);
 }
 
-// Odds as simplified whole number ratio want:bet — "20 wants 10" = 1:2, "30 wants 90" = 3:1
+
+// ============================================================================
+// MATH — Odds calculation
+// ============================================================================
+
 function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
 function calcOdds(betAmt, wantAmt) {
     var b = Math.round(parseFloat(betAmt) * 100);
@@ -1097,7 +857,9 @@ function calcCounterOdds(betAmt, wantAmt) {
     return calcOdds(wantAmt, betAmt);
 }
 
-// -- ChainMail Messaging --
+// ============================================================================
+// CHAINMAIL NOTIFICATION WRAPPERS
+// ============================================================================
 
 function notifyArbiter(betid, arbMxKey, market, stake, callback) {
     if (!arbMxKey) { if (callback) callback(false); return; }
@@ -1142,12 +904,13 @@ function sendSettlePropose(counterMxKey, betid, outcome, txnHex, proposition, ca
     }, function(ok, err) { if (callback) callback(ok, err); });
 }
 
-function sendSettleAccept(proposerMxKey, betid, proposition, callback) {
+function sendSettleAccept(proposerMxKey, betid, proposition, outcome, callback) {
     if (!proposerMxKey) { if (callback) callback(false); return; }
     sendChainMail(proposerMxKey, {
         type: "SETTLE_ACCEPT",
         betid: betid,
         proposition: proposition || "",
+        outcome: outcome,
         sender_name: MY_MXNAME
     }, function(ok) { if (callback) callback(ok); });
 }
@@ -1171,42 +934,5 @@ function sendSettleReject(proposerMxKey, arbMxKey, betid, proposition, callback)
         }, function(ok) { if (callback) callback(ok); });
     } else {
         if (callback) callback(true);
-    }
-}
-
-// -- Escrow Helpers --
-// Locked amount = bet * 1.25. Actual bet = locked / 1.25 = locked * 0.8
-
-function lockedToBet(locked) {
-    return parseFloat(locked) / (1 + ESCROW_RATE);
-}
-
-function lockedToEscrow(locked) {
-    return parseFloat(locked) - lockedToBet(locked);
-}
-
-// Self-settle payout calculation:
-// Winner gets: both bets + own escrow. Loser gets: own escrow back.
-function selfSettlePayouts(pot, ownerLocked, ownerWins) {
-    var counterLocked = parseFloat(pot) - parseFloat(ownerLocked);
-    var ownerBet = lockedToBet(ownerLocked);
-    var counterBet = lockedToBet(counterLocked);
-    var ownerEscrow = lockedToEscrow(ownerLocked);
-    var counterEscrow = lockedToEscrow(counterLocked);
-
-    if (ownerWins) {
-        return {
-            winner: ownerBet + counterBet + ownerEscrow,   // both bets + own escrow
-            loser: counterEscrow,                            // loser gets escrow back
-            winnerAddr: "owner",
-            loserAddr: "counter"
-        };
-    } else {
-        return {
-            winner: ownerBet + counterBet + counterEscrow,
-            loser: ownerEscrow,
-            winnerAddr: "counter",
-            loserAddr: "owner"
-        };
     }
 }

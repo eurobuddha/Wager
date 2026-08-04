@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Openly — Style Enhancement Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+    --bg:#EEEAE4;
+    --card:#FFFFFF;
+    --card-raised:#FFFFFF;
+    --border:#DDD8D0;
+    --text:#0A0A0A;
+    --dim:#4A4A46;
+    --muted:#8A8680;
+    --true:#00A651;
+    --true-soft:#D4F5E2;
+    --false:#E6303A;
+    --false-soft:#FDE0E2;
+    --purple:#6C3AED;
+    --purple-soft:#EDE8FF;
+    --gold:#C49A00;
+    --gold-soft:#FFF6D6;
+
+    /* 3D depth system */
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+    --shadow-md: 0 2px 4px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.06);
+    --shadow-lg: 0 4px 8px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.08);
+    --shadow-xl: 0 8px 16px rgba(0,0,0,0.08), 0 16px 48px rgba(0,0,0,0.1);
+    --shadow-inner: inset 0 1px 3px rgba(0,0,0,0.08);
+    --shadow-glow-true: 0 0 20px rgba(0,166,81,0.15);
+    --shadow-glow-false: 0 0 20px rgba(230,48,58,0.15);
+    --shadow-glow-purple: 0 0 20px rgba(108,58,237,0.12);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Manrope',sans-serif;background:var(--bg);color:var(--text);font-size:13px;line-height:1.45;max-width:460px;margin:0 auto;min-height:100vh;-webkit-font-smoothing:antialiased;}
+
+/* Note */
+.note{background:#FFF8E5;border-left:3px solid var(--gold);padding:10px 14px;font-size:11px;color:#7A6520;margin:12px 16px;border-radius:0 8px 8px 0;}
+.divider{background:#111;color:#ddd;text-align:center;padding:14px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:3px;margin-top:40px;}
+.divider:first-child{margin-top:0;}
+
+/* ================================================================
+   TOPBAR — subtle gradient, depth
+   ================================================================ */
+.topbar{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:10px 20px;
+    background:linear-gradient(180deg,#FFFFFF 0%,#FAF9F6 100%);
+    border-bottom:1px solid var(--border);
+    box-shadow:var(--shadow-sm);
+    position:sticky;top:0;z-index:100;
+}
+.topbar__brand{font-weight:800;font-size:18px;letter-spacing:-0.5px;}
+.topbar__nav{display:flex;gap:3px;align-items:center;}
+.tn{
+    background:none;border:none;padding:7px 9px;border-radius:8px;cursor:pointer;
+    color:var(--muted);transition:all 0.2s;position:relative;
+}
+.tn:hover{background:rgba(0,0,0,0.04);color:var(--dim);}
+.tn.on{color:var(--purple);background:var(--purple-soft);box-shadow:var(--shadow-sm);}
+.tn svg{width:18px;height:18px;stroke-width:1.8;fill:none;stroke:currentColor;display:block;}
+.tn.on svg{stroke-width:2.2;}
+.topbar__bal{font-size:12px;font-weight:800;}
+.topbar__sub{font-size:9px;color:var(--muted);}
+
+/* ================================================================
+   ACTIVITY LOG — recessed panel
+   ================================================================ */
+.logpanel{
+    background:linear-gradient(180deg,#F0EDE7 0%,#EBE8E2 100%);
+    border-bottom:1px solid var(--border);
+    box-shadow:var(--shadow-inner);
+    padding:6px 16px 8px;
+    max-height:108px;overflow-y:auto;
+}
+.logpanel__title{font-size:8px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;}
+.lr{display:flex;gap:6px;padding:2px 0;font-size:11px;line-height:1.3;}
+.lr__t{color:var(--muted);font-weight:600;min-width:34px;font-size:10px;}
+.lr__m{flex:1;color:var(--dim);}
+.lr--ok .lr__m{color:#0A6B35;font-weight:600;}
+.lr--w .lr__m{color:#92400E;}
+
+/* ================================================================
+   MARKET CARD — lifted, tactile
+   ================================================================ */
+.mc{
+    background:var(--card-raised);
+    border-radius:16px;
+    box-shadow:var(--shadow-md);
+    margin:0 16px 12px;
+    overflow:hidden;
+    transition:transform 0.15s,box-shadow 0.15s;
+    border:1px solid rgba(255,255,255,0.8);
+}
+.mc:hover{transform:translateY(-1px);box-shadow:var(--shadow-lg);}
+.mc:active{transform:translateY(0);box-shadow:var(--shadow-sm);}
+
+.mc__head{padding:14px 16px 6px;}
+.mc__prop{font-size:14px;font-weight:800;line-height:1.3;letter-spacing:-0.2px;}
+.mc__meta{font-size:10px;color:var(--muted);margin-top:4px;display:flex;gap:8px;}
+
+/* Odds bar — glossy 3D pill */
+.ob{
+    display:flex;margin:8px 16px;height:36px;border-radius:18px;overflow:hidden;
+    box-shadow:var(--shadow-inner),0 2px 6px rgba(0,0,0,0.08);
+}
+.ob__t{
+    background:linear-gradient(180deg,#0DBF5E 0%,#00A651 40%,#008F46 100%);
+    color:white;font-weight:800;font-size:11px;
+    display:flex;align-items:center;padding:0 12px;min-width:44px;
+    text-shadow:0 1px 2px rgba(0,0,0,0.2);
+    white-space:nowrap;
+}
+.ob__f{
+    background:linear-gradient(180deg,#F04048 0%,#E6303A 40%,#C82830 100%);
+    color:white;font-weight:800;font-size:11px;
+    display:flex;align-items:center;justify-content:flex-end;padding:0 12px;min-width:44px;
+    text-shadow:0 1px 2px rgba(0,0,0,0.2);
+    white-space:nowrap;
+}
+.ob__e{
+    flex:1;
+    background:linear-gradient(180deg,#F2F0EA 0%,#E8E5DF 100%);
+    display:flex;align-items:center;justify-content:center;
+    font-size:9px;color:var(--muted);font-weight:700;
+    border-top:1px dashed var(--border);border-bottom:1px dashed var(--border);
+}
+
+/* Position dot — glowing */
+.mc__pos{font-size:10px;font-weight:600;display:flex;align-items:center;gap:5px;padding:6px 16px 0;}
+.mc__dot{width:7px;height:7px;border-radius:50%;}
+.mc__dot--t{background:var(--true);box-shadow:var(--shadow-glow-true);}
+.mc__dot--f{background:var(--false);box-shadow:var(--shadow-glow-false);}
+
+/* Action buttons — raised, tactile */
+.mc__btns{display:flex;gap:6px;padding:10px 16px 14px;}
+.b{
+    padding:8px 14px;border-radius:10px;font-family:inherit;font-size:12px;font-weight:700;
+    border:none;cursor:pointer;transition:all 0.15s;
+    box-shadow:var(--shadow-sm);
+    position:relative;
+}
+.b:active{transform:translateY(1px);box-shadow:none;}
+.b--t{
+    background:linear-gradient(180deg,#0DBF5E 0%,#00A651 100%);color:white;
+    text-shadow:0 1px 1px rgba(0,0,0,0.15);
+}
+.b--t:hover{box-shadow:var(--shadow-glow-true);}
+.b--f{
+    background:linear-gradient(180deg,#F04048 0%,#E6303A 100%);color:white;
+    text-shadow:0 1px 1px rgba(0,0,0,0.15);
+}
+.b--f:hover{box-shadow:var(--shadow-glow-false);}
+.b--g{
+    background:linear-gradient(180deg,#FFFFFF 0%,#F5F3EE 100%);
+    color:var(--dim);border:1px solid var(--border);
+}
+.b--p{
+    background:linear-gradient(180deg,#7C4DFF 0%,#6C3AED 100%);color:white;
+    text-shadow:0 1px 1px rgba(0,0,0,0.15);
+}
+.b--p:hover{box-shadow:var(--shadow-glow-purple);}
+.b--x{flex:1;}
+
+/* ================================================================
+   LIVE BET — elevated with side accent
+   ================================================================ */
+.lc{
+    background:var(--card-raised);
+    border-radius:16px;
+    box-shadow:var(--shadow-md);
+    margin:0 16px 12px;
+    overflow:hidden;
+    border-left:4px solid var(--purple);
+}
+.lc__tag{
+    padding:8px 14px;font-size:9px;font-weight:800;text-transform:uppercase;
+    letter-spacing:1px;color:var(--purple);
+    background:linear-gradient(90deg,var(--purple-soft),transparent);
+    display:flex;align-items:center;gap:5px;
+}
+.lc__pulse{width:6px;height:6px;border-radius:50%;background:var(--purple);animation:p 2s ease infinite;}
+@keyframes p{0%,100%{box-shadow:0 0 0 0 rgba(108,58,237,0.35);}50%{box-shadow:0 0 0 6px rgba(108,58,237,0);}}
+.lc__prop{padding:10px 14px 4px;font-size:14px;font-weight:800;}
+.lc__rows{padding:2px 14px 10px;}
+.lc__r{display:flex;justify-content:space-between;font-size:12px;padding:2px 0;}
+.lc__r dt{color:var(--dim);}
+.lc__r dd{font-weight:700;}
+
+/* Settle — inset card */
+.st{
+    background:linear-gradient(180deg,#F8F7F4 0%,#F2F0EC 100%);
+    border-radius:12px;padding:10px;margin:6px 14px 10px;
+    box-shadow:var(--shadow-inner);border:1px solid var(--border);
+}
+.st__q{font-size:11px;font-weight:700;margin-bottom:5px;}
+.st__q em{font-style:normal;color:var(--purple);font-weight:800;}
+.st__b{display:flex;gap:5px;}
+
+/* Proposal — floating, glowing */
+.pr{
+    margin:8px 14px;padding:14px;
+    background:linear-gradient(135deg,#F0EBFF 0%,#E4DCFF 100%);
+    border-radius:14px;border:2px solid var(--purple);
+    box-shadow:var(--shadow-glow-purple),var(--shadow-md);
+    position:relative;
+}
+.pr__from{font-size:9px;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:0.5px;}
+.pr__text{font-size:13px;font-weight:800;margin:3px 0;line-height:1.3;}
+.pr__d{font-size:10px;color:var(--dim);margin-bottom:8px;line-height:1.3;}
+.pr__b{display:flex;gap:5px;}
+
+/* Chat — subtle recessed area */
+.chat{
+    border-top:1px solid var(--border);padding:10px 14px;
+    background:linear-gradient(180deg,#F8F7F4 0%,#F4F2ED 100%);
+}
+.chat__title{font-size:8px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;}
+.bub{max-width:82%;padding:7px 11px;border-radius:14px;font-size:12px;margin-bottom:3px;line-height:1.35;box-shadow:var(--shadow-sm);}
+.bub--t{background:white;border-bottom-left-radius:3px;}
+.bub--m{background:linear-gradient(135deg,#7C4DFF,#6C3AED);color:white;margin-left:auto;border-bottom-right-radius:3px;text-shadow:0 1px 1px rgba(0,0,0,0.1);}
+.bub__n{font-size:8px;font-weight:700;color:var(--muted);margin-bottom:1px;}
+.chat__in{display:flex;gap:5px;margin-top:8px;}
+.chat__f{flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:18px;font-family:inherit;font-size:12px;outline:none;background:white;box-shadow:var(--shadow-inner);}
+.chat__f:focus{border-color:var(--purple);box-shadow:var(--shadow-glow-purple);}
+.chat__s{width:32px;height:32px;border-radius:50%;background:linear-gradient(180deg,#7C4DFF,#6C3AED);color:white;border:none;font-size:13px;cursor:pointer;box-shadow:var(--shadow-sm);display:flex;align-items:center;justify-content:center;}
+.chat__s:active{box-shadow:none;transform:translateY(1px);}
+
+/* ================================================================
+   WIN BANNER — celebratory
+   ================================================================ */
+.win{
+    margin:0 16px 12px;padding:18px;text-align:center;
+    background:linear-gradient(135deg,#D4F5E2 0%,#B8EDCE 100%);
+    border:2px solid var(--true);border-radius:16px;
+    box-shadow:var(--shadow-glow-true),var(--shadow-md);
+}
+.win__t{font-size:22px;font-weight:800;color:var(--true);text-shadow:0 1px 2px rgba(0,166,81,0.2);}
+.win__amt{font-size:18px;font-weight:800;margin:4px 0;}
+.win__d{font-size:11px;color:var(--dim);}
+.win__detail{font-size:10px;color:var(--muted);margin-top:4px;}
+
+.lose{
+    margin:0 16px 12px;padding:18px;text-align:center;
+    background:linear-gradient(135deg,#FDE0E2 0%,#FCD0D3 100%);
+    border:2px solid var(--false);border-radius:16px;
+    box-shadow:var(--shadow-glow-false),var(--shadow-md);
+}
+.lose__t{font-size:18px;font-weight:800;color:var(--false);}
+.lose__amt{font-size:16px;font-weight:700;margin:4px 0;}
+.lose__d{font-size:11px;color:var(--dim);}
+
+/* ================================================================
+   TOAST — floating with depth
+   ================================================================ */
+.toast{
+    margin:0 16px 8px;padding:12px 14px;border-radius:12px;
+    font-size:12px;font-weight:600;
+    box-shadow:var(--shadow-xl);
+    animation:toastIn 0.4s cubic-bezier(0.16,1,0.3,1);
+}
+@keyframes toastIn{from{opacity:0;transform:translateY(-10px);}to{opacity:1;transform:translateY(0);}}
+.toast--ok{background:linear-gradient(135deg,#D4F5E2,#C0EDCE);color:#0A6B35;border:1px solid rgba(0,166,81,0.2);}
+.toast--err{background:linear-gradient(135deg,#FDE0E2,#FCD0D3);color:#9B1C1C;border:1px solid rgba(230,48,58,0.2);}
+
+/* Page */
+.page{padding:12px 0 80px;}
+.page h2{font-size:18px;font-weight:800;letter-spacing:-0.3px;margin:0 16px 12px;}
+</style>
+</head>
+<body>
+
+<div class="divider">Style Enhancement — 3D Depth</div>
+<div class="note">Same bones. Added: gradient buttons, glossy odds bar, inner shadows on recessed areas, outer shadows on raised cards, glowing accents on interactive elements, celebration banners with glow.</div>
+
+<!-- Topbar -->
+<div class="topbar">
+    <div class="topbar__brand"><b>O</b>pen<b>l</b>y</div>
+    <div class="topbar__nav">
+        <button class="tn on"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></button>
+        <button class="tn"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg></button>
+        <button class="tn"><svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg></button>
+        <button class="tn"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+        <button class="tn"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg></button>
+    </div>
+    <div style="text-align:right">
+        <div class="topbar__bal">4,049.75 MINIMA</div>
+        <div class="topbar__sub">#2,043,735</div>
+    </div>
+</div>
+
+<!-- Activity log — recessed -->
+<div class="logpanel">
+    <div class="logpanel__title">Activity</div>
+    <div class="lr lr--ok"><span class="lr__t">19:03</span><span class="lr__m">YOU WON! +10.00 MINIMA — "BTC breaks 73000"</span></div>
+    <div class="lr"><span class="lr__t">19:02</span><span class="lr__m">Settlement accepted: TRUE. 0% fee.</span></div>
+    <div class="lr lr--ok"><span class="lr__t">19:00</span><span class="lr__m">Proposal: FALSE — "ETH above 4k"</span></div>
+    <div class="lr lr--w"><span class="lr__t">18:56</span><span class="lr__m">Sit tight — on-chain actions take 1-3 blocks.</span></div>
+</div>
+
+<!-- Toast -->
+<div class="toast toast--ok">YOU WON! +10.00 MINIMA — "BTC breaks 73000 on MEXC spot"</div>
+
+<div class="page">
+    <h2>Markets</h2>
+
+    <!-- Win banner -->
+    <div class="win">
+        <div class="win__t">YOU WON!</div>
+        <div class="win__amt">+10.00 MINIMA</div>
+        <div class="win__d">"BTC breaks 73000" settled TRUE</div>
+        <div class="win__detail">Fee: 0% · Escrow: returned</div>
+    </div>
+
+    <!-- Loss banner -->
+    <div class="lose">
+        <div class="lose__t">You lost.</div>
+        <div class="lose__amt">-5.00 MINIMA</div>
+        <div class="lose__d">"ETH above 4k" settled FALSE</div>
+    </div>
+
+    <!-- Market card — raised -->
+    <div class="mc">
+        <div class="mc__head">
+            <div class="mc__prop">BTC breaks 73000 on MEXC spot long</div>
+            <div class="mc__meta"><span>TRUE 20 — FALSE 5</span><span>in 10</span><span>2 bets</span></div>
+        </div>
+        <div class="ob">
+            <div class="ob__t" style="flex:20">TRUE 20</div>
+            <div class="ob__f" style="flex:5">FALSE 5</div>
+        </div>
+        <div class="mc__pos"><div class="mc__dot mc__dot--t"></div>You: TRUE 10 — profit 10 if right</div>
+        <div class="mc__btns">
+            <button class="b b--g">Cancel</button>
+            <button class="b b--f b--x">Counter FALSE</button>
+        </div>
+    </div>
+
+    <!-- Single-sided market -->
+    <div class="mc">
+        <div class="mc__head">
+            <div class="mc__prop">I'll be happy after this run.</div>
+            <div class="mc__meta"><span>TRUE 20 — FALSE —</span><span>in 10</span><span>1 bet</span></div>
+        </div>
+        <div class="ob">
+            <div class="ob__t" style="flex:20">TRUE 20</div>
+            <div class="ob__e">Needs FALSE</div>
+        </div>
+        <div class="mc__btns">
+            <button class="b b--f b--x">Counter FALSE</button>
+        </div>
+    </div>
+
+    <h2>My Bets</h2>
+
+    <!-- Live bet -->
+    <div class="lc">
+        <div class="lc__tag"><div class="lc__pulse"></div> Live bet</div>
+        <div class="lc__prop">ETH above 4k by end of Q2</div>
+        <div class="lc__rows">
+            <div class="lc__r"><dt>You said</dt><dd style="color:var(--true)">TRUE · 10.00 MINIMA</dd></div>
+            <div class="lc__r"><dt>They said</dt><dd style="color:var(--false)">FALSE · 5.00 MINIMA</dd></div>
+            <div class="lc__r"><dt>If TRUE</dt><dd style="color:var(--true)">+5.00 MINIMA</dd></div>
+            <div class="lc__r"><dt>If FALSE</dt><dd style="color:var(--false)">-10.00 MINIMA</dd></div>
+        </div>
+
+        <!-- Proposal — floating with glow -->
+        <div class="pr">
+            <div class="pr__from">Counterparty says:</div>
+            <div class="pr__text">"ETH above 4k by end of Q2" is FALSE</div>
+            <div class="pr__d">Agree? Disagree invokes arbiter — escrow forfeit, 10% fee.</div>
+            <div class="pr__b">
+                <button class="b b--t b--x">Agree</button>
+                <button class="b b--f b--x">Disagree</button>
+            </div>
+        </div>
+
+        <!-- Settlement — inset -->
+        <div class="st">
+            <div class="st__q">Is <em>"ETH above 4k"</em> TRUE or FALSE?</div>
+            <div class="st__b">
+                <button class="b b--t b--x">TRUE</button>
+                <button class="b b--f b--x">FALSE</button>
+                <button class="b b--g">Void</button>
+            </div>
+        </div>
+
+        <!-- Chat — recessed -->
+        <div class="chat">
+            <div class="chat__title">Chat</div>
+            <div class="bub__n">alice</div>
+            <div class="bub bub--t">I've declared FALSE — ETH peaked at 3847</div>
+            <div class="bub__n" style="text-align:right">You</div>
+            <div class="bub bub--m">Fair enough, checking charts</div>
+            <div class="chat__in">
+                <input class="chat__f" placeholder="Message...">
+                <button class="chat__s">›</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Post counter button example -->
+    <div style="margin:0 16px">
+        <button class="b b--p b--x" style="width:100%;padding:14px;font-size:14px;border-radius:14px">Post Proposition</button>
+    </div>
+</div>
+
+</body>
+</html>

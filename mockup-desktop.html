@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Openly — Desktop Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F5F3EE;--card:#FFF;--border:#E5E2DB;--text:#111;--dim:#555550;--muted:#999590;--true:#00A651;--false:#E6303A;--purple:#6C3AED;--purple-soft:#F0EBFF;--gold:#D4A012;--gold-soft:#FFF8E5;--true-soft:#DBFBE8;--false-soft:#FFE0E2;--shadow:0 1px 4px rgba(0,0,0,0.06);--r:10px;--rs:7px;}
+*{box-sizing:border-box;margin:0;padding:0;user-select:none;}
+body{font-family:'Manrope',sans-serif;background:var(--bg);color:var(--text);font-size:12px;line-height:1.4;height:100vh;overflow:hidden;display:flex;flex-direction:column;}
+
+/* Topbar */
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:7px 16px;background:var(--card);border-bottom:1px solid var(--border);flex-shrink:0;}
+.topbar__brand{font-weight:800;font-size:16px;letter-spacing:-0.5px;}
+.topbar__bal{font-size:12px;font-weight:800;}
+.topbar__sub{font-size:9px;color:var(--muted);}
+
+/* ============ TMUX-STYLE 4 PANES ============
+   Draggable horizontal + vertical dividers.
+   Top row: Chat | Activity
+   Bottom row: Markets | My Bets
+*/
+.panes{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.pane-row{display:flex;overflow:hidden;}
+.pane-row--top{height:35%;}
+.pane-row--bottom{flex:1;}
+
+.pane{overflow:hidden;display:flex;flex-direction:column;background:var(--card);}
+.pane--chat{width:45%;}
+.pane--activity{flex:1;}
+.pane--markets{width:45%;}
+.pane--mybets{flex:1;}
+
+/* Dividers — tmux style */
+.divider-h{background:var(--border);cursor:row-resize;flex-shrink:0;}
+.divider-h:hover,.divider-h.dragging{background:var(--purple);opacity:0.5;}
+.divider-v{width:4px;background:var(--border);cursor:col-resize;flex-shrink:0;}
+.divider-v:hover,.divider-v.dragging{background:var(--purple);opacity:0.5;}
+#centerHandle{transition:background 0.1s;}
+#centerHandle:hover,#centerHandle.dragging{background:var(--purple) !important;box-shadow:0 0 0 4px rgba(108,58,237,0.2);border-radius:2px;}
+
+/* Panel header */
+.ph{padding:6px 10px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);border-bottom:1px solid var(--border);flex-shrink:0;display:flex;justify-content:space-between;align-items:center;}
+.ph span{font-size:9px;font-weight:600;color:var(--purple);cursor:pointer;}
+.pb{flex:1;overflow-y:auto;overflow-x:hidden;padding:6px 8px;}
+
+/* ============ MARKET CARD ============ */
+.mc{background:var(--bg);border-radius:var(--rs);padding:8px;margin-bottom:5px;}
+.mc__p{font-size:12px;font-weight:700;line-height:1.25;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;}
+.mc__m{font-size:9px;color:var(--muted);margin-bottom:4px;}
+.ob{display:flex;height:22px;border-radius:11px;overflow:hidden;margin-bottom:4px;}
+.ob__t{background:linear-gradient(135deg,#00A651,#00C060);color:white;font-weight:800;font-size:9px;display:flex;align-items:center;padding:0 7px;min-width:32px;white-space:nowrap;}
+.ob__f{background:linear-gradient(135deg,#D92B35,#E6303A);color:white;font-weight:800;font-size:9px;display:flex;align-items:center;justify-content:flex-end;padding:0 7px;min-width:32px;white-space:nowrap;}
+.ob__e{flex:1;background:var(--card);border:1.5px dashed var(--border);border-left:none;border-right:none;display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--muted);font-weight:600;}
+.mc__pos{font-size:9px;font-weight:600;display:flex;align-items:center;gap:3px;margin-bottom:4px;}
+.mc__dot{width:4px;height:4px;border-radius:50%;}
+.mc__dot--t{background:var(--true);}
+.mc__dot--f{background:var(--false);}
+.mc__btns{display:flex;gap:3px;}
+.b{padding:4px 8px;border-radius:5px;font-family:inherit;font-size:10px;font-weight:700;border:none;cursor:pointer;white-space:nowrap;}
+.b--t{background:var(--true);color:white;}
+.b--f{background:var(--false);color:white;}
+.b--g{background:transparent;border:1px solid var(--border);color:var(--dim);}
+.b--x{flex:1;}
+
+/* ============ LIVE BET ============ */
+.lc{background:var(--bg);border-radius:var(--rs);padding:8px;margin-bottom:5px;cursor:pointer;transition:box-shadow 0.1s;}
+.lc.sel{box-shadow:0 0 0 2px var(--purple);}
+.lc__tag{font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:var(--purple);display:flex;align-items:center;gap:3px;margin-bottom:2px;}
+.lc__pulse{width:4px;height:4px;border-radius:50%;background:var(--purple);animation:p 2s ease infinite;}
+@keyframes p{0%,100%{box-shadow:0 0 0 0 rgba(108,58,237,0.3);}50%{box-shadow:0 0 0 4px rgba(108,58,237,0);}}
+.lc__p{font-size:11px;font-weight:700;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;}
+.lc__r{display:flex;justify-content:space-between;font-size:10px;padding:1px 0;}
+.lc__r dt{color:var(--dim);}
+.lc__r dd{font-weight:700;}
+
+/* Settle + Proposal */
+.st{background:var(--card);border-radius:var(--rs);padding:6px;margin-top:4px;border:1px solid var(--border);}
+.st__q{font-size:9px;font-weight:700;margin-bottom:3px;}
+.st__q em{font-style:normal;color:var(--purple);font-weight:800;}
+.st__b{display:flex;gap:3px;}
+.pr{background:linear-gradient(135deg,var(--purple-soft),#E8DFFF);border:1.5px solid var(--purple);border-radius:var(--rs);padding:7px;margin-top:4px;}
+.pr__from{font-size:8px;font-weight:700;color:var(--purple);}
+.pr__text{font-size:10px;font-weight:700;margin:1px 0;overflow:hidden;text-overflow:ellipsis;}
+.pr__d{font-size:8px;color:var(--dim);margin-bottom:4px;line-height:1.3;}
+.pr__b{display:flex;gap:3px;}
+
+/* Win + Open */
+.win{background:var(--true-soft);border:1.5px solid var(--true);border-radius:var(--rs);padding:7px;margin-bottom:5px;text-align:center;}
+.win__t{font-size:12px;font-weight:800;color:var(--true);}
+.win__d{font-size:9px;color:var(--dim);}
+.oc{background:var(--gold-soft);border-radius:var(--rs);padding:8px;margin-bottom:5px;}
+.oc__tag{font-size:8px;font-weight:800;letter-spacing:0.8px;color:var(--gold);margin-bottom:2px;}
+
+/* ============ CHAT ============ */
+.chat-hdr{font-size:9px;font-weight:700;padding:4px 0 3px;border-bottom:1px solid var(--border);margin-bottom:4px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.chat-hdr strong{color:var(--text);}
+.bub{max-width:90%;padding:4px 8px;border-radius:9px;font-size:11px;margin-bottom:2px;line-height:1.3;word-wrap:break-word;}
+.bub--t{background:var(--bg);border-bottom-left-radius:2px;}
+.bub--m{background:var(--purple);color:white;margin-left:auto;border-bottom-right-radius:2px;}
+.bub__n{font-size:7px;font-weight:700;color:var(--muted);margin-bottom:0;}
+.chat-in{display:flex;gap:3px;padding:6px 8px;border-top:1px solid var(--border);flex-shrink:0;}
+.chat-f{flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:10px;font-family:inherit;font-size:10px;outline:none;}
+.chat-f:focus{border-color:var(--purple);}
+.chat-s{width:24px;height:24px;border-radius:50%;background:var(--purple);color:white;border:none;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+
+/* ============ ACTIVITY ============ */
+.lr{display:flex;gap:5px;padding:2px 0;font-size:10px;line-height:1.3;border-bottom:1px solid rgba(0,0,0,0.025);}
+.lr__t{color:var(--muted);font-weight:600;white-space:nowrap;min-width:30px;font-size:9px;}
+.lr__m{flex:1;color:var(--dim);overflow:hidden;text-overflow:ellipsis;}
+.lr--ok .lr__m{color:#0A6B35;}
+.lr--w .lr__m{color:#92400E;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+    <div class="topbar__brand"><b>O</b>pen<b>l</b>y</div>
+    <div style="text-align:right">
+        <div class="topbar__bal">4,049.75 MINIMA</div>
+        <div class="topbar__sub">#2,043,735</div>
+    </div>
+</div>
+
+<div class="panes">
+    <!-- TOP ROW: Chat | divider | Activity -->
+    <div class="pane-row pane-row--top" id="topRow">
+        <div class="pane pane--chat" id="chatPane">
+            <div class="ph">Chat</div>
+            <div class="pb">
+                <div class="chat-hdr"><strong>ETH above 4k by end of Q2</strong> · You: TRUE · They: FALSE</div>
+                <div class="bub__n">alice</div>
+                <div class="bub bub--t">I've declared FALSE — ETH didn't make it</div>
+                <div class="bub__n" style="text-align:right">You</div>
+                <div class="bub bub--m">Checking the charts</div>
+                <div class="bub__n">alice</div>
+                <div class="bub bub--t">Peaked at 3,847 — close but no cigar</div>
+                <div class="bub__n" style="text-align:right">You</div>
+                <div class="bub bub--m">Fair enough, agreeing FALSE</div>
+                <div class="bub__n">alice</div>
+                <div class="bub bub--t">GG, good bet</div>
+            </div>
+            <div class="chat-in">
+                <input class="chat-f" placeholder="Message...">
+                <button class="chat-s">›</button>
+            </div>
+        </div>
+        <div class="divider-v" id="topDivV"></div>
+        <div class="pane pane--activity">
+            <div class="ph">Activity</div>
+            <div class="pb">
+                <div class="lr lr--ok"><span class="lr__t">19:03</span><span class="lr__m">You WON! "BTC breaks 73000" — profit +10.00 MINIMA</span></div>
+                <div class="lr"><span class="lr__t">19:02</span><span class="lr__m">Settlement accepted: TRUE. 0% fee.</span></div>
+                <div class="lr lr--ok"><span class="lr__t">19:00</span><span class="lr__m">Proposal: FALSE — "ETH above 4k" — Agree or Disagree</span></div>
+                <div class="lr"><span class="lr__t">18:59</span><span class="lr__m">Chat: alice: "I've declared FALSE"</span></div>
+                <div class="lr lr--w"><span class="lr__t">18:56</span><span class="lr__m">Sit tight — on-chain actions take 1-3 blocks. Be patient.</span></div>
+                <div class="lr lr--ok"><span class="lr__t">18:56</span><span class="lr__m">Bet matched! Pot: 15.00 MINIMA</span></div>
+                <div class="lr"><span class="lr__t">18:53</span><span class="lr__m">TRUE: 10.00 + 2.50 escrow = 12.50 locked</span></div>
+                <div class="lr"><span class="lr__t">18:50</span><span class="lr__m">Counter posted: FALSE 5.00</span></div>
+                <div class="lr lr--ok"><span class="lr__t">18:49</span><span class="lr__m">Openly v2.4.0 ready. 64 keys.</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HORIZONTAL DIVIDER (full width) + floating center handle -->
+    <div class="divider-h" id="divH" style="height:4px;position:relative;">
+        <div id="centerHandle" style="position:absolute;top:-6px;width:16px;height:16px;background:var(--border);cursor:move;z-index:10;border-radius:3px;"></div>
+    </div>
+
+    <!-- BOTTOM ROW: Markets | divider | My Bets -->
+    <div class="pane-row pane-row--bottom" id="botRow">
+        <div class="pane pane--markets" id="marketsPane">
+            <div class="ph">Markets <span>+ Post new</span></div>
+            <div class="pb">
+                <div class="mc">
+                    <div class="mc__p">BTC breaks 73000 on MEXC spot</div>
+                    <div class="mc__m">TRUE 20 — FALSE 5 · in 10 · 2 bets</div>
+                    <div class="ob"><div class="ob__t" style="flex:20">TRUE 20</div><div class="ob__f" style="flex:5">FALSE 5</div></div>
+                    <div class="mc__pos"><div class="mc__dot mc__dot--t"></div>You: TRUE 10 — profit 10</div>
+                    <div class="mc__btns"><button class="b b--g">Cancel</button><button class="b b--f b--x">Counter FALSE</button></div>
+                </div>
+                <div class="mc">
+                    <div class="mc__p">I'll be happy after this run.</div>
+                    <div class="mc__m">TRUE 20 — FALSE — · in 10 · 1 bet</div>
+                    <div class="ob"><div class="ob__t" style="flex:20">TRUE 20</div><div class="ob__e">Needs FALSE</div></div>
+                    <div class="mc__btns"><button class="b b--f b--x">Counter FALSE</button></div>
+                </div>
+                <div class="mc">
+                    <div class="mc__p">Arsenal win the league 2026</div>
+                    <div class="mc__m">TRUE 10 — FALSE 10 · in 10 · 2 bets</div>
+                    <div class="ob"><div class="ob__t" style="flex:1">TRUE 10</div><div class="ob__f" style="flex:1">FALSE 10</div></div>
+                    <div class="mc__btns"><button class="b b--t b--x">TRUE</button><button class="b b--f b--x">FALSE</button></div>
+                </div>
+            </div>
+        </div>
+        <div class="divider-v" id="botDivV"></div>
+        <div class="pane pane--mybets">
+            <div class="ph">My Bets</div>
+            <div class="pb">
+                <div class="win">
+                    <div class="win__t">You WON! +10.00 MINIMA</div>
+                    <div class="win__d">"BTC breaks 73000" TRUE · 0% fee</div>
+                </div>
+                <div class="lc sel" onclick="this.classList.toggle('sel')">
+                    <div class="lc__tag"><div class="lc__pulse"></div> Live — click for chat</div>
+                    <div class="lc__p">ETH above 4k by end of Q2</div>
+                    <div class="lc__r"><dt>You</dt><dd style="color:var(--true)">TRUE · 10.00</dd></div>
+                    <div class="lc__r"><dt>They</dt><dd style="color:var(--false)">FALSE · 5.00</dd></div>
+                    <div class="lc__r"><dt>If TRUE</dt><dd style="color:var(--true)">+5.00</dd></div>
+                    <div class="lc__r"><dt>If FALSE</dt><dd style="color:var(--false)">-10.00</dd></div>
+                    <div class="pr">
+                        <div class="pr__from">Counterparty says:</div>
+                        <div class="pr__text">"ETH above 4k" is FALSE</div>
+                        <div class="pr__d">Agree? Disagree invokes arbiter — escrow forfeit, 10% fee.</div>
+                        <div class="pr__b"><button class="b b--t b--x">Agree</button><button class="b b--f b--x">Disagree</button></div>
+                    </div>
+                    <div class="st">
+                        <div class="st__q">Is <em>"ETH above 4k"</em> TRUE or FALSE?</div>
+                        <div class="st__b"><button class="b b--t b--x">TRUE</button><button class="b b--f b--x">FALSE</button><button class="b b--g">Void</button></div>
+                    </div>
+                </div>
+                <div class="oc">
+                    <div class="oc__tag">Open — waiting</div>
+                    <div class="mc__p">Arsenal win the league</div>
+                    <div class="lc__r"><dt>You</dt><dd style="color:var(--true)">TRUE · 10.00</dd></div>
+                    <div style="margin-top:3px"><button class="b b--g">Cancel</button></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============ TMUX-STYLE DRAG RESIZE ============
+// Horizontal divider: drag to resize top/bottom rows
+// Vertical dividers: drag to resize left/right panes
+
+(function() {
+    var topRow = document.getElementById('topRow');
+    var topDivV = document.getElementById('topDivV');
+    var chatPane = document.getElementById('chatPane');
+    var botDivV = document.getElementById('botDivV');
+    var marketsPane = document.getElementById('marketsPane');
+    var centerHandle = document.getElementById('centerHandle');
+    var divH = document.getElementById('divH');
+    var panes = document.querySelector('.panes');
+
+    var mode = null; // 'h', 'tv', 'bv', 'center'
+
+    // Position center handle at the intersection of the vertical divider and horizontal divider
+    function updateCenterPos() {
+        var chatW = chatPane.getBoundingClientRect().width;
+        centerHandle.style.left = (chatW - 8) + 'px';
+    }
+    updateCenterPos();
+
+    // Horizontal divider — resize top/bottom rows
+    divH.addEventListener('mousedown', function(e) {
+        if (e.target === centerHandle) return; // let center handle take it
+        mode = 'h'; e.preventDefault();
+    });
+
+    // Top vertical — resize chat/activity
+    topDivV.addEventListener('mousedown', function(e) { mode = 'tv'; topDivV.classList.add('dragging'); e.preventDefault(); });
+
+    // Bottom vertical — resize markets/mybets
+    botDivV.addEventListener('mousedown', function(e) { mode = 'bv'; botDivV.classList.add('dragging'); e.preventDefault(); });
+
+    // CENTER HANDLE — moves ALL dividers at once (both vertical + horizontal)
+    centerHandle.addEventListener('mousedown', function(e) { mode = 'center'; centerHandle.classList.add('dragging'); e.preventDefault(); });
+
+    document.addEventListener('mousemove', function(e) {
+        if (!mode) return;
+
+        var panesRect = panes.getBoundingClientRect();
+        // Keep center handle tracking the intersection point in real-time
+        requestAnimationFrame(updateCenterPos);
+
+        if (mode === 'h' || mode === 'center') {
+            var yPct = ((e.clientY - panesRect.top) / panesRect.height) * 100;
+            yPct = Math.max(15, Math.min(70, yPct));
+            topRow.style.height = yPct + '%';
+            topRow.style.flex = 'none';
+        }
+        if (mode === 'tv' || mode === 'center') {
+            var topRect = topRow.getBoundingClientRect();
+            var xPct = ((e.clientX - topRect.left) / topRect.width) * 100;
+            xPct = Math.max(20, Math.min(75, xPct));
+            chatPane.style.width = xPct + '%';
+            chatPane.style.flex = 'none';
+        }
+        if (mode === 'bv' || mode === 'center') {
+            var botRow = document.getElementById('botRow');
+            var botRect = botRow.getBoundingClientRect();
+            var xPct = ((e.clientX - botRect.left) / botRect.width) * 100;
+            xPct = Math.max(20, Math.min(75, xPct));
+            marketsPane.style.width = xPct + '%';
+            marketsPane.style.flex = 'none';
+        }
+    });
+
+    document.addEventListener('mouseup', function() {
+        mode = null;
+        topDivV.classList.remove('dragging');
+        botDivV.classList.remove('dragging');
+        centerHandle.classList.remove('dragging');
+        updateCenterPos();
+    });
+
+    // Also update on window resize
+    window.addEventListener('resize', updateCenterPos);
+
+    // Double-click center handle — reset all panes to equal size
+    centerHandle.addEventListener('dblclick', function() {
+        topRow.style.height = '50%';
+        topRow.style.flex = 'none';
+        chatPane.style.width = '50%';
+        chatPane.style.flex = 'none';
+        marketsPane.style.width = '50%';
+        marketsPane.style.flex = 'none';
+        updateCenterPos();
+    });
+})();
+</script>
+
+</body>
+</html>

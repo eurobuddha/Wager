@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Openly — 3D Reality</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{
+    font-family:'Manrope',sans-serif;font-size:13px;line-height:1.45;
+    background:#0B0E18;
+    /* Ambient light gradient across the whole page */
+    background-image:
+        radial-gradient(ellipse 800px 600px at 30% 20%, rgba(0,214,126,0.04) 0%, transparent 60%),
+        radial-gradient(ellipse 600px 400px at 70% 80%, rgba(77,158,255,0.03) 0%, transparent 60%);
+    color:#D0CEC8;
+    max-width:440px;margin:0 auto;min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+    perspective:1200px;
+}
+
+/* ============================================================
+   3D DEPTH SYSTEM
+   Single light source: top-left. All shadows consistent.
+   Elements have: top highlight edge, bottom shadow edge,
+   inner glow on hover, parallax on scroll.
+   ============================================================ */
+
+/* Topbar — frosted glass panel floating above content */
+.topbar{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:10px 18px;
+    background:linear-gradient(180deg,rgba(22,27,46,0.85),rgba(18,23,40,0.75));
+    backdrop-filter:blur(24px) saturate(150%);-webkit-backdrop-filter:blur(24px) saturate(150%);
+    border-bottom:1px solid rgba(255,255,255,0.05);
+    /* Glass reflection — bright line at top edge */
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.06),
+        0 4px 16px rgba(0,0,0,0.4),
+        0 1px 0 rgba(0,0,0,0.3);
+    position:sticky;top:0;z-index:100;
+}
+.brand{font-weight:800;font-size:18px;letter-spacing:-0.5px;color:#E8E6E0;}
+.nav{display:flex;gap:2px;}
+.nav button{
+    background:none;border:none;padding:7px 9px;border-radius:10px;cursor:pointer;
+    color:#3A4060;transition:all 0.25s;
+}
+.nav button.on{
+    color:#4D9EFF;
+    /* Recessed glowing button */
+    background:linear-gradient(180deg,rgba(77,158,255,0.08),rgba(77,158,255,0.03));
+    box-shadow:
+        inset 0 1px 0 rgba(77,158,255,0.15),
+        0 0 12px rgba(77,158,255,0.06),
+        0 0 1px rgba(77,158,255,0.3);
+    border:1px solid rgba(77,158,255,0.12);
+}
+.nav button svg{width:18px;height:18px;stroke-width:1.8;fill:none;stroke:currentColor;display:block;}
+.bal{font-size:12px;font-weight:800;color:#E8E6E0;}
+.blk{font-size:9px;color:#3A4060;}
+
+/* Activity — deeply recessed tray */
+.log{
+    background:linear-gradient(180deg,#060810,#080B14);
+    border-bottom:1px solid rgba(255,255,255,0.02);
+    box-shadow:
+        inset 0 3px 8px rgba(0,0,0,0.5),
+        inset 0 1px 2px rgba(0,0,0,0.3),
+        inset 0 -1px 0 rgba(255,255,255,0.02);
+    padding:7px 16px 8px;
+}
+.log-title{font-size:7px;font-weight:800;color:#2A3050;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;}
+.log-row{display:flex;gap:6px;padding:2px 0;font-size:10px;line-height:1.3;}
+.log-time{color:#2A3050;font-weight:600;min-width:32px;}
+.log-msg{color:#5A6080;}
+.log-ok .log-msg{color:#00D67E;font-weight:600;text-shadow:0 0 8px rgba(0,214,126,0.2);}
+
+/* Market card — 3D raised panel with edge lighting */
+.card{
+    margin:0 12px 12px;border-radius:18px;overflow:hidden;
+    /* Layered material: dark base + subtle noise texture feel */
+    background:linear-gradient(170deg,#181D32 0%,#141828 40%,#111524 100%);
+    border:1px solid rgba(255,255,255,0.04);
+    /* 3D depth: highlight top-left, shadow bottom-right */
+    box-shadow:
+        /* Inner highlight — simulates light hitting top edge */
+        inset 0 1px 0 rgba(255,255,255,0.05),
+        inset 1px 0 0 rgba(255,255,255,0.02),
+        /* Outer shadow — element lifted off surface */
+        0 2px 4px rgba(0,0,0,0.2),
+        0 6px 16px rgba(0,0,0,0.25),
+        0 12px 40px rgba(0,0,0,0.15),
+        /* Contact shadow — tight and dark directly under */
+        0 1px 2px rgba(0,0,0,0.4);
+    transition:transform 0.2s cubic-bezier(0.2,0,0,1),box-shadow 0.2s;
+}
+.card:hover{
+    transform:translateY(-2px) scale(1.005);
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.07),
+        inset 1px 0 0 rgba(255,255,255,0.03),
+        0 4px 8px rgba(0,0,0,0.25),
+        0 12px 32px rgba(0,0,0,0.3),
+        0 20px 60px rgba(0,0,0,0.15),
+        0 1px 3px rgba(0,0,0,0.5),
+        /* Edge glow on hover */
+        0 0 1px rgba(77,158,255,0.15);
+}
+
+.card-head{padding:14px 16px 6px;}
+.card-prop{font-size:15px;font-weight:800;letter-spacing:-0.3px;line-height:1.25;color:#E8E6E0;}
+.card-meta{font-size:10px;color:#3A4060;margin-top:4px;display:flex;gap:8px;}
+
+/* Odds bar — glossy 3D cylinder */
+.obar{
+    display:flex;margin:8px 14px;height:40px;border-radius:20px;overflow:hidden;
+    /* Recessed track */
+    box-shadow:
+        inset 0 2px 4px rgba(0,0,0,0.4),
+        inset 0 -1px 0 rgba(255,255,255,0.03),
+        0 1px 0 rgba(255,255,255,0.02);
+}
+.obar-t{
+    /* 3D cylinder: bright top, dark bottom, highlight stripe */
+    background:linear-gradient(180deg,
+        #00FF8C 0%,
+        #00E87E 15%,
+        #00D67E 35%,
+        #00B86B 65%,
+        #009A5A 100%);
+    color:#0B0E18;font-weight:800;font-size:11px;
+    display:flex;align-items:center;padding:0 14px;min-width:50px;
+    /* Glossy highlight */
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.35),
+        inset 0 -1px 0 rgba(0,0,0,0.15),
+        /* Neon glow */
+        0 0 20px rgba(0,214,126,0.2),
+        0 0 40px rgba(0,214,126,0.05);
+    text-shadow:0 1px 0 rgba(255,255,255,0.15);
+}
+.obar-f{
+    background:linear-gradient(180deg,
+        #FF6B73 0%,
+        #FF5A63 15%,
+        #FF4757 35%,
+        #E6303A 65%,
+        #C42830 100%);
+    color:white;font-weight:800;font-size:11px;
+    display:flex;align-items:center;justify-content:flex-end;padding:0 14px;min-width:50px;
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.25),
+        inset 0 -1px 0 rgba(0,0,0,0.15),
+        0 0 20px rgba(255,71,87,0.15),
+        0 0 40px rgba(255,71,87,0.05);
+    text-shadow:0 1px 2px rgba(0,0,0,0.2);
+}
+.obar-e{
+    flex:1;
+    background:linear-gradient(180deg,#12162A,#0E1220);
+    display:flex;align-items:center;justify-content:center;
+    font-size:9px;color:#2A3050;font-weight:700;
+    box-shadow:inset 0 1px 2px rgba(0,0,0,0.3);
+}
+
+/* Position dot — pulsing glow */
+.pos{font-size:10px;font-weight:600;padding:6px 16px 0;display:flex;align-items:center;gap:5px;color:#5A6080;}
+.dot{width:8px;height:8px;border-radius:50%;}
+.dot-t{background:#00D67E;box-shadow:0 0 6px rgba(0,214,126,0.5),0 0 16px rgba(0,214,126,0.2);}
+.dot-f{background:#FF4757;box-shadow:0 0 6px rgba(255,71,87,0.5),0 0 16px rgba(255,71,87,0.2);}
+
+/* Buttons — raised, metallic feel */
+.btns{display:flex;gap:6px;padding:10px 14px 14px;}
+.btn{
+    padding:10px 14px;border-radius:12px;font-family:inherit;font-size:12px;font-weight:700;
+    border:none;cursor:pointer;flex:1;text-align:center;
+    transition:all 0.15s;
+    /* Common 3D button base */
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.15),
+        0 2px 4px rgba(0,0,0,0.3),
+        0 4px 12px rgba(0,0,0,0.2);
+}
+.btn:active{
+    transform:translateY(2px);
+    box-shadow:inset 0 1px 3px rgba(0,0,0,0.3);
+}
+.btn-t{
+    background:linear-gradient(180deg,#00E87E,#00B86B);color:#0B0E18;font-weight:800;
+    text-shadow:0 1px 0 rgba(255,255,255,0.1);
+}
+.btn-t:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,0.2),0 0 20px rgba(0,214,126,0.3),0 4px 12px rgba(0,0,0,0.3);}
+.btn-f{
+    background:linear-gradient(180deg,#FF5A63,#D92B35);color:white;
+    text-shadow:0 1px 1px rgba(0,0,0,0.2);
+}
+.btn-f:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,0.15),0 0 20px rgba(255,71,87,0.3),0 4px 12px rgba(0,0,0,0.3);}
+.btn-g{
+    background:linear-gradient(180deg,#1E2338,#181D30);color:#5A6080;
+    border:1px solid rgba(255,255,255,0.05);
+}
+.btn-a{
+    background:linear-gradient(180deg,#5AADFF,#0066FF);color:white;
+    text-shadow:0 1px 1px rgba(0,0,0,0.2);
+}
+.btn-a:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,0.2),0 0 24px rgba(77,158,255,0.3),0 4px 12px rgba(0,0,0,0.3);}
+
+/* Live bet — floating with accent edge glow */
+.live{
+    margin:0 12px 12px;border-radius:18px;overflow:hidden;
+    background:linear-gradient(170deg,#181D32 0%,#141828 40%,#111524 100%);
+    border:1px solid rgba(255,255,255,0.04);
+    border-left:4px solid #4D9EFF;
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.04),
+        0 4px 16px rgba(0,0,0,0.3),
+        0 12px 40px rgba(0,0,0,0.15),
+        /* Blue accent glow from left border */
+        -4px 0 16px rgba(77,158,255,0.06);
+}
+.live-tag{
+    padding:8px 14px;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;
+    color:#4D9EFF;
+    background:linear-gradient(90deg,rgba(77,158,255,0.06),transparent);
+    display:flex;align-items:center;gap:5px;
+}
+.pulse{width:6px;height:6px;border-radius:50%;background:#4D9EFF;
+    box-shadow:0 0 6px rgba(77,158,255,0.5);
+    animation:p 2s ease infinite;}
+@keyframes p{0%,100%{box-shadow:0 0 6px rgba(77,158,255,0.5),0 0 0 0 rgba(77,158,255,0.3);}50%{box-shadow:0 0 6px rgba(77,158,255,0.5),0 0 0 8px rgba(77,158,255,0);}}
+
+.rows{padding:2px 14px 10px;}
+.row{display:flex;justify-content:space-between;font-size:12px;padding:2px 0;}
+.row dt{color:#3A4060;}
+.row dd{font-weight:700;}
+.t{color:#00D67E;}
+.f{color:#FF4757;}
+
+/* Proposal — glass card with glowing border */
+.proposal{
+    margin:8px 12px;padding:14px;border-radius:14px;
+    background:linear-gradient(135deg,rgba(77,158,255,0.06),rgba(77,158,255,0.02));
+    border:2px solid rgba(77,158,255,0.3);
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.03),
+        0 0 24px rgba(77,158,255,0.06),
+        0 4px 16px rgba(0,0,0,0.2);
+    backdrop-filter:blur(8px);
+}
+.pr-from{font-size:8px;font-weight:800;color:#4D9EFF;text-transform:uppercase;letter-spacing:0.5px;}
+.pr-text{font-size:13px;font-weight:800;margin:3px 0;color:#E8E6E0;}
+.pr-detail{font-size:10px;color:#5A6080;margin-bottom:8px;line-height:1.35;}
+
+/* Chat — dark recessed */
+.chat{
+    border-top:1px solid rgba(255,255,255,0.03);
+    padding:10px 14px;
+    background:linear-gradient(180deg,#0A0D18,#080B14);
+    box-shadow:inset 0 2px 4px rgba(0,0,0,0.3);
+}
+.chat-title{font-size:7px;font-weight:800;color:#2A3050;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
+.bub{max-width:80%;padding:7px 11px;border-radius:14px;font-size:12px;margin-bottom:3px;line-height:1.35;}
+/* Them: raised dark card */
+.bub-t{
+    background:linear-gradient(180deg,#1A1F34,#161B2E);
+    color:#8890A0;
+    border-bottom-left-radius:3px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.03),0 1px 3px rgba(0,0,0,0.2);
+}
+/* Me: simple clean — NOT blue, just slightly lighter */
+.bub-m{
+    background:linear-gradient(180deg,#2A3048,#222838);
+    color:#D0CEC8;
+    margin-left:auto;
+    border-bottom-right-radius:3px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.04),0 1px 3px rgba(0,0,0,0.2);
+}
+.bub-n{font-size:8px;font-weight:700;color:#2A3050;margin-bottom:1px;}
+.chat-input{display:flex;gap:5px;margin-top:8px;}
+.chat-field{
+    flex:1;padding:8px 12px;
+    border:1.5px solid rgba(255,255,255,0.05);
+    border-radius:18px;font-family:inherit;font-size:12px;outline:none;
+    background:linear-gradient(180deg,#12162A,#0E1220);
+    color:#D0CEC8;
+    box-shadow:inset 0 1px 3px rgba(0,0,0,0.3);
+}
+.chat-field:focus{border-color:rgba(77,158,255,0.3);box-shadow:inset 0 1px 3px rgba(0,0,0,0.3),0 0 8px rgba(77,158,255,0.08);}
+.chat-send{
+    width:32px;height:32px;border-radius:50%;
+    background:linear-gradient(180deg,#5AADFF,#0066FF);
+    color:white;border:none;font-size:13px;cursor:pointer;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.2),0 0 12px rgba(77,158,255,0.15),0 2px 6px rgba(0,0,0,0.3);
+    display:flex;align-items:center;justify-content:center;
+}
+
+/* Win — neon celebration with depth */
+.win{
+    margin:0 12px 12px;padding:22px;text-align:center;border-radius:18px;
+    background:linear-gradient(135deg,rgba(0,214,126,0.08),rgba(0,214,126,0.03));
+    border:2px solid rgba(0,214,126,0.4);
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.03),
+        0 0 40px rgba(0,214,126,0.1),
+        0 0 80px rgba(0,214,126,0.04),
+        0 4px 16px rgba(0,0,0,0.25);
+}
+.win-t{font-size:26px;font-weight:800;color:#00D67E;text-shadow:0 0 24px rgba(0,214,126,0.4),0 2px 0 rgba(0,0,0,0.2);}
+.win-amt{font-size:20px;font-weight:800;color:#E8E6E0;margin:6px 0;}
+.win-d{font-size:12px;color:#5A6080;}
+.win-sub{font-size:10px;color:#3A4060;margin-top:4px;}
+
+/* Settle — deeply recessed */
+.settle{
+    margin:6px 12px 10px;padding:10px;border-radius:12px;
+    background:linear-gradient(180deg,#0A0D18,#080B14);
+    box-shadow:inset 0 2px 4px rgba(0,0,0,0.4),inset 0 -1px 0 rgba(255,255,255,0.02);
+    border:1px solid rgba(255,255,255,0.02);
+}
+.stq{font-size:11px;font-weight:700;margin-bottom:5px;color:#5A6080;}
+.stq em{font-style:normal;color:#4D9EFF;font-weight:800;}
+
+h2{font-size:17px;font-weight:800;letter-spacing:-0.3px;margin:4px 16px 10px;color:#E8E6E0;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+    <div class="brand"><b>O</b>pen<b>l</b>y</div>
+    <div class="nav">
+        <button class="on"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></button>
+        <button><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg></button>
+        <button><svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg></button>
+        <button><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+        <button><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg></button>
+    </div>
+    <div style="text-align:right"><div class="bal">4,049.75 MINIMA</div><div class="blk">#2,043,735</div></div>
+</div>
+
+<div class="log">
+    <div class="log-title">Activity</div>
+    <div class="log-row log-ok"><span class="log-time">19:03</span><span class="log-msg">YOU WON! +10.00 MINIMA — "BTC breaks 73000"</span></div>
+    <div class="log-row"><span class="log-time">19:02</span><span class="log-msg">Settlement accepted. 0% fee.</span></div>
+    <div class="log-row"><span class="log-time">19:00</span><span class="log-msg">Proposal: FALSE — "ETH above 4k"</span></div>
+    <div class="log-row"><span class="log-time">18:56</span><span class="log-msg">Sit tight — 1-3 blocks to confirm.</span></div>
+</div>
+
+<div style="padding:12px 0 60px">
+
+<div class="win">
+    <div class="win-t">YOU WON!</div>
+    <div class="win-amt">+10.00 MINIMA</div>
+    <div class="win-d">"BTC breaks 73000" — settled TRUE</div>
+    <div class="win-sub">Fee: 0% · Escrow: returned</div>
+</div>
+
+<h2>Markets</h2>
+
+<div class="card">
+    <div class="card-head"><div class="card-prop">BTC breaks 73000 on MEXC spot</div><div class="card-meta"><span>TRUE 20 — FALSE 5</span><span>in 10</span><span>2 bets</span></div></div>
+    <div class="obar"><div class="obar-t" style="flex:20">TRUE 20</div><div class="obar-f" style="flex:5">FALSE 5</div></div>
+    <div class="pos"><div class="dot dot-t"></div>You: TRUE 10 — profit 10 if right</div>
+    <div class="btns"><button class="btn btn-g">Cancel</button><button class="btn btn-f">Counter FALSE</button></div>
+</div>
+
+<div class="card">
+    <div class="card-head"><div class="card-prop">Arsenal win the league 2026</div><div class="card-meta"><span>TRUE 15 — FALSE —</span><span>in 15</span></div></div>
+    <div class="obar"><div class="obar-t" style="flex:15">TRUE 15</div><div class="obar-e">Needs FALSE</div></div>
+    <div class="btns"><button class="btn btn-f">Counter FALSE</button></div>
+</div>
+
+<h2>My Bets</h2>
+
+<div class="live">
+    <div class="live-tag"><div class="pulse"></div> Live</div>
+    <div class="card-head"><div class="card-prop">ETH above 4k by end of Q2</div></div>
+    <div class="rows">
+        <div class="row"><dt>You said</dt><dd class="t">TRUE · 10.00</dd></div>
+        <div class="row"><dt>They said</dt><dd class="f">FALSE · 5.00</dd></div>
+        <div class="row"><dt>If TRUE</dt><dd class="t">+5.00</dd></div>
+        <div class="row"><dt>If FALSE</dt><dd class="f">-10.00</dd></div>
+    </div>
+
+    <div class="proposal">
+        <div class="pr-from">Counterparty says:</div>
+        <div class="pr-text">"ETH above 4k" is FALSE</div>
+        <div class="pr-detail">Agree? Disagree invokes arbiter — escrow forfeit, 10% fee.</div>
+        <div class="btns" style="padding:0"><button class="btn btn-t">Agree</button><button class="btn btn-f">Disagree</button></div>
+    </div>
+
+    <div class="settle">
+        <div class="stq">Is <em>"ETH above 4k"</em> TRUE or FALSE?</div>
+        <div class="btns" style="padding:0"><button class="btn btn-t">TRUE</button><button class="btn btn-f">FALSE</button><button class="btn btn-g">Void</button></div>
+    </div>
+
+    <div class="chat">
+        <div class="chat-title">Chat</div>
+        <div class="bub-n">alice</div>
+        <div class="bub bub-t">ETH peaked at 3847 — close but no cigar</div>
+        <div class="bub-n" style="text-align:right">You</div>
+        <div class="bub bub-m">Fair enough, agreeing FALSE</div>
+        <div class="bub-n">alice</div>
+        <div class="bub bub-t">GG, good bet</div>
+        <div class="chat-input"><input class="chat-field" placeholder="Message..."><button class="chat-send">›</button></div>
+    </div>
+</div>
+
+<div style="margin:0 12px"><button class="btn btn-a" style="width:100%;padding:14px;font-size:14px;border-radius:14px">Post Proposition</button></div>
+
+</div>
+</body>
+</html>

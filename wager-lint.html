@@ -1,0 +1,1242 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Wager Lite</title>
+<script type="text/javascript" src="mds.js"></script>
+<style>
+:root {
+    --bg: #f5f3ef; --bg2: #fff; --bg3: #ece9e2; --border: #d4d0c8;
+    --text: #2a2521; --text2: #807a70; --accent: #4f46e5; --accent2: #6366f1;
+    --yes: #16a34a; --yes-bg: rgba(22,163,74,0.08); --no: #dc2626; --no-bg: rgba(220,38,38,0.08);
+    --warn: #d97706; --radius: 6px; --mono: "SF Mono","Fira Code",monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh;padding-top:env(safe-area-inset-top,0)}
+.nav{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg2);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;flex-wrap:wrap;gap:6px}
+.nav__brand{font-size:17px;font-weight:700;letter-spacing:.5px}
+.nav__tabs{display:flex;gap:3px}
+.nav__tab{padding:5px 12px;border-radius:var(--radius);font-size:12px;font-weight:600;color:var(--text2);background:0 0;border:none;cursor:pointer;transition:all .15s}
+.nav__tab:hover{color:var(--text);background:var(--bg3)}
+.nav__tab.active{color:var(--accent);background:var(--bg3)}
+.nav__info{font-size:11px;color:var(--text2);font-family:var(--mono)}
+.noticeboard{max-width:860px;margin:0 auto;padding:0 14px;max-height:150px;overflow-y:auto;font-family:var(--mono);font-size:11px;line-height:1.6}
+.noticeboard:empty{display:none}
+.nb-entry{padding:3px 8px;border-left:3px solid var(--border);margin-bottom:1px;background:var(--bg2);border-radius:0 4px 4px 0}
+.nb-time{color:var(--text2);margin-right:6px}
+.nb-info{border-left-color:var(--accent)}.nb-ok{border-left-color:var(--yes);color:var(--yes)}.nb-warn{border-left-color:var(--warn);color:var(--warn)}.nb-err{border-left-color:var(--no);color:var(--no)}.nb-pending{border-left-color:var(--warn);color:var(--warn);font-weight:700}
+.main{max-width:860px;margin:0 auto;padding:16px 14px}
+h2{font-size:16px;font-weight:700;margin-bottom:10px}
+h3{font-size:13px;font-weight:600;margin:14px 0 6px;color:var(--text2)}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px}
+.empty{text-align:center;padding:32px 16px;color:var(--text2);font-size:13px}
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:7px 14px;border-radius:var(--radius);font-size:12px;font-weight:600;border:none;cursor:pointer;transition:all .15s}
+.btn--sm{padding:4px 9px;font-size:11px}
+.btn--accent{background:var(--accent);color:#fff}.btn--accent:hover{background:var(--accent2)}
+.btn--yes{background:var(--yes);color:#fff}.btn--yes:hover{opacity:.85}
+.btn--no{background:var(--no);color:#fff}.btn--no:hover{opacity:.85}
+.btn--ghost{background:0 0;color:var(--text2);border:1px solid var(--border)}.btn--ghost:hover{color:var(--text);border-color:var(--text2)}
+.side--yes{color:var(--yes);font-weight:700}.side--no{color:var(--no);font-weight:700}
+.muted{color:var(--text2);font-size:11px}.mono{font-family:var(--mono);font-size:11px;word-break:break-all}
+.form-group{margin-bottom:12px}.form-group label{display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px}
+.form-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+input[type="text"],input[type="number"],select,textarea{width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:13px;font-family:var(--mono);outline:none;transition:border-color .15s}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+input::placeholder{color:var(--text2);opacity:.5}
+.odds-preview{padding:8px 12px;background:var(--bg3);border-radius:var(--radius);font-size:12px;color:var(--text2);margin-bottom:12px;font-family:var(--mono)}
+.side-picker{display:flex;gap:4px}.side-picker .btn{flex:1;opacity:.5}.side-picker .btn.active{opacity:1}
+.betcard{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px;overflow:hidden;transition:border-color .15s}
+.betcard:hover{border-color:var(--accent)}
+.betcard__summary{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:10px 12px;cursor:pointer;user-select:none}
+.betcard__prop{font-size:12px;font-weight:600;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.betcard__tile{display:inline-flex;align-items:center;padding:3px 8px;border-radius:5px;font-family:var(--mono);font-size:11px;font-weight:700;line-height:1}
+.betcard__side{font-size:10px;letter-spacing:.5px;padding:3px 8px;border-radius:5px}
+.betcard__side.side--yes{background:var(--yes-bg)}.betcard__side.side--no{background:var(--no-bg)}
+.betcard__stake{background:var(--bg3);color:var(--text)}
+.betcard__mult{background:rgba(99,102,241,.08);color:var(--accent2)}
+.betcard__odds{background:rgba(0,0,0,.04);color:var(--text);letter-spacing:.5px}
+.betcard__size{background:rgba(245,158,11,0.12);color:var(--warn);font-size:10px}
+.betcard__price{background:rgba(200,120,0,0.12);color:#c87800;font-size:10px}
+.betcard__role{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--accent);background:rgba(99,102,241,.08);padding:2px 7px;border-radius:4px;margin-left:auto}
+.betcard__chevron{font-size:11px;color:var(--text2);transition:transform .2s;margin-left:4px}
+.betcard.expanded .betcard__chevron{transform:rotate(180deg)}
+.betcard__detail{max-height:0;overflow:hidden;transition:max-height .3s ease,padding .3s ease;padding:0 12px}
+.betcard.expanded .betcard__detail{max-height:800px;padding:0 12px 12px;border-top:1px solid var(--border)}
+.betcard__proposition{font-size:14px;font-weight:600;padding:10px 0 8px;line-height:1.4;border-bottom:1px solid var(--border);margin-bottom:8px}
+.betcard__grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px;margin-bottom:8px;padding-top:10px}
+.betcard__grid dl{margin:0}.betcard__grid dt{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:1px}.betcard__grid dd{font-size:13px;font-weight:600;font-family:var(--mono);margin:0}
+.betcard__payouts{background:var(--bg3);border-radius:var(--radius);padding:8px 10px;font-size:11px;margin-bottom:8px;line-height:1.7}
+.betcard__arbiter{margin-bottom:8px}.betcard__arbiter dt{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:2px}.betcard__arbiter dd{font-size:10px;margin:0;line-height:1.5}
+.betcard__parties{font-size:11px;line-height:1.7;margin-bottom:8px}
+.betcard__myleg{background:rgba(99,102,241,.06);padding:2px 6px;border-radius:4px;border-left:3px solid var(--accent)}
+.betcard__yourleg{margin-top:6px;padding:6px 10px;background:rgba(99,102,241,.06);border-radius:var(--radius);font-size:12px;border:1px solid rgba(99,102,241,.15)}
+.betcard__age{display:flex;flex-wrap:wrap;gap:6px 14px;font-family:var(--mono);font-size:10px;color:var(--text2);padding:5px 0;margin-bottom:6px;border-bottom:1px solid var(--border)}
+.betcard__coinid{font-size:9px;margin-bottom:8px;word-break:break-all}
+.betcard__actions{display:flex;gap:6px;align-items:center;padding-top:4px;flex-wrap:wrap}
+.settle-section{margin-top:14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:12px}
+.settle-section textarea{height:60px;resize:vertical;font-size:10px}
+.modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;align-items:center;justify-content:center}
+.modal__overlay{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4)}
+.modal__content{position:relative;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:20px;max-width:440px;width:90%;max-height:90vh;overflow-y:auto}
+.modal__header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.modal__header h3{font-size:16px;margin:0}.modal__close{font-size:22px;cursor:pointer;color:var(--text2);line-height:1}.modal__close:hover{color:var(--text)}
+.modal__prop{font-size:14px;font-weight:600;padding:10px 12px;background:var(--bg3);border-radius:var(--radius);margin-bottom:14px;line-height:1.4}
+.modal__info{margin-bottom:14px}.modal__row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:12px;border-bottom:1px solid var(--border)}.modal__row:last-child{border-bottom:none}
+.modal__actions{display:flex;gap:6px;margin-top:14px}.modal__actions .btn{flex:1}
+.counter__spread{display:flex;align-items:center;gap:10px}
+.counter__end{font-family:var(--mono);font-weight:700;font-size:14px;text-align:center;min-width:50px;line-height:1.3}
+.counter__end small{font-size:9px;font-weight:400;color:var(--text2);text-transform:uppercase;letter-spacing:.5px}
+.counter__end--mine{color:var(--accent2)}.counter__end--theirs{color:var(--warn)}
+.counter__sliderWrap{flex:1;text-align:center}
+.counter__slider{display:flex;align-items:center;gap:4px}
+.counter__slider input[type="range"]{flex:1;-webkit-appearance:none;height:5px;background:linear-gradient(to right,var(--accent),var(--warn));border-radius:3px;outline:none;opacity:.7}
+.counter__slider input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;background:#fff;border:3px solid var(--accent);border-radius:50%;cursor:pointer}
+.counter__oddsLabel{font-family:var(--mono);font-weight:700;font-size:20px;color:var(--text);margin-top:4px}
+.counter__preview{padding:10px 12px;background:var(--bg3);border-radius:var(--radius);font-size:12px;line-height:1.7;margin-top:10px}
+@media(max-width:640px){.form-row{grid-template-columns:1fr}.nav__tabs{gap:1px}.nav__tab{padding:3px 7px;font-size:11px}}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+    <div class="nav__brand">Wager</div>
+    <div class="nav__tabs">
+        <button class="nav__tab active" data-view="markets" onclick="showView('markets')">Markets</button>
+        <button class="nav__tab" data-view="post" onclick="showView('post')">Post</button>
+        <button class="nav__tab" data-view="mybets" onclick="showView('mybets')">My Bets</button>
+        <button class="nav__tab" data-view="arbiter" onclick="showView('arbiter')">Arbiter</button>
+    </div>
+    <div class="nav__info">
+        <span id="balance">--</span>
+        <span id="blockHeight"></span>
+    </div>
+</nav>
+<div class="noticeboard" id="noticeboard"></div>
+<div class="main" id="mainContent"><div class="empty">Initializing...</div></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   WAGER LITE — Pocket Web Lint
+   Trustless prediction market on Minima. Same V3.1 MAST contract.
+   No ChainMail, no service.js, no DB. Pure on-chain state.
+   Self-settle via copy-paste hex exchange.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── CONTRACT (verbatim from Wager v1.6.1) ────────────────────── */
+
+var WAGER_SCRIPT =
+    "LET ok=PREVSTATE(0) LET oa=PREVSTATE(1) LET ak=PREVSTATE(2) LET aa=PREVSTATE(3) " +
+    "LET ph=PREVSTATE(4) LET sd=PREVSTATE(6) LET ws=PREVSTATE(7) " +
+    "IF ph EQ 0 THEN " +
+        "IF SIGNEDBY(ok) THEN RETURN TRUE ENDIF " +
+        "ASSERT SAMESTATE(0 3) ASSERT STATE(4) EQ 1 ASSERT SAMESTATE(5 7) " +
+        "ASSERT STATE(10) EQ @AMOUNT " +
+        "ASSERT ak NEQ ok ASSERT ak NEQ STATE(8) " +
+        "ASSERT VERIFYOUT(@INPUT @ADDRESS @AMOUNT+ws @TOKENID TRUE) " +
+        "RETURN TRUE " +
+    "ENDIF " +
+    "LET ck=PREVSTATE(8) LET ca=PREVSTATE(9) LET os=PREVSTATE(10) " +
+    "IF ph EQ 1 AND SIGNEDBY(ok) AND SIGNEDBY(ck) AND STATE(11) NEQ 2 THEN " +
+        "LET o=STATE(11) " +
+        "IF o EQ sd THEN " +
+            "LET le=(@AMOUNT-os)/5 " +
+            "ASSERT VERIFYOUT(@INPUT oa @AMOUNT-le @TOKENID FALSE) " +
+            "ASSERT VERIFYOUT(@INPUT+1 ca le @TOKENID FALSE) " +
+        "ELSE " +
+            "LET le=os/5 " +
+            "ASSERT VERIFYOUT(@INPUT ca @AMOUNT-le @TOKENID FALSE) " +
+            "ASSERT VERIFYOUT(@INPUT+1 oa le @TOKENID FALSE) " +
+        "ENDIF " +
+        "RETURN TRUE " +
+    "ENDIF " +
+    "IF ph EQ 1 AND SIGNEDBY(ak) THEN " +
+        "LET f=@AMOUNT/10 LET o=STATE(11) " +
+        "IF o EQ sd THEN " +
+            "ASSERT VERIFYOUT(@INPUT oa @AMOUNT-f @TOKENID FALSE) " +
+        "ELSE " +
+            "ASSERT VERIFYOUT(@INPUT ca @AMOUNT-f @TOKENID FALSE) " +
+        "ENDIF " +
+        "ASSERT VERIFYOUT(@INPUT+1 aa f @TOKENID FALSE) " +
+        "RETURN TRUE " +
+    "ENDIF " +
+    "MAST 0x9C840B211A221ADEFAC2C9893899E0A1361594DF168BCDD04C3A865BB4DD1F6C " +
+    "RETURN FALSE";
+
+var MAST_REFRESH_SCRIPT = "LET ok=PREVSTATE(0) LET ck=PREVSTATE(8) LET ph=PREVSTATE(4) IF ph EQ 1 AND STATE(14) EQ 1 AND (SIGNEDBY(ok) OR SIGNEDBY(ck)) THEN ASSERT SAMESTATE(0 12) ASSERT VERIFYOUT(@INPUT @ADDRESS @AMOUNT @TOKENID TRUE) RETURN TRUE ENDIF RETURN FALSE";
+var MAST_REFRESH_PROOF = "0x0001000001020000000020565DF2572EE233DB75B44201D90052EC2ABC36B852FEB7EC0B1E4273ACF07C3D0001000000000020C48ECF868DC008BBEE74735AC445A6971ADA970FB27A8B35C8BDE735E560B55C000100";
+
+var MAST_TIMEOUT_SCRIPT = "LET oa=PREVSTATE(1) LET ca=PREVSTATE(9) LET os=PREVSTATE(10) LET ph=PREVSTATE(4) LET to=PREVSTATE(5) IF ph EQ 1 AND @COINAGE GT to THEN ASSERT VERIFYOUT(@INPUT oa os @TOKENID FALSE) ASSERT VERIFYOUT(@INPUT+1 ca @AMOUNT-os @TOKENID FALSE) RETURN TRUE ENDIF RETURN FALSE";
+var MAST_TIMEOUT_PROOF = "0x00010000010201000000204707FF4F1658D2DB8E19A454D943A4A4A283E513D03DE1CACCA1005B0EDBAA250001000000000020C48ECF868DC008BBEE74735AC445A6971ADA970FB27A8B35C8BDE735E560B55C000100";
+
+var MAST_VOID_SCRIPT = "LET ok=PREVSTATE(0) LET oa=PREVSTATE(1) LET ck=PREVSTATE(8) LET ca=PREVSTATE(9) LET os=PREVSTATE(10) LET ph=PREVSTATE(4) IF ph EQ 1 AND SIGNEDBY(ok) AND SIGNEDBY(ck) AND STATE(11) EQ 2 THEN ASSERT VERIFYOUT(@INPUT oa os @TOKENID FALSE) ASSERT VERIFYOUT(@INPUT+1 ca @AMOUNT-os @TOKENID FALSE) RETURN TRUE ENDIF RETURN FALSE";
+var MAST_VOID_PROOF = "0x0001000001010100000020CB91ACFC586EB3E102F96F193B39B243570CE1194903B2F39C19AB9D983D2AC9000100";
+
+var WAGER_SCRIPT_ADDRESS = "";
+
+function registerContract(cb) {
+    MDS.cmd('newscript trackall:true script:"' + WAGER_SCRIPT + '"', function(r) {
+        if (r.status) WAGER_SCRIPT_ADDRESS = r.response.address;
+        if (cb) cb();
+    });
+}
+
+/* ── IDENTITY ──────────────────────────────────────────────────── */
+
+var MY_PUBKEY = "", MY_HEX_ADDR = "", MY_ADDR = "", MY_KEYS = {};
+
+function strToHex(s) { var h = "0x"; for (var i = 0; i < s.length; i++) h += s.charCodeAt(i).toString(16).toUpperCase().padStart(2, "0"); return h; }
+function hexToStr(h) { if (!h) return ""; if (h.startsWith("0x")) h = h.substring(2); var s = ""; for (var i = 0; i < h.length; i += 2) s += String.fromCharCode(parseInt(h.substring(i, i + 2), 16)); return s; }
+
+function loadIdentity(cb) {
+    MDS.keypair.get("wager_pubkey", function(k) {
+        if (k.status && k.value && k.value.length > 10) {
+            MY_PUBKEY = k.value;
+            MDS.keypair.get("wager_hexaddr", function(k2) {
+                MY_HEX_ADDR = (k2.status && k2.value) ? k2.value : "";
+                MDS.keypair.get("wager_miniaddr", function(k3) {
+                    MY_ADDR = (k3.status && k3.value) ? k3.value : MY_HEX_ADDR;
+                    if (MY_PUBKEY && MY_HEX_ADDR) { cb(); return; }
+                    freshIdentity(cb);
+                });
+            });
+            return;
+        }
+        freshIdentity(cb);
+    });
+}
+function freshIdentity(cb) {
+    MDS.cmd("getaddress", function(r) {
+        if (!r.status) { cb(); return; }
+        MY_PUBKEY = r.response.publickey; MY_HEX_ADDR = r.response.address; MY_ADDR = r.response.miniaddress;
+        MDS.keypair.set("wager_pubkey", MY_PUBKEY, function() {
+            MDS.keypair.set("wager_hexaddr", MY_HEX_ADDR, function() {
+                MDS.keypair.set("wager_miniaddr", MY_ADDR, function() { cb(); });
+            });
+        });
+    });
+}
+function loadWalletKeys(cb) {
+    MDS.cmd("keys", function(r) {
+        try { var list = r.response.keys || r.response; if (Array.isArray(list)) for (var i = 0; i < list.length; i++) { var pk = list[i].publickey || list[i]; if (pk && typeof pk === "string") MY_KEYS[pk] = true; } } catch(e) {}
+        if (MY_PUBKEY) MY_KEYS[MY_PUBKEY] = true;
+        if (cb) cb();
+    });
+}
+function isMyKey(pk) { return MY_KEYS[pk] === true; }
+
+/* ── STATE ─────────────────────────────────────────────────────── */
+
+var OPEN_BETS = [], MATCHED_BETS = [], CURRENT_BLOCK = 0;
+var ESCROW_RATE = 0.25;
+
+function getStateVal(coin, port) {
+    if (!coin.state) return "";
+    for (var i = 0; i < coin.state.length; i++) if (coin.state[i].port === port) return coin.state[i].data;
+    return "";
+}
+
+function parseBetCoin(coin) {
+    return {
+        coinid: coin.coinid, amount: coin.amount,
+        phase: parseInt(getStateVal(coin, 4)) || 0,
+        ownerpk: getStateVal(coin, 0), owneraddr: getStateVal(coin, 1),
+        arbpk: getStateVal(coin, 2), arbaddr: getStateVal(coin, 3),
+        timeout: parseInt(getStateVal(coin, 5)) || 5000,
+        side: parseInt(getStateVal(coin, 6)),
+        wantstake: getStateVal(coin, 7),
+        counterpk: getStateVal(coin, 8), counteraddr: getStateVal(coin, 9),
+        ownerstake: getStateVal(coin, 10),
+        proposition: hexToStr(getStateVal(coin, 12)),
+        propositionHex: getStateVal(coin, 12),
+        settlement: getStateVal(coin, 13),
+        arbitermxkeyHex: getStateVal(coin, 17),
+        isMine: isMyKey(getStateVal(coin, 0)),
+        isMyCounter: isMyKey(getStateVal(coin, 8)),
+        isMyArb: isMyKey(getStateVal(coin, 2)),
+        age: parseInt(coin.age) || 0
+    };
+}
+
+function refreshBets(cb) {
+    if (!WAGER_SCRIPT_ADDRESS) { if (cb) cb(); return; }
+    MDS.cmd("coins address:" + WAGER_SCRIPT_ADDRESS, function(r) {
+        if (!r.status) { if (cb) cb(); return; }
+        OPEN_BETS = []; MATCHED_BETS = [];
+        (r.response || []).forEach(function(c) {
+            if (c.spent) return;
+            var p = parseBetCoin(c);
+            if (p.phase === 0) OPEN_BETS.push(p);
+            else if (p.phase === 1) MATCHED_BETS.push(p);
+        });
+        if (cb) cb();
+    });
+}
+
+/* ── TXN BUILDERS ──────────────────────────────────────────────── */
+
+var TXN_LOCKED = false, TXN_QUEUE = [];
+function acquireTxnLock(fn) { if (TXN_LOCKED) { TXN_QUEUE.push(fn); return; } TXN_LOCKED = true; fn(); }
+function releaseTxnLock() { TXN_LOCKED = false; if (TXN_QUEUE.length > 0) acquireTxnLock(TXN_QUEUE.shift()); }
+function cleanupTxn(id) { releaseTxnLock(); MDS.cmd("txndelete id:" + id); }
+
+var PENDING_TXID = null, PENDING_CB = null;
+function isPending(r) { return (r && r.pending === true) || (r && r.status === false && r.error && r.error.indexOf("pending") >= 0); }
+function handlePending(txid, cb) { PENDING_TXID = txid; PENDING_CB = cb; notify("PENDING -- Approve in MiniHub Pending Actions", "pending"); }
+function completePending() {
+    if (!PENDING_TXID) return;
+    var txid = PENDING_TXID, cb = PENDING_CB; PENDING_TXID = null; PENDING_CB = null;
+    MDS.cmd("txnbasics id:" + txid, function(br) {
+        if (!br || !br.status) { MDS.cmd("txndelete id:" + txid); if (cb) cb(false, "txnbasics failed"); return; }
+        MDS.cmd("txnpost id:" + txid, function(pr) {
+            MDS.cmd("txndelete id:" + txid);
+            if (pr && pr.status) { notify("Posted!", "ok"); if (cb) cb(true); }
+            else { notify("Post failed", "err"); if (cb) cb(false, pr ? pr.error : "post failed"); }
+        });
+    });
+}
+
+function setTxnState(txid, states, cb) {
+    var keys = Object.keys(states), idx = 0;
+    function next() {
+        if (idx >= keys.length) { cb(true); return; }
+        var p = keys[idx], v = states[p];
+        MDS.cmd("txnstate id:" + txid + " port:" + p + " value:" + v, function(r) { if (!r.status) { cb(false); return; } idx++; next(); });
+    }
+    next();
+}
+
+function findCoins(tokenid, minAmt, cb) {
+    MDS.cmd("coins sendable:true tokenid:" + tokenid, function(r) {
+        if (!r.status) { cb(null); return; }
+        var need = parseFloat(minAmt), total = 0, coins = [];
+        var sorted = (r.response || []).sort(function(a, b) { return parseFloat(b.amount) - parseFloat(a.amount); });
+        for (var i = 0; i < sorted.length && total < need; i++) { coins.push(sorted[i]); total += parseFloat(sorted[i].amount); }
+        if (total < need) { cb(null); return; }
+        cb({ coins: coins, total: total });
+    });
+}
+
+function addMultipleInputs(txid, coins, idx, cb) {
+    if (idx >= coins.length) { cb(true); return; }
+    MDS.cmd("txninput id:" + txid + " coinid:" + coins[idx].coinid, function(r) {
+        if (!r.status) { cb(false); return; }
+        addMultipleInputs(txid, coins, idx + 1, cb);
+    });
+}
+
+function findCoinByIdOnChain(coinid, cb) {
+    MDS.cmd("coins coinid:" + coinid, function(r) {
+        if (r.status && r.response && r.response.length > 0 && !r.response[0].spent) cb(r.response[0]);
+        else cb(null);
+    });
+}
+
+/* -- Post Bet -- */
+function postBet(params, cb) {
+    acquireTxnLock(function() {
+        var stateObj = JSON.stringify({
+            "0": MY_PUBKEY, "1": MY_HEX_ADDR, "2": params.arbpk, "3": params.arbaddr,
+            "4": "0", "5": "" + params.timeout, "6": "" + params.side, "7": "" + params.wantstake,
+            "12": strToHex(params.market || ""), "13": "" + (params.settlement || "0")
+        });
+        /* Check mode -- use sendpoll in READ mode (polls until pending approved) */
+        MDS.cmd("checkmode", function(modeRes) {
+            var locked = modeRes.response ? modeRes.response.dblocked : true;
+            var sendCmd = locked ? "send" : "sendpoll";
+            var cmd = sendCmd + " amount:" + params.stake + " address:" + WAGER_SCRIPT_ADDRESS + " state:" + stateObj;
+            notify("Posting bet (" + sendCmd + ")...", "info");
+            MDS.cmd(cmd, function(r) {
+                releaseTxnLock();
+                if (isPending(r)) { notify("PENDING -- Approve in MiniHub Pending Actions", "pending"); cb(false, "pending"); return; }
+                if (r.status) { notify("Bet posted!", "ok"); cb(true); }
+                else if (r.pending) { notify("PENDING -- Approve in MiniHub Pending Actions", "pending"); cb(false, "pending"); }
+                else { notify("Post failed: " + (r.error || JSON.stringify(r)), "err"); cb(false, r.error || "failed"); }
+            });
+        });
+    });
+}
+
+/* -- Fill Bet -- */
+function fillBet(bet, cb) {
+    acquireTxnLock(function() {
+        var txid = "fill_" + Date.now();
+        notify("Step 1 -- Verifying bet...", "info");
+        findCoinByIdOnChain(bet.coinid, function(fresh) {
+            if (!fresh) {
+                MDS.cmd("coins address:" + WAGER_SCRIPT_ADDRESS, function(cr) {
+                    var found = null;
+                    if (cr.status && cr.response) cr.response.forEach(function(c) {
+                        if (c.spent) return; if (getStateVal(c, 4) !== "0") return;
+                        if (hexToStr(getStateVal(c, 12)) === bet.proposition && getStateVal(c, 6) === "" + bet.side) found = c;
+                    });
+                    if (found) { bet = parseBetCoin(found); doFill(); }
+                    else { releaseTxnLock(); notify("Bet not found on-chain", "err"); cb(false, "not found"); }
+                });
+            } else doFill();
+        });
+        function doFill() {
+            var ownerStake = bet.amount, counterStake = bet.wantstake;
+            if (!counterStake || parseFloat(counterStake) <= 0) { releaseTxnLock(); notify("No wantstake on bet", "err"); cb(false, "missing wantstake"); return; }
+            var totalPot = (parseFloat(ownerStake) + parseFloat(counterStake)).toFixed(8);
+            notify("Step 2 -- Creating transaction...", "info");
+            MDS.cmd("txncreate id:" + txid, function(r0) {
+                if (!r0.status) { releaseTxnLock(); notify("txncreate failed: " + (r0.error || ""), "err"); cb(false, "txncreate failed"); return; }
+                notify("Step 3 -- Adding bet coin...", "info");
+                MDS.cmd("txninput id:" + txid + " coinid:" + bet.coinid, function(r1) {
+                    if (!r1.status) { cleanupTxn(txid); notify("Bet input failed: " + (r1.error || ""), "err"); cb(false, "input failed"); return; }
+                    notify("Step 4 -- Finding funds (" + counterStake + ")...", "info");
+                    findCoins("0x00", counterStake, function(result) {
+                        if (!result) { cleanupTxn(txid); notify("Insufficient funds (need " + counterStake + ")", "err"); cb(false, "insufficient funds"); return; }
+                        addMultipleInputs(txid, result.coins, 0, function(ok) {
+                            if (!ok) { cleanupTxn(txid); notify("Funding input failed", "err"); cb(false, "funding failed"); return; }
+                            notify("Step 5 -- Building outputs (pot=" + totalPot + ")...", "info");
+                            MDS.cmd("txnoutput id:" + txid + " amount:" + totalPot + " address:" + WAGER_SCRIPT_ADDRESS + " storestate:true", function(r2) {
+                                if (!r2.status) { cleanupTxn(txid); notify("Pot output failed: " + (r2.error || ""), "err"); cb(false, "output failed"); return; }
+                                var change = (result.total - parseFloat(counterStake)).toFixed(8);
+                                function doSign() {
+                                    var states = {
+                                        0: bet.ownerpk, 1: bet.owneraddr, 2: bet.arbpk, 3: bet.arbaddr,
+                                        4: "1", 5: "" + bet.timeout, 6: "" + bet.side, 7: bet.wantstake,
+                                        8: MY_PUBKEY, 9: MY_HEX_ADDR, 10: ownerStake,
+                                        12: bet.propositionHex || strToHex(bet.proposition || ""),
+                                        13: bet.settlement || "0", 14: "0",
+                                        15: "", 16: "", 17: bet.arbitermxkeyHex || ""
+                                    };
+                                    setTxnState(txid, states, function(sok) {
+                                        if (!sok) { cleanupTxn(txid); notify("State set failed", "err"); cb(false, "state failed"); return; }
+                                        notify("Step 6 -- Signing...", "info");
+                                        MDS.cmd("txnsign id:" + txid + " publickey:auto", function(sr) {
+                                            if (isPending(sr)) { releaseTxnLock(); handlePending(txid, cb); return; }
+                                            if (!sr || !sr.status) { cleanupTxn(txid); notify("Sign failed: " + (sr ? sr.error || JSON.stringify(sr) : "no response"), "err"); cb(false, "sign failed"); return; }
+                                            notify("Step 7 -- Posting...", "info");
+                                            MDS.cmd("txnbasics id:" + txid, function(br) {
+                                                if (!br || !br.status) { cleanupTxn(txid); notify("txnbasics failed: " + (br ? br.error || "" : ""), "err"); cb(false, "txnbasics failed"); return; }
+                                                MDS.cmd("txnpost id:" + txid, function(pr) {
+                                                    if (isPending(pr)) { releaseTxnLock(); MDS.cmd("txndelete id:" + txid); notify("PENDING -- Approve in MiniHub Pending Actions", "pending"); cb(false, "pending"); return; }
+                                                    releaseTxnLock(); MDS.cmd("txndelete id:" + txid);
+                                                    if (pr && pr.status) { notify("Bet filled!", "ok"); cb(true); }
+                                                    else { notify("Fill post failed: " + (pr ? pr.error || "" : ""), "err"); cb(false, pr ? pr.error : "post failed"); }
+                                                });
+                                            });
+                                        });
+                                    });
+                                }
+                                if (parseFloat(change) > 0.000001) {
+                                    MDS.cmd("txnoutput id:" + txid + " amount:" + change + " address:" + MY_HEX_ADDR + " storestate:false", function(r3) {
+                                        if (!r3.status) { cleanupTxn(txid); notify("Change output failed", "err"); cb(false, "change output failed"); return; }
+                                        doSign();
+                                    });
+                                } else doSign();
+                            });
+                        });
+                    });
+                });
+            });
+        }
+    });
+}
+
+/* -- Cancel Bet -- */
+function cancelBet(coinid, cb) {
+    acquireTxnLock(function() {
+        var txid = "cancel_" + Date.now();
+        notify("Cancelling bet...", "info");
+        findCoinByIdOnChain(coinid, function(coin) {
+            if (!coin) { releaseTxnLock(); notify("Coin not found", "err"); cb(false, "not found"); return; }
+            MDS.cmd("txncreate id:" + txid, function(r0) {
+                if (!r0.status) { releaseTxnLock(); notify("txncreate failed", "err"); cb(false, "txncreate failed"); return; }
+                MDS.cmd("txninput id:" + txid + " coinid:" + coin.coinid, function(r1) {
+                    if (!r1.status) { cleanupTxn(txid); notify("Input failed", "err"); cb(false, "input failed"); return; }
+                    MDS.cmd("txnoutput id:" + txid + " amount:" + coin.amount + " address:" + getStateVal(coin, 1) + " storestate:false", function(r2) {
+                        if (!r2.status) { cleanupTxn(txid); notify("Output failed", "err"); cb(false, "output failed"); return; }
+                        notify("Signing cancel...", "info");
+                        MDS.cmd("txnsign id:" + txid + " publickey:" + getStateVal(coin, 0), function(sr) {
+                            if (isPending(sr)) { releaseTxnLock(); handlePending(txid, cb); return; }
+                            if (!sr || !sr.status) { cleanupTxn(txid); notify("Sign failed: " + (sr ? sr.error || "" : ""), "err"); cb(false, "sign failed"); return; }
+                            MDS.cmd("txnbasics id:" + txid, function(br) {
+                                if (!br || !br.status) { cleanupTxn(txid); notify("txnbasics failed", "err"); cb(false, "txnbasics failed"); return; }
+                                MDS.cmd("txnpost id:" + txid, function(pr) {
+                                    if (isPending(pr)) { releaseTxnLock(); MDS.cmd("txndelete id:" + txid); notify("PENDING -- Approve in MiniHub", "pending"); cb(false, "pending"); return; }
+                                    releaseTxnLock(); MDS.cmd("txndelete id:" + txid);
+                                    if (pr && pr.status) { notify("Cancelled!", "ok"); cb(true); }
+                                    else { notify("Cancel post failed: " + (pr ? pr.error || "" : ""), "err"); cb(false, pr ? pr.error : "post failed"); }
+                                });
+                            });
+                        });
+                    });
+                });
+            });
+        });
+    });
+}
+
+/* -- Self-Settle (proposer: partial sign + export hex) -- */
+function selfSettle(coinid, outcome, cb) {
+    acquireTxnLock(function() {
+        var txid = "settle_" + Date.now();
+        MDS.cmd("txncreate id:" + txid, function(r0) {
+            if (!r0.status) { releaseTxnLock(); cb(false, "txncreate failed"); return; }
+            MDS.cmd("txninput id:" + txid + " coinid:" + coinid, function(r1) {
+                if (!r1.status) { cleanupTxn(txid); cb(false, "input failed"); return; }
+                findCoinByIdOnChain(coinid, function(coin) {
+                    if (!coin) { cleanupTxn(txid); cb(false, "coin not found"); return; }
+                    var pot = parseFloat(coin.amount), ownerSide = parseInt(getStateVal(coin, 6));
+                    var oAddr = getStateVal(coin, 1), cAddr = getStateVal(coin, 9);
+                    var oLock = parseFloat(getStateVal(coin, 10)), cLock = pot - oLock;
+                    var isVoid = (outcome === 2);
+                    var out0Addr, out0Amt, out1Addr, out1Amt;
+                    if (isVoid) {
+                        out0Addr = oAddr; out0Amt = oLock.toFixed(8);
+                        out1Addr = cAddr; out1Amt = cLock.toFixed(8);
+                    } else {
+                        var ownerWins = (outcome === ownerSide);
+                        var loserLock = ownerWins ? cLock : oLock;
+                        var loserEscrow = Math.floor((loserLock / 5) * 1e8) / 1e8;
+                        out0Addr = ownerWins ? oAddr : cAddr; out0Amt = (pot - loserEscrow).toFixed(8);
+                        out1Addr = ownerWins ? cAddr : oAddr; out1Amt = loserEscrow.toFixed(8);
+                    }
+                    MDS.cmd("txnoutput id:" + txid + " amount:" + out0Amt + " address:" + out0Addr + " storestate:false", function(r2) {
+                        if (!r2.status) { cleanupTxn(txid); cb(false, "output 0 failed"); return; }
+                        MDS.cmd("txnoutput id:" + txid + " amount:" + out1Amt + " address:" + out1Addr + " storestate:false", function(r3) {
+                            if (!r3.status) { cleanupTxn(txid); cb(false, "output 1 failed"); return; }
+                            MDS.cmd("txnstate id:" + txid + " port:11 value:" + outcome, function() {
+                            MDS.cmd("txnstate id:" + txid + " port:14 value:0", function() {
+                                function afterMast() {
+                                    var myKey = isMyKey(getStateVal(coin, 0)) ? getStateVal(coin, 0) : getStateVal(coin, 8);
+                                    MDS.cmd("txnsign id:" + txid + " publickey:" + myKey, function(sr) {
+                                        if (isPending(sr)) { releaseTxnLock(); handlePending(txid, cb); return; }
+                                        if (!sr || !sr.status) { cleanupTxn(txid); cb(false, "sign failed"); return; }
+                                        MDS.cmd("txnexport id:" + txid, function(ex) {
+                                            releaseTxnLock();
+                                            MDS.cmd("txndelete id:" + txid);
+                                            if (ex && ex.status) cb(true, null, ex.response.data);
+                                            else cb(false, "export failed");
+                                        });
+                                    });
+                                }
+                                if (isVoid) {
+                                    var ms = {}; ms[MAST_VOID_SCRIPT] = MAST_VOID_PROOF;
+                                    MDS.cmd("txnscript id:" + txid + " scripts:" + JSON.stringify(ms), function(mr) {
+                                        if (!mr || !mr.status) { cleanupTxn(txid); cb(false, "MAST void failed"); return; }
+                                        afterMast();
+                                    });
+                                } else afterMast();
+                            }); });
+                        });
+                    });
+                });
+            });
+        });
+    });
+}
+
+/* -- Co-sign and Post (receiver of settlement hex) -- */
+function cosignAndPost(txnHex, sigKey, cb) {
+    if (!sigKey) { cb(false, "no signing key"); return; }
+    var txid = "cosign_" + Date.now();
+    notify("Importing settlement...", "info");
+    MDS.cmd("txnimport id:" + txid + " data:" + txnHex, function(r1) {
+        if (!r1 || !r1.status) { notify("Import failed", "err"); cb(false, "import failed"); return; }
+        MDS.cmd("txnsign id:" + txid + " publickey:" + sigKey, function(r2) {
+            if (isPending(r2)) { handlePending(txid, cb); return; }
+            if (!r2 || !r2.status) { MDS.cmd("txndelete id:" + txid); cb(false, "cosign failed"); return; }
+            MDS.cmd("txnbasics id:" + txid, function(br) {
+                if (!br || !br.status) { MDS.cmd("txndelete id:" + txid); cb(false, "txnbasics failed"); return; }
+                MDS.cmd("txnpost id:" + txid, function(pr) {
+                    MDS.cmd("txndelete id:" + txid);
+                    if (pr && pr.status) cb(true);
+                    else cb(false, pr ? pr.error : "post failed");
+                });
+            });
+        });
+    });
+}
+
+/* -- Arbiter Resolve -- */
+function resolveBet(coinid, outcome, cb) {
+    acquireTxnLock(function() {
+        var txid = "resolve_" + Date.now();
+        MDS.cmd("txncreate id:" + txid, function(r0) {
+            if (!r0.status) { releaseTxnLock(); cb(false, "txncreate failed"); return; }
+            MDS.cmd("txninput id:" + txid + " coinid:" + coinid, function(r1) {
+                if (!r1.status) { cleanupTxn(txid); cb(false, "input failed"); return; }
+                findCoinByIdOnChain(coinid, function(coin) {
+                    if (!coin) { cleanupTxn(txid); cb(false, "not found"); return; }
+                    var pot = parseFloat(coin.amount), ownerSide = parseInt(getStateVal(coin, 6));
+                    var fee = Math.floor((pot / 10) * 1e8) / 1e8;
+                    var winnings = (pot - fee).toFixed(8), feeStr = fee.toFixed(8);
+                    var winAddr = (outcome === ownerSide) ? getStateVal(coin, 1) : getStateVal(coin, 9);
+                    var arbAddr = getStateVal(coin, 3), arbPk = getStateVal(coin, 2);
+                    MDS.cmd("txnoutput id:" + txid + " amount:" + winnings + " address:" + winAddr + " storestate:false", function(r2) {
+                        if (!r2.status) { cleanupTxn(txid); cb(false, "winner output failed"); return; }
+                        MDS.cmd("txnoutput id:" + txid + " amount:" + feeStr + " address:" + arbAddr + " storestate:false", function(r3) {
+                            if (!r3.status) { cleanupTxn(txid); cb(false, "fee output failed"); return; }
+                            MDS.cmd("txnstate id:" + txid + " port:11 value:" + outcome, function() {
+                            MDS.cmd("txnstate id:" + txid + " port:14 value:0", function() {
+                                MDS.cmd("txnsign id:" + txid + " publickey:" + arbPk, function(sr) {
+                                    if (isPending(sr)) { releaseTxnLock(); handlePending(txid, cb); return; }
+                                    if (!sr || !sr.status) { cleanupTxn(txid); cb(false, "sign failed"); return; }
+                                    MDS.cmd("txnbasics id:" + txid, function(br) {
+                                        if (!br || !br.status) { cleanupTxn(txid); cb(false, "txnbasics failed"); return; }
+                                        MDS.cmd("txnpost id:" + txid, function(pr) {
+                                            if (isPending(pr)) { releaseTxnLock(); MDS.cmd("txndelete id:" + txid); notify("PENDING -- Approve in MiniHub", "pending"); cb(false, "pending"); return; }
+                                            releaseTxnLock(); MDS.cmd("txndelete id:" + txid);
+                                            if (pr && pr.status) { notify("Resolved!", "ok"); cb(true); }
+                                            else { notify("Resolve failed: " + (pr ? pr.error || "" : ""), "err"); cb(false, pr ? pr.error : "failed"); }
+                                        });
+                                    });
+                                });
+                            }); });
+                        });
+                    });
+                });
+            });
+        });
+    });
+}
+
+/* -- Timeout Refund -- */
+function timeoutBet(coinid, cb) {
+    acquireTxnLock(function() {
+        var txid = "timeout_" + Date.now();
+        MDS.cmd("txncreate id:" + txid, function(r0) {
+            if (!r0.status) { releaseTxnLock(); cb(false, "txncreate failed"); return; }
+            MDS.cmd("txninput id:" + txid + " coinid:" + coinid, function(r1) {
+                if (!r1.status) { cleanupTxn(txid); cb(false, "input failed"); return; }
+                findCoinByIdOnChain(coinid, function(coin) {
+                    if (!coin) { cleanupTxn(txid); cb(false, "not found"); return; }
+                    var os = getStateVal(coin, 10), oAddr = getStateVal(coin, 1), cAddr = getStateVal(coin, 9);
+                    var cs = (parseFloat(coin.amount) - parseFloat(os)).toFixed(8);
+                    MDS.cmd("txnoutput id:" + txid + " amount:" + os + " address:" + oAddr + " storestate:false", function(r2) {
+                        if (!r2.status) { cleanupTxn(txid); cb(false, "output failed"); return; }
+                        MDS.cmd("txnoutput id:" + txid + " amount:" + cs + " address:" + cAddr + " storestate:false", function(r3) {
+                            if (!r3.status) { cleanupTxn(txid); cb(false, "output 2 failed"); return; }
+                            MDS.cmd("txnstate id:" + txid + " port:14 value:0", function() {
+                                var ms = {}; ms[MAST_TIMEOUT_SCRIPT] = MAST_TIMEOUT_PROOF;
+                                MDS.cmd("txnscript id:" + txid + " scripts:" + JSON.stringify(ms), function(mr) {
+                                    if (!mr || !mr.status) { cleanupTxn(txid); cb(false, "MAST failed"); return; }
+                                    MDS.cmd("txnbasics id:" + txid, function(br) {
+                                        if (!br || !br.status) { cleanupTxn(txid); cb(false, "txnbasics failed"); return; }
+                                        MDS.cmd("txnpost id:" + txid, function(pr) {
+                                            if (isPending(pr)) { releaseTxnLock(); MDS.cmd("txndelete id:" + txid); notify("PENDING -- Approve in MiniHub", "pending"); cb(false, "pending"); return; }
+                                            releaseTxnLock(); MDS.cmd("txndelete id:" + txid);
+                                            if (pr && pr.status) { notify("Refunded!", "ok"); cb(true); }
+                                            else { notify("Timeout failed: " + (pr ? pr.error || "" : ""), "err"); cb(false, pr ? pr.error : "failed"); }
+                                        });
+                                    });
+                                });
+                            });
+                        });
+                    });
+                });
+            });
+        });
+    });
+}
+
+/* ── MATH ──────────────────────────────────────────────────────── */
+
+function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
+function calcOdds(bet, want) {
+    if (!bet || !want || isNaN(bet) || isNaN(want) || bet <= 0 || want <= 0) return "--";
+    var g = gcd(Math.round(want), Math.round(bet));
+    return Math.round(want / g) + ":" + Math.round(bet / g);
+}
+function calcCounterOdds(bet, want) { return calcOdds(want, bet); }
+
+/* ── UI ────────────────────────────────────────────────────────── */
+
+var CURRENT_VIEW = "markets";
+
+function notify(msg, type) {
+    type = type || "info";
+    var nb = document.getElementById("noticeboard");
+    if (!nb) return;
+    var now = new Date();
+    var ts = now.getHours().toString().padStart(2,"0") + ":" + now.getMinutes().toString().padStart(2,"0") + ":" + now.getSeconds().toString().padStart(2,"0");
+    var div = document.createElement("div");
+    div.className = "nb-entry nb-" + type;
+    var timeSpan = document.createElement("span");
+    timeSpan.className = "nb-time";
+    timeSpan.textContent = ts;
+    div.appendChild(timeSpan);
+    div.appendChild(document.createTextNode(" " + msg));
+    nb.appendChild(div);
+    while (nb.children.length > 30) nb.removeChild(nb.firstChild);
+    nb.scrollTop = nb.scrollHeight;
+}
+
+function esc(s) {
+    if (!s) return "";
+    var d = document.createElement("div"); d.textContent = s; return d.innerHTML;
+}
+
+function showView(view) {
+    CURRENT_VIEW = view;
+    document.querySelectorAll(".nav__tab").forEach(function(t) { t.classList.remove("active"); });
+    var tab = document.querySelector('[data-view="' + view + '"]');
+    if (tab) tab.classList.add("active");
+    renderCurrentView();
+}
+
+function renderCurrentView() {
+    var main = document.getElementById("mainContent");
+    if (!main) return;
+    if (CURRENT_VIEW === "markets") renderMarketsView(main);
+    else if (CURRENT_VIEW === "post") renderPostView(main);
+    else if (CURRENT_VIEW === "mybets") renderMyBetsView(main);
+    else if (CURRENT_VIEW === "arbiter") renderArbiterView(main);
+}
+
+function refreshBalance() {
+    MDS.cmd("balance", function(r) {
+        if (!r.status) return;
+        var bal = "0";
+        for (var i = 0; i < r.response.length; i++) if (r.response[i].tokenid === "0x00") { bal = r.response[i].sendable; break; }
+        var el = document.getElementById("balance");
+        if (el) el.innerText = parseFloat(bal).toFixed(4) + " Minima";
+    });
+}
+
+/* ── BET CARD ──────────────────────────────────────────────────── */
+
+function toggleCard(id) { var el = document.getElementById(id); if (el) el.classList.toggle("expanded"); }
+
+function renderBetCard(bet, role) {
+    var id = "c_" + bet.coinid.substring(0, 16);
+    var isOpen = bet.phase === 0;
+    var sideLabel = bet.side === 1 ? "FOR" : "AGAINST";
+    var sideClass = bet.side === 1 ? "side--yes" : "side--no";
+    var locked = parseFloat(bet.amount);
+    var betAmt, wantBet, forAmt, againstAmt;
+    if (isOpen) {
+        betAmt = locked / (1 + ESCROW_RATE); wantBet = parseFloat(bet.wantstake || "0") / (1 + ESCROW_RATE);
+    } else {
+        var osLock = parseFloat(bet.ownerstake || "0"), csLock = locked - osLock;
+        forAmt = (bet.side === 1 ? osLock : csLock) / (1 + ESCROW_RATE);
+        againstAmt = (bet.side === 1 ? csLock : osLock) / (1 + ESCROW_RATE);
+        betAmt = forAmt; wantBet = againstAmt;
+    }
+    var odds = calcOdds(betAmt, wantBet);
+    var prop = bet.proposition || "";
+    var propShort = prop.length > 40 ? prop.substring(0, 40) + "..." : prop;
+    var canFill = isOpen && !bet.isMine && !bet.isMyArb;
+    var multVal = betAmt > 0 ? wantBet / betAmt : 0;
+    var multiplier = multVal > 0 ? (multVal % 1 === 0 ? multVal.toFixed(0) : multVal.toFixed(1)) + "x" : "--";
+
+    var html = '<div class="betcard" id="' + id + '">';
+    html += '<div class="betcard__summary" onclick="toggleCard(\'' + id + '\')">';
+    if (prop) html += '<span class="betcard__prop">' + esc(propShort) + '</span>';
+    html += '<span class="betcard__tile ' + sideClass + ' betcard__side">' + sideLabel + '</span>';
+    if (isOpen) html += '<span class="betcard__tile betcard__stake">' + betAmt.toFixed(0) + ' wants ' + wantBet.toFixed(0) + '</span>';
+    else html += '<span class="betcard__tile betcard__stake">' + forAmt.toFixed(0) + ' vs ' + againstAmt.toFixed(0) + '</span>';
+    html += '<span class="betcard__tile betcard__mult">' + multiplier + '</span>';
+    html += '<span class="betcard__tile betcard__odds">' + odds + '</span>';
+    html += '<span class="betcard__tile betcard__size">' + betAmt.toFixed(0) + '</span>';
+    html += '<span class="betcard__tile betcard__price">' + wantBet.toFixed(0) + '</span>';
+    if (role) html += '<span class="betcard__role">' + role + '</span>';
+    html += '<span class="betcard__chevron">&#9662;</span>';
+    html += '</div>';
+
+    html += '<div class="betcard__detail">';
+    if (prop) html += '<div class="betcard__proposition">' + esc(prop) + '</div>';
+
+    var counterOdds = calcCounterOdds(betAmt, wantBet);
+    html += '<div class="betcard__grid">';
+    html += '<dl><dt>FOR Odds</dt><dd>' + odds + '</dd></dl>';
+    html += '<dl><dt>AGAINST Odds</dt><dd>' + counterOdds + '</dd></dl>';
+    html += '<dl><dt>Bet</dt><dd>' + betAmt.toFixed(2) + '</dd></dl>';
+    html += '<dl><dt>Wants</dt><dd>' + wantBet.toFixed(2) + '</dd></dl>';
+    html += '</div>';
+
+    if (isOpen) {
+        var totalBets = (betAmt + wantBet).toFixed(2);
+        html += '<div class="betcard__payouts">';
+        html += '<div>Winner takes: <strong>' + totalBets + ' Minima</strong></div>';
+        html += '<div>Agree: <strong>0% fee</strong> -- loser gets escrow back</div>';
+        html += '<div>Arbiter decides: <strong>10% fee</strong> -- loser forfeits all</div>';
+        html += '<div class="muted" style="margin-top:3px">25% escrow locked as honesty insurance</div>';
+        html += '</div>';
+    }
+
+    html += '<div class="betcard__arbiter"><dt>Arbiter</dt><dd class="mono">' + esc(bet.arbpk || "--") + '</dd></div>';
+
+    if (!isOpen && bet.ownerstake) {
+        var osL = parseFloat(bet.ownerstake), csL = parseFloat(bet.amount) - osL;
+        var osB = osL / (1 + ESCROW_RATE), csB = csL / (1 + ESCROW_RATE), potB = osB + csB;
+        var ownerIsFor = bet.side === 1;
+        var fB = ownerIsFor ? osB : csB, aB = ownerIsFor ? csB : osB;
+        var youOwner = bet.isMine, youCounter = bet.isMyCounter;
+        var youFor = (ownerIsFor && youOwner) || (!ownerIsFor && youCounter);
+        var youAgainst = (!ownerIsFor && youOwner) || (ownerIsFor && youCounter);
+        html += '<div class="betcard__parties">';
+        html += '<div' + (youFor ? ' class="betcard__myleg"' : '') + '><span class="side--yes">FOR</span> bet ' + fB.toFixed(2) + ' to win ' + potB.toFixed(2) + (youFor ? ' <strong>&larr; YOU</strong>' : '') + '</div>';
+        html += '<div' + (youAgainst ? ' class="betcard__myleg"' : '') + '><span class="side--no">AGAINST</span> bet ' + aB.toFixed(2) + ' to win ' + potB.toFixed(2) + (youAgainst ? ' <strong>&larr; YOU</strong>' : '') + '</div>';
+        html += '</div>';
+    }
+
+    var ageInfo = '';
+    if (bet.age > 0) ageInfo += '<span>Age: ' + bet.age + ' blk</span>';
+    if (isOpen && bet.timeout) ageInfo += '<span>Timeout: ' + bet.timeout + ' blk</span>';
+    if (ageInfo) html += '<div class="betcard__age">' + ageInfo + '</div>';
+
+    html += '<div class="betcard__coinid mono muted">' + esc(bet.coinid) + '</div>';
+
+    html += '<div class="betcard__actions">';
+    if (isOpen && bet.isMine) html += '<button class="btn btn--ghost btn--sm" onclick="event.stopPropagation();doCancel(\'' + bet.coinid + '\')">Cancel</button>';
+    if (canFill) {
+        html += '<button class="btn btn--accent" onclick="event.stopPropagation();doFill(\'' + bet.coinid + '\')">Take Bet</button> ';
+        html += '<button class="btn btn--ghost btn--sm" onclick="event.stopPropagation();doCounter(\'' + bet.coinid + '\')">Counter</button>';
+    }
+    if (!isOpen && bet.isMyArb) {
+        html += '<button class="btn btn--yes btn--sm" onclick="event.stopPropagation();doResolve(\'' + bet.coinid + '\',1)">TRUE</button> ';
+        html += '<button class="btn btn--no btn--sm" onclick="event.stopPropagation();doResolve(\'' + bet.coinid + '\',0)">FALSE</button>';
+    }
+    if (!isOpen && !bet.isMyArb && (bet.isMine || bet.isMyCounter)) {
+        html += '<button class="btn btn--yes btn--sm" onclick="event.stopPropagation();doPropose(\'' + bet.coinid + '\',1)">TRUE</button> ';
+        html += '<button class="btn btn--no btn--sm" onclick="event.stopPropagation();doPropose(\'' + bet.coinid + '\',0)">FALSE</button> ';
+        html += '<button class="btn btn--ghost btn--sm" onclick="event.stopPropagation();doPropose(\'' + bet.coinid + '\',2)">Void</button>';
+    }
+    if (!isOpen && (bet.isMine || bet.isMyCounter) && bet.age >= (parseInt(bet.timeout) || 5000)) {
+        html += ' <button class="btn btn--ghost btn--sm" onclick="event.stopPropagation();doTimeout(\'' + bet.coinid + '\')">Timeout</button>';
+    }
+    html += '</div>';
+    html += '</div></div>';
+    return html;
+}
+
+/* ── VIEWS ─────────────────────────────────────────────────────── */
+
+function renderMarketsView(el) {
+    var html = '<h2>Open Markets</h2>';
+    if (OPEN_BETS.length === 0) {
+        html += '<div class="empty">No open bets -- be the first to post</div>';
+    } else {
+        var markets = {};
+        OPEN_BETS.forEach(function(b) {
+            var key = b.proposition || b.coinid;
+            if (!markets[key]) markets[key] = { prop: b.proposition, forBets: [], againstBets: [] };
+            if (b.side === 1) markets[key].forBets.push(b);
+            else markets[key].againstBets.push(b);
+        });
+        var keys = Object.keys(markets);
+        var esc1 = 1 + ESCROW_RATE;
+        for (var k = 0; k < keys.length; k++) {
+            var m = markets[keys[k]];
+            if (!m.prop) {
+                // Ungrouped bets
+                m.forBets.concat(m.againstBets).forEach(function(b) { html += renderBetCard(b, null); });
+                continue;
+            }
+            // Best ask on each side
+            var bestFor = 0, bestAgainst = 0, bestForWant = 0, bestAgainstWant = 0;
+            m.forBets.forEach(function(b) { var a = parseFloat(b.amount) / esc1; if (a > bestFor) { bestFor = a; bestForWant = parseFloat(b.wantstake || "0") / esc1; } });
+            m.againstBets.forEach(function(b) { var a = parseFloat(b.amount) / esc1; if (a > bestAgainst) { bestAgainst = a; bestAgainstWant = parseFloat(b.wantstake || "0") / esc1; } });
+            var forOdds = calcOdds(bestFor, bestForWant);
+            var againstOdds = calcOdds(bestAgainst, bestAgainstWant);
+            var bestSize = Math.max(bestFor, bestAgainst);
+
+            html += '<div class="card" style="padding:0;overflow:hidden">';
+            html += '<div style="padding:10px 12px;border-bottom:1px solid var(--border);background:var(--bg3);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">';
+            html += '<span style="font-size:14px;font-weight:700">' + esc(m.prop) + '</span>';
+            html += '<span style="font-family:var(--mono);font-size:12px;font-weight:700">' + bestSize.toFixed(0) + ' Minima</span>';
+            html += '</div>';
+            html += '<div style="display:grid;grid-template-columns:1fr auto 1fr">';
+            // FOR column
+            html += '<div style="padding:6px">';
+            html += '<div style="text-align:center;font-size:10px;font-weight:700;letter-spacing:1px;color:var(--yes);padding:4px 0" class="side--yes">FOR ' + forOdds + '</div>';
+            if (m.forBets.length === 0) html += '<div class="empty" style="padding:12px;font-size:11px">No FOR bets</div>';
+            else m.forBets.forEach(function(b) { html += renderBetCard(b, null); });
+            html += '</div>';
+            // Spread
+            html += '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 6px;border-left:1px solid var(--border);border-right:1px solid var(--border)">';
+            html += '<span style="font-family:var(--mono);font-size:11px;color:var(--text2)">spread</span>';
+            html += '<hr style="border:none;border-top:1px solid var(--warn);opacity:.4;width:100%;margin:4px 0">';
+            if (bestFor > 0 && bestAgainst > 0) {
+                var midPrice = ((bestFor + bestAgainst) / 2).toFixed(0);
+                html += '<span style="font-family:var(--mono);font-size:18px;font-weight:900;color:var(--warn)">' + midPrice + '</span>';
+            }
+            html += '</div>';
+            // AGAINST column
+            html += '<div style="padding:6px">';
+            html += '<div style="text-align:center;font-size:10px;font-weight:700;letter-spacing:1px;color:var(--no);padding:4px 0" class="side--no">AGAINST ' + againstOdds + '</div>';
+            if (m.againstBets.length === 0) html += '<div class="empty" style="padding:12px;font-size:11px">No AGAINST bets</div>';
+            else m.againstBets.forEach(function(b) { html += renderBetCard(b, null); });
+            html += '</div>';
+            html += '</div></div>';
+        }
+    }
+
+    if (MATCHED_BETS.length > 0) {
+        var myM = MATCHED_BETS.filter(function(b) { return b.isMine || b.isMyCounter || b.isMyArb; });
+        if (myM.length > 0) {
+            html += '<h2>Active Bets</h2>';
+            myM.forEach(function(b) {
+                var role = b.isMyArb ? "arbiter" : ((b.side === 1 && b.isMine) || (b.side === 0 && b.isMyCounter)) ? "for" : "against";
+                html += renderBetCard(b, role);
+            });
+        }
+    }
+    el.innerHTML = html;
+}
+
+function renderPostView(el) {
+    SELECTED_SIDE = 1;
+    var html = '<h2>Post a Bet</h2><div class="card">';
+    html += '<div class="form-group"><label>Proposition</label><input type="text" id="betMarket" placeholder="e.g. Arsenal beats Chelsea" /></div>';
+    html += '<div class="form-row">';
+    html += '<div class="form-group"><label>Your Side</label><div class="side-picker"><button class="btn btn--yes active" id="sideYes" onclick="pickSide(1)">FOR</button><button class="btn btn--no" id="sideNo" onclick="pickSide(0)">AGAINST</button></div></div>';
+    html += '<div class="form-group"><label>You Bet (Minima)</label><input type="number" id="betStake" min="0.01" step="0.01" placeholder="30" oninput="updateOddsPreview()" /></div>';
+    html += '<div class="form-group"><label>You Want (Minima)</label><input type="number" id="betWantStake" min="0.01" step="0.01" placeholder="90" oninput="updateOddsPreview()" /></div>';
+    html += '</div>';
+    html += '<div class="odds-preview" id="oddsPreview">Set bets to see odds</div>';
+    html += '<div class="form-group"><label>Arbiter Public Key</label><input type="text" id="betArbPk" placeholder="0x..." /></div>';
+    html += '<div class="form-group"><label>Arbiter Address</label><input type="text" id="betArbAddr" placeholder="0x..." /></div>';
+    html += '<div class="form-group"><label>Timeout</label><select id="betTimeout"><option value="1500">~21 hours</option><option value="3000">~42 hours</option><option value="5000" selected>~3 days</option><option value="10000">~6 days</option></select></div>';
+    html += '<button class="btn btn--accent" onclick="doPost()">Post Bet</button>';
+    html += '</div>';
+    el.innerHTML = html;
+    setTimeout(function() {
+        MDS.keypair.get("wager_arb_pk", function(r) { if (r.status && r.value) { var e = document.getElementById("betArbPk"); if (e) e.value = r.value; } });
+        MDS.keypair.get("wager_arb_addr", function(r) { if (r.status && r.value) { var e = document.getElementById("betArbAddr"); if (e) e.value = r.value; } });
+    }, 50);
+}
+
+function renderMyBetsView(el) {
+    var mine = OPEN_BETS.filter(function(b) { return b.isMine; });
+    var myMatched = MATCHED_BETS.filter(function(b) { return b.isMine || b.isMyCounter; });
+    var html = '<h2>My Bets</h2>';
+    if (mine.length === 0 && myMatched.length === 0) { html += '<div class="empty">No bets yet</div>'; }
+    else {
+        if (mine.length > 0) { html += '<h3>Open</h3>'; mine.forEach(function(b) { html += renderBetCard(b, "yours"); }); }
+        if (myMatched.length > 0) {
+            html += '<h3>Matched</h3>';
+            myMatched.forEach(function(b) {
+                var youFor = (b.side === 1 && b.isMine) || (b.side === 0 && b.isMyCounter);
+                html += renderBetCard(b, youFor ? "for" : "against");
+            });
+        }
+    }
+    // Settlement import section
+    html += '<div class="settle-section"><h3>Import Settlement</h3>';
+    html += '<div class="muted" style="margin-bottom:6px">Paste a settlement hex from your counterparty to co-sign and post (0% fee)</div>';
+    html += '<div class="form-group"><textarea id="settleHex" placeholder="Paste settlement hex here..."></textarea></div>';
+    html += '<div class="form-group"><label>Coin ID (of the matched bet)</label><input type="text" id="settleCoinid" placeholder="0x..." /></div>';
+    html += '<button class="btn btn--accent btn--sm" onclick="doImportSettle()">Co-sign &amp; Post</button>';
+    html += '</div>';
+    el.innerHTML = html;
+}
+
+function renderArbiterView(el) {
+    var arbBets = MATCHED_BETS.filter(function(b) { return b.isMyArb; });
+    var html = '<h2>Arbiter Dashboard</h2>';
+    if (arbBets.length === 0) {
+        html += '<div class="empty">No bets pending your resolution</div>';
+        html += '<div class="card"><p style="font-size:12px;margin-bottom:8px">Share your details to be selected as arbiter. You earn 10% of pot on disputes.</p>';
+        html += '<div class="betcard__grid">';
+        html += '<dl><dt>Public Key</dt><dd class="mono" style="font-size:10px">' + esc(MY_PUBKEY) + '</dd></dl>';
+        html += '<dl><dt>Address</dt><dd class="mono" style="font-size:10px">' + esc(MY_HEX_ADDR) + '</dd></dl>';
+        html += '</div></div>';
+    } else {
+        arbBets.forEach(function(b) { html += renderBetCard(b, "arbiter"); });
+    }
+    el.innerHTML = html;
+}
+
+/* ── ACTIONS ───────────────────────────────────────────────────── */
+
+var SELECTED_SIDE = 1;
+function pickSide(s) {
+    SELECTED_SIDE = s;
+    document.getElementById("sideYes").classList.toggle("active", s === 1);
+    document.getElementById("sideNo").classList.toggle("active", s === 0);
+    updateOddsPreview();
+}
+
+function updateOddsPreview() {
+    var bet = parseFloat(document.getElementById("betStake").value) || 0;
+    var want = parseFloat(document.getElementById("betWantStake").value) || 0;
+    var el = document.getElementById("oddsPreview");
+    if (bet <= 0 || want <= 0) { el.innerText = "Set bets to see odds"; return; }
+    var pot = bet + want, odds = calcOdds(bet, want);
+    var mv = want / bet, mult = (mv % 1 === 0 ? mv.toFixed(0) : mv.toFixed(1)) + "x";
+    el.innerHTML = '<strong>' + bet.toFixed(0) + ' wants ' + want.toFixed(0) + '</strong> &nbsp; ' + mult + ' &nbsp; ' + odds +
+        '<br/>Winner takes: <strong>' + pot.toFixed(2) + ' Minima</strong> (+' + want.toFixed(2) + ' profit)' +
+        '<br/><span class="muted">25% escrow | Agree: 0% fee | Arbiter: 10%</span>';
+}
+
+function doPost() {
+    var market = (document.getElementById("betMarket").value || "").trim();
+    var stake = (document.getElementById("betStake").value || "").trim();
+    var wantstake = (document.getElementById("betWantStake").value || "").trim();
+    var arbpk = (document.getElementById("betArbPk").value || "").trim();
+    var arbaddr = (document.getElementById("betArbAddr").value || "").trim();
+    var timeout = document.getElementById("betTimeout").value;
+
+    if (!market) { notify("Enter a proposition", "err"); return; }
+    if (!stake || parseFloat(stake) < 0.01) { notify("Min bet is 0.01", "err"); return; }
+    if (!wantstake || parseFloat(wantstake) < 0.01) { notify("Min counter bet is 0.01", "err"); return; }
+    if (!arbpk || !arbaddr) { notify("Enter arbiter details", "err"); return; }
+
+    if (arbpk) MDS.keypair.set("wager_arb_pk", arbpk);
+    if (arbaddr) MDS.keypair.set("wager_arb_addr", arbaddr);
+
+    var lockAmt = (parseFloat(stake) * (1 + ESCROW_RATE)).toFixed(8);
+    var wantLock = (parseFloat(wantstake) * (1 + ESCROW_RATE)).toFixed(8);
+
+    postBet({
+        market: market, side: SELECTED_SIDE, stake: lockAmt, wantstake: wantLock,
+        arbpk: arbpk, arbaddr: arbaddr, timeout: parseInt(timeout), settlement: "0"
+    }, function(ok) {
+        if (ok) setTimeout(function() { refreshBets(renderCurrentView); }, 2000);
+    });
+}
+
+function doFill(coinid) {
+    var bet = OPEN_BETS.find(function(b) { return b.coinid === coinid; });
+    if (!bet) return;
+    var csLabel = bet.side === 1 ? "AGAINST" : "FOR";
+    var lockAmt = parseFloat(bet.wantstake), myBet = lockAmt / (1 + ESCROW_RATE);
+    var theirBet = parseFloat(bet.amount) / (1 + ESCROW_RATE), pot = myBet + theirBet;
+    if (!confirm("Take Bet " + csLabel + "\nYou bet: " + myBet.toFixed(2) + "\nWin: " + pot.toFixed(2) + "\n\n25% escrow locked")) return;
+    fillBet(bet, function(ok, err) { if (ok) refreshBets(renderCurrentView); else if (err && err !== "pending") notify("Fill failed: " + err, "err"); });
+}
+
+function doCancel(coinid) {
+    if (!confirm("Cancel this bet?")) return;
+    cancelBet(coinid, function(ok) { if (ok) refreshBets(renderCurrentView); });
+}
+
+function doResolve(coinid, outcome) {
+    var label = outcome === 1 ? "TRUE" : "FALSE";
+    if (!confirm("Declare: " + label + "?\nYou earn 10% of pot. This is final.")) return;
+    resolveBet(coinid, outcome, function(ok) { if (ok) refreshBets(renderCurrentView); });
+}
+
+function doPropose(coinid, outcome) {
+    var bet = MATCHED_BETS.find(function(b) { return b.coinid === coinid; });
+    if (!bet) return;
+    var label = outcome === 2 ? "VOID" : outcome === 1 ? "TRUE" : "FALSE";
+    if (!confirm("Propose: " + label + "?\nThis signs your half. Send the hex to counterparty to co-sign (0% fee).")) return;
+    notify("Building settlement...", "info");
+    selfSettle(coinid, outcome, function(ok, err, txnHex) {
+        if (ok && txnHex) {
+            showSettleHexModal(txnHex, coinid, label);
+        } else {
+            notify("Failed: " + (err || "unknown"), "err");
+        }
+    });
+}
+
+function showSettleHexModal(txnHex, coinid, label) {
+    var modal = document.getElementById("settleModal");
+    if (!modal) { modal = document.createElement("div"); modal.id = "settleModal"; modal.className = "modal"; document.body.appendChild(modal); }
+    modal.innerHTML =
+        '<div class="modal__overlay" onclick="closeSettleModal()"></div>' +
+        '<div class="modal__content">' +
+        '<div class="modal__header"><h3>Settlement Signed: ' + esc(label) + '</h3><span class="modal__close" onclick="closeSettleModal()">&times;</span></div>' +
+        '<p style="font-size:12px;margin-bottom:8px">Copy this hex and send it to your counterparty. They paste it into "Import Settlement" to co-sign and post. 0% fee.</p>' +
+        '<div class="form-group"><label>Settlement Hex</label><textarea id="settleHexOut" style="height:80px;font-size:9px" readonly>' + esc(txnHex) + '</textarea></div>' +
+        '<div class="form-group"><label>Coin ID</label><input type="text" value="' + esc(coinid) + '" readonly style="font-size:10px" /></div>' +
+        '<button class="btn btn--accent btn--sm" onclick="copySettleHex()">Copy Hex</button> ' +
+        '<button class="btn btn--ghost btn--sm" onclick="closeSettleModal()">Close</button>' +
+        '</div>';
+    modal.style.display = "flex";
+}
+
+function closeSettleModal() { var m = document.getElementById("settleModal"); if (m) m.style.display = "none"; }
+function copySettleHex() {
+    var ta = document.getElementById("settleHexOut");
+    if (ta) { ta.select(); document.execCommand("copy"); notify("Copied!", "ok"); }
+}
+
+function doImportSettle() {
+    var hex = (document.getElementById("settleHex").value || "").trim();
+    var coinid = (document.getElementById("settleCoinid").value || "").trim();
+    if (!hex) { notify("Paste settlement hex", "err"); return; }
+    if (!coinid) { notify("Enter the coin ID of the matched bet", "err"); return; }
+
+    // Find the bet to determine signing key
+    var bet = MATCHED_BETS.find(function(b) { return b.coinid === coinid; });
+    if (!bet) { notify("Coin not found -- refresh and try again", "err"); return; }
+    var sigKey = bet.isMyCounter ? bet.counterpk : bet.ownerpk;
+
+    if (!confirm("Co-sign and post this settlement? 0% fee.")) return;
+    notify("Co-signing...", "info");
+    cosignAndPost(hex, sigKey, function(ok, err) {
+        if (ok) {
+            notify("Settlement posted! Confirming on-chain...", "ok");
+            document.getElementById("settleHex").value = "";
+            document.getElementById("settleCoinid").value = "";
+            refreshBets(renderCurrentView);
+        } else {
+            notify("Failed: " + (err || "unknown"), "err");
+        }
+    });
+}
+
+var COUNTER_BET = null, COUNTER_THEIR_BET = 0, COUNTER_THEIR_ASK = 0;
+
+function doCounter(coinid) {
+    var bet = OPEN_BETS.find(function(b) { return b.coinid === coinid; });
+    if (!bet) return;
+    COUNTER_BET = bet;
+    COUNTER_THEIR_BET = parseFloat(bet.amount) / (1 + ESCROW_RATE);
+    COUNTER_THEIR_ASK = parseFloat(bet.wantstake || "0") / (1 + ESCROW_RATE);
+    showCounterModal();
+}
+
+function showCounterModal() {
+    var bet = COUNTER_BET; if (!bet) return;
+    var mySide = bet.side === 1 ? "AGAINST" : "FOR";
+    var theirSide = bet.side === 1 ? "FOR" : "AGAINST";
+    var theirBet = COUNTER_THEIR_BET, theirAsk = COUNTER_THEIR_ASK;
+    var mySideNum = bet.side === 1 ? 0 : 1;
+    var bestCounterWant = 0;
+    OPEN_BETS.forEach(function(b) {
+        if (b.proposition !== bet.proposition || b.phase !== 0) return;
+        if (b.side === mySideNum) { var bW = parseFloat(b.wantstake || "0") / (1 + ESCROW_RATE); if (bW > bestCounterWant) bestCounterWant = bW; }
+    });
+    var sliderMin, sliderMax;
+    if (bestCounterWant > 0) { sliderMin = Math.min(bestCounterWant, theirAsk); sliderMax = Math.max(bestCounterWant, theirAsk); }
+    else { sliderMin = 0.01; sliderMax = theirAsk; }
+    if (sliderMax <= sliderMin) sliderMax = sliderMin + 1;
+    var spread = sliderMax - sliderMin;
+    var sliderStep = spread <= 1 ? 0.01 : spread <= 10 ? 0.1 : spread <= 50 ? 0.5 : 1;
+    var sliderDefault = (theirAsk >= sliderMin && theirAsk <= sliderMax) ? theirAsk : sliderMax;
+
+    var modal = document.getElementById("counterModal");
+    if (!modal) { modal = document.createElement("div"); modal.id = "counterModal"; modal.className = "modal"; document.body.appendChild(modal); }
+    modal.innerHTML =
+        '<div class="modal__overlay" onclick="closeCounterModal()"></div>' +
+        '<div class="modal__content">' +
+        '<div class="modal__header"><h3>Counter Bet</h3><span class="modal__close" onclick="closeCounterModal()">&times;</span></div>' +
+        '<div class="modal__prop">' + esc(bet.proposition || "Unknown") + '</div>' +
+        '<div class="modal__info">' +
+        '<div class="modal__row"><span class="muted">They bet</span><span><strong>' + theirBet.toFixed(2) + ' Minima</strong> ' + theirSide + '</span></div>' +
+        '<div class="modal__row"><span class="muted">They want from you</span><span>' + theirAsk.toFixed(2) + ' Minima</span></div>' +
+        '<div class="modal__row"><span class="muted">Your side</span><span class="' + (mySide === "FOR" ? "side--yes" : "side--no") + '"><strong>' + mySide + '</strong></span></div>' +
+        '</div>' +
+        '<div class="form-group"><label>You bet ' + theirBet.toFixed(2) + ' -- choose what you want back</label>' +
+        '<div class="counter__spread">' +
+        '<span class="counter__end counter__end--mine">' + sliderMin.toFixed(2) + '<br/><small>' + (bestCounterWant > 0 ? 'best bid' : 'min') + '</small></span>' +
+        '<div class="counter__sliderWrap">' +
+        '<div class="counter__slider">' +
+        '<button class="btn btn--ghost btn--sm" onclick="adjustCounter(-' + sliderStep + ')">&#9664;</button>' +
+        '<input type="range" id="counterSlider" min="' + sliderMin.toFixed(2) + '" max="' + sliderMax.toFixed(2) + '" step="' + sliderStep + '" value="' + sliderDefault.toFixed(2) + '" oninput="updateCounterPreview()" />' +
+        '<button class="btn btn--ghost btn--sm" onclick="adjustCounter(' + sliderStep + ')">&#9654;</button>' +
+        '</div>' +
+        '<div class="counter__oddsLabel" id="counterLabel">' + sliderDefault.toFixed(2) + ' Minima</div>' +
+        '</div>' +
+        '<span class="counter__end counter__end--theirs">' + sliderMax.toFixed(2) + '<br/><small>full ask</small></span>' +
+        '</div></div>' +
+        '<div class="counter__preview" id="counterPreview"></div>' +
+        '<div class="modal__actions">' +
+        '<button class="btn btn--accent" onclick="submitCounter()">Post Counter</button>' +
+        '<button class="btn btn--ghost" onclick="closeCounterModal()">Cancel</button>' +
+        '</div>' +
+        '<div id="counterStatus" style="margin-top:6px;font-size:11px"></div>' +
+        '</div>';
+    modal.style.display = "flex";
+    updateCounterPreview();
+}
+
+function closeCounterModal() { var m = document.getElementById("counterModal"); if (m) m.style.display = "none"; COUNTER_BET = null; }
+
+function adjustCounter(delta) {
+    var s = document.getElementById("counterSlider");
+    var v = Math.round((parseFloat(s.value) + delta) / parseFloat(s.step)) * parseFloat(s.step);
+    if (v < parseFloat(s.min)) v = parseFloat(s.min);
+    if (v > parseFloat(s.max)) v = parseFloat(s.max);
+    s.value = v; updateCounterPreview();
+}
+
+function updateCounterPreview() {
+    var myWant = parseFloat(document.getElementById("counterSlider").value) || 0;
+    var label = document.getElementById("counterLabel");
+    var preview = document.getElementById("counterPreview");
+    var myBet = COUNTER_THEIR_BET, theirAsk = COUNTER_THEIR_ASK;
+    label.innerText = myWant.toFixed(2) + " Minima";
+    var totalPot = myBet + myWant, myOdds = calcOdds(myBet, myWant), theirOdds = calcOdds(myWant, myBet);
+    var isFullAsk = Math.abs(myWant - theirAsk) < 0.01;
+    preview.innerHTML =
+        '<div style="margin-bottom:6px"><strong>You bet ' + myBet.toFixed(2) + ', you want ' + myWant.toFixed(2) + '</strong>' +
+        (isFullAsk ? ' <span class="side--yes">(takes their bet)</span>' : '') + '</div>' +
+        '<div>Winner takes: <strong>' + totalPot.toFixed(2) + ' Minima</strong></div>' +
+        '<div>Your odds: <strong>' + myOdds + '</strong> -- Their odds: <strong>' + theirOdds + '</strong></div>' +
+        '<div style="margin-top:4px">Win: <strong>+' + myWant.toFixed(2) + '</strong> -- Lose: <strong>-' + myBet.toFixed(2) + '</strong></div>' +
+        (isFullAsk ? '' : '<div class="muted" style="margin-top:4px">Counter-offer -- they can accept, counter back, or wait</div>') +
+        '<div class="muted" style="margin-top:4px">25% escrow locked as honesty insurance</div>';
+}
+
+function submitCounter() {
+    var bet = COUNTER_BET; if (!bet) return;
+    var myWant = parseFloat(document.getElementById("counterSlider").value) || 0;
+    if (myWant < 0.01) return;
+    var theirAsk = COUNTER_THEIR_ASK, theirBet = COUNTER_THEIR_BET;
+    var isFullAsk = Math.abs(myWant - theirAsk) < 0.01;
+    var myBet = theirBet;
+    var lockAmt = (myBet * (1 + ESCROW_RATE)).toFixed(8);
+    var wantLock = (myWant * (1 + ESCROW_RATE)).toFixed(8);
+    var mySideNum = bet.side === 1 ? 0 : 1;
+
+    if (isFullAsk) {
+        notify("Taking bet at full ask...", "info");
+        fillBet(bet, function(ok) {
+            if (ok) { closeCounterModal(); refreshBets(renderCurrentView); }
+            else { notify("Fill failed", "err"); }
+        });
+    } else {
+        notify("Posting counter bet...", "info");
+        postBet({
+            market: bet.proposition || "", side: mySideNum, stake: lockAmt, wantstake: wantLock,
+            arbpk: bet.arbpk || "", arbaddr: bet.arbaddr || "",
+            timeout: bet.timeout || 5000, settlement: "0"
+        }, function(ok) {
+            if (ok) { setTimeout(function() { closeCounterModal(); refreshBets(renderCurrentView); }, 1500); }
+            else { notify("Counter failed", "err"); closeCounterModal(); }
+        });
+    }
+}
+
+function doTimeout(coinid) {
+    if (!confirm("Trigger timeout refund?")) return;
+    timeoutBet(coinid, function(ok) { if (ok) refreshBets(renderCurrentView); });
+}
+
+/* ── INIT ──────────────────────────────────────────────────────── */
+
+MDS.init(function(msg) {
+    if (msg.event === "inited") {
+        notify("Registering contract...", "info");
+        registerContract(function() {
+            loadIdentity(function() {
+                loadWalletKeys(function() {
+                    MDS.cmd("checkmode", function(cm) {
+                        var mode = cm.response ? (cm.response.writemode ? "WRITE" : "READ") : "?";
+                        notify("Wager Lite v0.0.6 ready -- " + mode + " mode", "ok");
+                    });
+                    refreshBalance();
+                    refreshBets(renderCurrentView);
+                });
+            });
+        });
+        MDS.cmd("block", function(r) {
+            if (r.status) { CURRENT_BLOCK = parseInt(r.response.block) || 0; var el = document.getElementById("blockHeight"); if (el) el.innerText = " #" + CURRENT_BLOCK; }
+        });
+    }
+    if (msg.event === "NEWBLOCK") {
+        try { CURRENT_BLOCK = parseInt(msg.data.txpow.header.block) || CURRENT_BLOCK; var el = document.getElementById("blockHeight"); if (el) el.innerText = " #" + CURRENT_BLOCK; } catch(e) {}
+        if (PENDING_TXID) completePending();
+        refreshBets(function() { if (CURRENT_VIEW !== "post") renderCurrentView(); });
+        refreshBalance();
+    }
+    if (msg.event === "NEWBALANCE") {
+        refreshBets(function() { if (CURRENT_VIEW !== "post") renderCurrentView(); });
+        refreshBalance();
+    }
+});
+</script>
+</body>
+</html>

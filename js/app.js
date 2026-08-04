@@ -1,35 +1,64 @@
 /**
- * Wager — Main Application (UI + Event Handling)
+ * ============================================================================
+ * WAGER — Application UI Module
+ * ============================================================================
  *
- * Depends on: contract.js, chainmail.js, db.js, wager.js (loaded before this file)
+ * PURPOSE:
+ *   UI rendering, user actions, and event dispatch.
+ *   No business logic — delegates to identity.js, state.js, txn.js.
+ *
+ * DEPENDS ON:
+ *   contract.js, chainmail.js, db.js, identity.js, state.js, txn.js
+ *   (all loaded before this file in index.html)
+ * ============================================================================
  */
 
 // -- Views --
 var CURRENT_VIEW = "markets";
-var CURRENT_MARKET = null;
-var FILL_BET = null;
-var PREFILL = null; // for counter-bet pre-fill
-var PENDING_PROPOSALS = {}; // coinid → proposal data from incoming SETTLE_PROPOSE
-var SENT_PROPOSALS = {};    // proposition → { outcome, coinid } — tracks proposals WE sent
+// PENDING_PROPOSALS, SENT_PROPOSALS, OPEN_BETS, MATCHED_BETS — from state.js
+// MY_PUBKEY, MY_HEX_ADDR, MY_MXKEY, MY_MXNAME — from identity.js
+// ESCROW_RATE, REFRESH_AGE — from state.js
 
-// -- Noticeboard --
+// -- Dual notification: persistent log + urgent toasts --
+// The log panel (always visible at top) is the source of truth.
+// Toasts appear for urgent events (proposals, settlements) and auto-dismiss.
+
 function notify(msg, type) {
     type = type || "info";
-    var nb = document.getElementById("noticeboard");
-    if (!nb) return;
-    var now = new Date();
-    var ts = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0') + ':' + now.getSeconds().toString().padStart(2,'0');
-    var div = document.createElement("div");
-    div.className = "nb-entry nb-" + type;
-    var timeSpan = document.createElement("span");
-    timeSpan.className = "nb-time";
-    timeSpan.textContent = ts;
-    div.appendChild(timeSpan);
-    div.appendChild(document.createTextNode(" " + msg));
-    nb.appendChild(div);
-    while (nb.children.length > 50) nb.removeChild(nb.firstChild);
-    nb.scrollTop = nb.scrollHeight;
-    // Also log
+
+    // 1. Always write to persistent log panel
+    var logEntries = document.getElementById("logEntries");
+    if (logEntries) {
+        var now = new Date();
+        var ts = now.getHours().toString().padStart(2,"0") + ":" + now.getMinutes().toString().padStart(2,"0");
+        var row = document.createElement("div");
+        row.className = "logrow logrow--" + type;
+        row.innerHTML = '<span class="logrow__time">' + ts + '</span><span class="logrow__msg">' + esc(msg) + '</span>';
+        // Prepend (newest first)
+        if (logEntries.firstChild) logEntries.insertBefore(row, logEntries.firstChild);
+        else logEntries.appendChild(row);
+        // Cap at 50 entries
+        while (logEntries.children.length > 50) logEntries.removeChild(logEntries.lastChild);
+    }
+
+    // 2. For urgent events, also show a toast (auto-dismiss after 8s)
+    var urgent = (type === "ok" || type === "err" || type === "pending");
+    if (urgent) {
+        var container = document.getElementById("toastContainer");
+        if (container) {
+            var toast = document.createElement("div");
+            toast.className = "toast toast--" + type;
+            toast.innerHTML = '<span>' + esc(msg) + '</span>';
+            container.appendChild(toast);
+            setTimeout(function() {
+                toast.classList.add("removing");
+                setTimeout(function() { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 300);
+            }, 8000);
+            while (container.children.length > 3) container.removeChild(container.firstChild);
+        }
+    }
+
+    // 3. Persist to DB
     logActivity(msg, type);
 }
 
@@ -97,7 +126,10 @@ MDS.init(function(msg) {
             refreshBalance();
         }
     }
-    // ChainMail: scan for incoming messages (mInbox pattern — app.js checks too, not just service.js)
+    // REGRESSION FIX (v2.0.5): Restore NOTIFYCOIN handler from v1.6.1.
+    // service.js also handles NOTIFYCOIN but cannot update the browser UI.
+    // app.js must process SETTLE_PROPOSE in real-time so the Accept/Reject
+    // buttons appear immediately — not 10 seconds later on the next timer.
     if (msg.event === "NOTIFYCOIN") {
         var ncoin = msg.data && msg.data.coin;
         if (ncoin) {
@@ -120,6 +152,7 @@ MDS.init(function(msg) {
                                             data: JSON.stringify(message),
                                             direction: "received"
                                         });
+                                        // Refresh immediately so Accept/Reject buttons appear
                                         refreshBetsAndProposals(renderCurrentView);
                                     }
                                 });
@@ -130,6 +163,11 @@ MDS.init(function(msg) {
             }
         }
     }
+    // REGRESSION FIX (v2.0.5): Chain scan→refresh properly.
+    // v2.0.4 ran scanForChainMail() and refreshBetsAndProposals() in parallel,
+    // so proposals inserted by scan were missed by refresh (async race).
+    // Now: scan first, refresh INSIDE the scan callback via the new
+    // refreshBetsAndProposals call added to scanForChainMail itself.
     if (msg.event === "MDS_TIMER_10SECONDS") {
         if (DB_READY) {
             scanForChainMail();
@@ -138,17 +176,23 @@ MDS.init(function(msg) {
     }
 });
 
-// Track processed mail coinids to avoid re-decrypting every 10s
+// ChainMail scanning — app.js processes all message types from mail coins
 var PROCESSED_MAIL = {};
 
-// Scan for unprocessed ChainMail in the app context (mirrors service.js scan)
 function scanForChainMail() {
     if (!WAGER_MAIL_ADDRESS) return;
     MDS.cmd("coins address:" + WAGER_MAIL_ADDRESS, function(res) {
         if (!res || !res.status || !res.response) return;
-        var recent = res.response.filter(function(c) { return parseInt(c.age) < 50 && !c.spent; });
+        // Compute age from coin.created and CURRENT_BLOCK (coins response may lack .age)
+        var recent = res.response.filter(function(c) {
+            if (c.spent) return false;
+            var age = parseInt(c.age);
+            if (isNaN(age) && CURRENT_BLOCK > 0 && c.created) age = CURRENT_BLOCK - parseInt(c.created);
+            if (isNaN(age)) return true;
+            return age < 50;
+        });
         recent.forEach(function(coin) {
-            if (PROCESSED_MAIL[coin.coinid]) return; // already tried this coin
+            if (PROCESSED_MAIL[coin.coinid]) return;
             var s99 = getState99(coin.state);
             if (s99) {
                 PROCESSED_MAIL[coin.coinid] = true;
@@ -156,7 +200,6 @@ function scanForChainMail() {
                     if (success && message && message.randomid) {
                         messageExists(message.randomid, function(exists) {
                             if (!exists) {
-                                // Enrich proposition if missing
                                 if (!message.proposition && message.betid) {
                                     var mb = MATCHED_BETS.find(function(b) { return b.coinid === message.betid; });
                                     if (mb) message.proposition = mb.proposition;
@@ -170,12 +213,48 @@ function scanForChainMail() {
                                     data: JSON.stringify(message),
                                     direction: "received"
                                 });
+                                // Notify user for each message type (v2.0.6: show all events)
+                                // Each type shows a clear, actionable message on the noticeboard.
+                                var prop = message.proposition || "";
+                                var propShort = prop.length > 30 ? prop.substring(0, 30) + "..." : prop;
+                                var senderName = message.sender_name || "Bettor";
+
                                 if (message.type === "SETTLE_PROPOSE") {
-                                    notify("Settlement proposal received!", "ok");
+                                    var outcomeWord = parseInt(message.outcome) === 1 ? "TRUE" : parseInt(message.outcome) === 0 ? "FALSE" : "VOID";
+                                    notify("Proposal: " + outcomeWord + " — " + propShort + " — Accept or Reject", "ok");
+                                    refreshBetsAndProposals(renderCurrentView);
+                                } else if (message.type === "SETTLE_ACCEPT") {
+                                    // Determine win/loss for the proposer
+                                    var saBet = MATCHED_BETS.find(function(b) { return b.proposition === (message.proposition || prop); });
+                                    if (saBet) {
+                                        var saOutcome = parseInt(message.outcome || 0);
+                                        var saOwnerSide = saBet.side;
+                                        var saIWin = (saBet.isMine && saOutcome === saOwnerSide) || (saBet.isMyCounter && saOutcome !== saOwnerSide);
+                                        var saEsc = 1 + ESCROW_RATE;
+                                        var saMyLock = saBet.isMine ? parseFloat(saBet.ownerstake || "0") : parseFloat(saBet.amount) - parseFloat(saBet.ownerstake || "0");
+                                        var saTheirLock = parseFloat(saBet.amount) - saMyLock;
+                                        var saMyBet = saMyLock / saEsc;
+                                        var saTheirBet = saTheirLock / saEsc;
+                                        var saProfit = saIWin ? "+" + saTheirBet.toFixed(2) : "-" + saMyBet.toFixed(2);
+                                        WIN_LOSS_BANNER = { type: saIWin ? "win" : "loss", prop: saBet.proposition || propShort, amount: saProfit + " MINIMA", fee: "0%", escrow: "returned" };
+                                        notify((saIWin ? "YOU WON! " : "You lost. ") + saProfit + " MINIMA — " + propShort, saIWin ? "ok" : "err");
+                                    } else {
+                                        notify("Settlement accepted! " + propShort + " — 0% fee, confirming on-chain...", "ok");
+                                    }
+                                    refreshBetsAndProposals(renderCurrentView);
+                                } else if (message.type === "SETTLE_REJECT") {
+                                    notify("Settlement rejected — " + propShort + " — escalated to arbiter", "warn");
+                                    refreshBetsAndProposals(renderCurrentView);
+                                } else if (message.type === "BET_MATCHED") {
+                                    notify("Bet matched! " + propShort + " — pot: " + (message.pot || "?") + " MINIMA", "ok");
+                                    refreshBetsAndProposals(renderCurrentView);
+                                } else if (message.type === "BET_CREATED") {
+                                    notify("New bet — you are arbiter for: " + propShort, "info");
+                                } else if (message.type === "DISPUTE") {
+                                    notify("DISPUTE — you must resolve: " + propShort, "warn");
                                     refreshBetsAndProposals(renderCurrentView);
                                 } else if (message.type === "CHAT_MESSAGE") {
-                                    var sender = message.sender_name || "Bettor";
-                                    notify(sender + ": " + (message.message || "").substring(0, 50), "info");
+                                    notify(senderName + ": " + (message.message || "").substring(0, 50), "info");
                                     updateChatPreviews();
                                 }
                             }
@@ -200,10 +279,12 @@ function initApp() {
                 initDB(function() {
                     // Register coinnotify for ChainMail (mInbox pattern)
                     MDS.cmd("coinnotify action:add address:" + WAGER_MAIL_ADDRESS);
-                    MDS.log("Wager v1.6.1 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
-                    notify("Wager v1.6.1 ready", "ok");
+                    MDS.log("Openly v2.7.0 ready. Contract=" + WAGER_SCRIPT_ADDRESS);
+                    notify("Openly v2.7.0 ready", "ok");
                     refreshBalance();
                     refreshBetsAndProposals(function() { renderCurrentView(); });
+                    // Show onboarding for first-time users
+                    showOnboardingIfNeeded();
                 });
                 });
             });
@@ -234,7 +315,7 @@ function refreshBalance() {
             if (res.response[i].tokenid === "0x00") { bal = res.response[i].sendable; break; }
         }
         var el = document.getElementById("balance");
-        if (el) el.innerText = parseFloat(bal).toFixed(4) + " MINIMA";
+        if (el) el.innerText = parseFloat(bal).toFixed(2) + " M";
     });
 }
 
@@ -242,507 +323,609 @@ function refreshBalance() {
 
 function showView(view) {
     CURRENT_VIEW = view;
-    document.querySelectorAll(".nav__tab").forEach(function(t) { t.classList.remove("active"); });
-    var tab = document.querySelector('[data-view="' + view + '"]');
+    // Update nav active state
+    document.querySelectorAll(".topnav__tab").forEach(function(t) { t.classList.remove("active"); });
+    var tab = document.querySelector('.topnav__tab[data-view="' + view + '"]');
     if (tab) tab.classList.add("active");
+    // Sub-views: arbiter/history → highlight "more", activity → highlight "log"
+    if (view === "arbiter" || view === "history") {
+        var mt = document.querySelector('.topnav__tab[data-view="more"]');
+        if (mt) mt.classList.add("active");
+    }
+    if (view === "activity") {
+        var lt = document.querySelector('.topnav__tab[data-view="log"]');
+        if (lt) lt.classList.add("active");
+    }
     renderCurrentView();
+}
+
+// Track selected matched bet for desktop chat panel
+var SELECTED_BET_COINID = "";
+
+// Win/loss banner — shown at top of My Bets until dismissed
+// { type: "win"|"loss", prop: "...", amount: "+10.00"|"-5.00", fee: "0%"|"10%", escrow: "returned"|"forfeit" }
+var WIN_LOSS_BANNER = null;
+
+// Desktop mode: manual toggle. Starts off (mobile view).
+var DESKTOP_ON = false;
+
+function isDesktop() { return DESKTOP_ON; }
+
+function toggleDesktopMode() {
+    DESKTOP_ON = !DESKTOP_ON;
+    var main = document.getElementById("mainContent");
+    if (main) main.className = DESKTOP_ON ? "desktop-dash" : "main";
+    renderCurrentView();
+    var btn = document.getElementById("desktopToggle");
+    if (btn) { if (DESKTOP_ON) btn.classList.add("active"); else btn.classList.remove("active"); }
 }
 
 function renderCurrentView() {
     var main = document.getElementById("mainContent");
     if (!main) return;
+
+    // Desktop: render all 4 panes simultaneously (tmux-style dashboard)
+    if (isDesktop()) {
+        renderDesktopDashboard(main);
+        return;
+    }
+
+    // Mobile: render single active tab
     if (CURRENT_VIEW === "markets") renderMarketsView(main);
     else if (CURRENT_VIEW === "post") renderPostView(main);
     else if (CURRENT_VIEW === "mybets") renderMyBetsView(main);
     else if (CURRENT_VIEW === "arbiter") renderArbiterView(main);
     else if (CURRENT_VIEW === "history") renderHistoryView(main);
     else if (CURRENT_VIEW === "activity") renderActivityView(main);
+    else if (CURRENT_VIEW === "more") renderMoreView(main);
+    else if (CURRENT_VIEW === "housekeeping") renderHousekeepingView(main);
 }
 
-// -- Refresh bets + pending proposals, then callback --
-function refreshBetsAndProposals(callback) {
-    refreshBets(function() {
-        loadPendingProposals(function(rows) {
-            PENDING_PROPOSALS = {};
-            // Match proposals to matched bets by proposition text (coinid changes with auto-refresh)
-            rows.forEach(function(row) {
-                try {
-                    var data = JSON.parse(row.DATA);
-                    var proposalBetid = data.betid || "";
-                    // Try direct coinid match first
-                    var matchedBet = MATCHED_BETS.find(function(b) { return b.coinid === proposalBetid; });
-                    // If no direct match, find by proposition (coinid changes after refresh)
-                    if (!matchedBet && data.proposition) {
-                        matchedBet = MATCHED_BETS.find(function(b) { return b.proposition === data.proposition; });
-                    }
-                    // No last-resort fallback — stale proposals from old bets
-                    // must NOT attach to unrelated matched bets
-                    if (matchedBet) {
-                        PENDING_PROPOSALS[matchedBet.coinid] = {
-                            outcome: data.outcome,
-                            txnhex: data.txnhex,
-                            sender_mxkey: data.sender_mxkey || row.SENDER_MXKEY || "",
-                            sender_name: data.sender_name || row.SENDER_NAME || "",
-                            randomid: row.RANDOMID
-                        };
-                    }
-                } catch(e) {}
-            });
-            // Auto-accept if we sent a proposal and received one with matching outcome
-            autoAcceptDualProposals();
-            if (callback) callback();
-        });
-    });
+/**
+ * Desktop 4-pane dashboard: Chat | Activity (top), Markets | My Bets (bottom).
+ * Tmux-style draggable dividers. Chat shows conversation for selected matched bet.
+ * Bottom nav hidden via CSS media query.
+ */
+function renderDesktopDashboard(main) {
+    // Build the 4 panes
+    var chatHtml = renderChatPanelHtml();
+    var activityHtml = renderActivityPanelHtml();
+    var marketsHtml = renderMarketsPanelHtml();
+    var mybetsHtml = renderMyBetsPanelHtml();
+
+    main.className = "desktop-dash";
+    main.innerHTML =
+        '<div class="dd-panes" id="ddPanes">' +
+            '<div class="dd-row dd-row--top" id="ddTop">' +
+                '<div class="dd-pane" id="ddChat">' +
+                    '<div class="dd-ph">Chat</div>' +
+                    '<div class="dd-pb" id="ddChatBody">' + chatHtml + '</div>' +
+                '</div>' +
+                '<div class="dd-div-v" id="ddDivTV"></div>' +
+                '<div class="dd-pane" style="flex:1">' +
+                    '<div class="dd-ph">Activity</div>' +
+                    '<div class="dd-pb">' + activityHtml + '</div>' +
+                '</div>' +
+            '</div>' +
+            '<div class="dd-div-h" id="ddDivH">' +
+                '<div class="dd-center" id="ddCenter"></div>' +
+            '</div>' +
+            '<div class="dd-row dd-row--bot" id="ddBot">' +
+                '<div class="dd-pane" id="ddMarkets">' +
+                    '<div class="dd-ph">Markets <span onclick="openPostInDesktop()" style="color:var(--purple);cursor:pointer;font-size:10px;font-weight:600">+ Post new</span></div>' +
+                    '<div class="dd-pb">' + marketsHtml + '</div>' +
+                '</div>' +
+                '<div class="dd-div-v" id="ddDivBV"></div>' +
+                '<div class="dd-pane" style="flex:1">' +
+                    '<div class="dd-ph">My Bets</div>' +
+                    '<div class="dd-pb">' + mybetsHtml + '</div>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+
+    // Init tmux resize after DOM is ready
+    setTimeout(initDesktopResize, 50);
+    setTimeout(updateChatPreviews, 100);
+    setTimeout(function() {
+        // Position center handle at intersection
+        var chat = document.getElementById("ddChat");
+        var center = document.getElementById("ddCenter");
+        if (chat && center) center.style.left = (chat.offsetWidth - 8) + "px";
+    }, 60);
 }
 
-function autoAcceptDualProposals() {
-    Object.keys(PENDING_PROPOSALS).forEach(function(coinid) {
-        var proposal = PENDING_PROPOSALS[coinid];
-        if (!proposal || !proposal.txnhex) return;
+function renderChatPanelHtml() {
+    // Find the selected matched bet (or first one)
+    var myMatched = MATCHED_BETS.filter(function(b) { return b.isMine || b.isMyCounter; });
+    if (myMatched.length === 0) return '<div style="color:var(--muted);text-align:center;padding:20px;font-size:12px">No matched bets — chat appears when a bet is live</div>';
 
-        var bet = MATCHED_BETS.find(function(b) { return b.coinid === coinid; });
-        if (!bet || !bet.proposition) return;
+    var bet = myMatched.find(function(b) { return b.coinid === SELECTED_BET_COINID; }) || myMatched[0];
+    SELECTED_BET_COINID = bet.coinid;
 
-        var sent = SENT_PROPOSALS[bet.proposition];
-        if (!sent) return;
+    var escapedProp = (bet.proposition || "").replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    var cid = bet.coinid.substring(2, 18);
 
-        // Both sides proposed the same outcome — auto-cosign
-        if (parseInt(sent.outcome) === parseInt(proposal.outcome)) {
-            var outcomeLabel = parseInt(proposal.outcome) === 1 ? "TRUE" : "FALSE";
-            notify("Both sides proposed " + outcomeLabel + " — auto-settling...", "ok");
-
-            var sigKey = bet.isMyCounter ? bet.counterpk : bet.ownerpk;
-            delete SENT_PROPOSALS[bet.proposition]; // prevent re-trigger
-
-            cosignAndPost(proposal.txnhex, sigKey, function(ok, err) {
-                if (ok) {
-                    var ownerSide = bet.side;
-                    var outcomeNum = parseInt(proposal.outcome);
-                    var iWin = (bet.isMine && outcomeNum === ownerSide) || (bet.isMyCounter && outcomeNum !== ownerSide);
-                    var resultMsg = iWin ? "You WIN — winnings incoming (~2 min)" : "You LOSE — settled at 0% fee";
-                    notify("Auto-settled: " + outcomeLabel + ". " + resultMsg, iWin ? "ok" : "warn");
-                    logTx("SETTLE", bet.amount || "?", iWin ? "IN" : "OUT", bet.proposition || "", "Auto-settled " + outcomeLabel + " — " + resultMsg);
-                    if (proposal.sender_mxkey) sendSettleAccept(proposal.sender_mxkey, coinid, bet.proposition);
-                    if (bet.proposition) notifyService("settle_cleared", bet.proposition);
-                    clearProposal(proposal.randomid);
-                    refreshBetsAndProposals(renderCurrentView);
-                } else {
-                    // Other side may have already settled it — next refresh will clean up
-                    notify("Auto-settle: " + (err || "already settled"), "info");
-                }
-            });
-        }
-    });
-}
-
-// -- Expandable Card --
-
-function toggleCard(id) {
-    var el = document.getElementById(id);
-    if (!el) return;
-    el.classList.toggle("expanded");
-}
-
-function renderBetCard(bet, role) {
-    var id = "card_" + bet.coinid.substring(0, 16);
-    var isOpen = bet.phase === 0;
-    var sideLabel = bet.side === 1 ? "FOR" : "AGAINST";
-    var sideClass = bet.side === 1 ? "side--yes" : "side--no";
-    // Show bet amounts (without escrow) — escrow is implementation detail
-    var locked = parseFloat(bet.amount);
-    var betAmt, wantBet, forAmt, againstAmt;
-    if (isOpen) {
-        betAmt = locked / (1 + ESCROW_RATE);
-        wantBet = parseFloat(bet.wantstake || "0") / (1 + ESCROW_RATE);
-    } else {
-        // Matched: amount = total locked, ownerstake = owner's locked
-        var osLock = parseFloat(bet.ownerstake || "0");
-        var csLock = locked - osLock;
-        forAmt = (bet.side === 1 ? osLock : csLock) / (1 + ESCROW_RATE);
-        againstAmt = (bet.side === 1 ? csLock : osLock) / (1 + ESCROW_RATE);
-        betAmt = forAmt;
-        wantBet = againstAmt;
-    }
-    var odds = calcOdds(betAmt, wantBet);
-    var prop = bet.proposition || "";
-    var propShort = prop.length > 40 ? prop.substring(0, 40) + "..." : prop;
-    var canFill = isOpen && !bet.isMine && !bet.isMyArb;
-
-    // Find best counter on the other side for market spread
-    var bestCounter = 0;
-    if (isOpen && prop) {
-        var otherSide = bet.side === 1 ? 0 : 1;
-        OPEN_BETS.forEach(function(b) {
-            if (b.proposition === prop && b.side === otherSide && b.phase === 0) {
-                var bBet = parseFloat(b.amount) / (1 + ESCROW_RATE);
-                if (bBet > bestCounter) bestCounter = bBet;
-            }
-        });
-    }
-
-    // Multiplier: what you win per 1 staked
-    var multVal = betAmt > 0 ? wantBet / betAmt : 0;
-    var multiplier = multVal > 0 ? (multVal % 1 === 0 ? multVal.toFixed(0) : multVal.toFixed(1)) + 'x' : '—';
-
-    // Summary row: prop | side | "20 wants 10" | 0.5x | 1:2 | [ask] [market] [counter]
-    var html = '<div class="betcard" id="' + id + '">';
-    html += '<div class="betcard__summary" onclick="toggleCard(\'' + id + '\')">';
-    if (prop) {
-        html += '<span class="betcard__prop">' + esc(propShort) + '</span>';
-    }
-    html += '<span class="betcard__tile ' + sideClass + ' betcard__side">' + sideLabel + '</span>';
-    if (isOpen) {
-        html += '<span class="betcard__tile betcard__stake">' + betAmt.toFixed(0) + ' wants ' + wantBet.toFixed(0) + '</span>';
-    } else {
-        html += '<span class="betcard__tile betcard__stake">' + forAmt.toFixed(0) + ' vs ' + againstAmt.toFixed(0) + '</span>';
-    }
-    html += '<span class="betcard__tile betcard__mult">' + multiplier + '</span>';
-    html += '<span class="betcard__tile betcard__odds">' + odds + '</span>';
-    html += '<span class="betcard__tile betcard__size">' + betAmt.toFixed(0) + '</span>';
-    html += '<span class="betcard__tile betcard__price">' + wantBet.toFixed(0) + '</span>';
-    if (role) html += '<span class="betcard__role">' + role + '</span>';
-    html += '<span class="betcard__chevron">&#9662;</span>';
-    html += '</div>';
-
-    // Chat preview on collapsed card (matched bets only)
-    if (!isOpen && (bet.isMine || bet.isMyCounter)) {
-        var escapedProp = (bet.proposition || "").replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-        html += '<div class="betcard__chatrow">';
-        html += '<span class="betcard__chatpreview" id="chatpreview_' + bet.coinid.substring(2, 18) + '"></span>';
-        html += '<input type="text" class="betcard__chatinput" id="chatin_' + bet.coinid.substring(2, 18) + '" placeholder="Message..." data-coinid="' + bet.coinid + '" data-prop="' + escapedProp + '" onkeydown="if(event.key===\'Enter\'){event.stopPropagation();sendChatDirect(this);}" />';
-        html += '<button class="btn btn--accent btn--sm" onclick="event.stopPropagation();sendChatDirect(document.getElementById(\'chatin_' + bet.coinid.substring(2, 18) + '\'))">&#9654;</button>';
-        html += '</div>';
-    }
-
-    // Expanded detail
-    html += '<div class="betcard__detail">';
-
-    // Proposition (full text)
-    if (prop) {
-        html += '<div class="betcard__proposition">' + esc(prop) + '</div>';
-    }
-
-    // Odds and amounts — clean, bet-focused
-    var counterOdds = calcCounterOdds(betAmt, wantBet);
-    var totalBets = isOpen ? (betAmt + wantBet).toFixed(2) : (locked / (1 + ESCROW_RATE)).toFixed(2);
-    html += '<div class="betcard__grid">';
-    html += '<dl><dt>FOR Odds</dt><dd>' + odds + '</dd></dl>';
-    html += '<dl><dt>AGAINST Odds</dt><dd>' + counterOdds + '</dd></dl>';
-    html += '<dl><dt>Bet</dt><dd>' + betAmt.toFixed(2) + ' M</dd></dl>';
-    html += '<dl><dt>Wants</dt><dd>' + wantBet.toFixed(2) + ' M</dd></dl>';
-    html += '</div>';
-
-    // Payout info — simple, no escrow maths
-    if (isOpen) {
-        html += '<div class="betcard__payouts">';
-        html += '<div>Winner takes: <strong>' + totalBets + ' MINIMA</strong></div>';
-        html += '<div>Agree on result: <strong>0% fee</strong> — loser gets escrow back</div>';
-        html += '<div>Arbiter decides: <strong>10% fee</strong> — loser forfeits all</div>';
-        html += '<div class="muted" style="margin-top:4px">25% escrow locked with each bet as honesty insurance</div>';
-        html += '</div>';
-    }
-
-    // Arbiter info
-    html += '<div class="betcard__arbiter">';
-    html += '<dt>Arbiter</dt>';
-    html += '<dd class="mono">' + esc(bet.arbpk || "—") + '</dd>';
-    html += '</div>';
-
-    // Parties (if matched) — show each side's bet, highlight YOUR leg
-    if (!isOpen && bet.ownerstake) {
-        var osLock = parseFloat(bet.ownerstake);
-        var csLock = parseFloat(bet.amount) - osLock;
-        var osBet = osLock / (1 + ESCROW_RATE);
-        var csBet = csLock / (1 + ESCROW_RATE);
-        var potBet = osBet + csBet;
-        // Owner's side is bet.side. Counter is the opposite.
-        var ownerIsFor = bet.side === 1;
-        var forBet = ownerIsFor ? osBet : csBet;
-        var againstBet = ownerIsFor ? csBet : osBet;
-        var youAreOwner = bet.isMine;
-        var youAreCounter = bet.isMyCounter;
-        var youAreFor = (ownerIsFor && youAreOwner) || (!ownerIsFor && youAreCounter);
-        var youAreAgainst = (!ownerIsFor && youAreOwner) || (ownerIsFor && youAreCounter);
-        var myBet = youAreFor ? forBet : againstBet;
-        var myProfit = youAreFor ? againstBet : forBet;
-
-        html += '<div class="betcard__parties">';
-        html += '<div' + (youAreFor ? ' class="betcard__myleg"' : '') + '><span class="side--yes">FOR</span> bet ' + forBet.toFixed(2) + ' M to win ' + potBet.toFixed(2) + ' M' + (youAreFor ? ' <strong>← YOU</strong>' : '') + '</div>';
-        html += '<div' + (youAreAgainst ? ' class="betcard__myleg"' : '') + '><span class="side--no">AGAINST</span> bet ' + againstBet.toFixed(2) + ' M to win ' + potBet.toFixed(2) + ' M' + (youAreAgainst ? ' <strong>← YOU</strong>' : '') + '</div>';
-        if (youAreOwner || youAreCounter) {
-            html += '<div class="betcard__yourleg">Your stake: <strong>' + myBet.toFixed(2) + ' M</strong> — Win: <strong>+' + myProfit.toFixed(2) + '</strong> — Lose: <strong>-' + myBet.toFixed(2) + '</strong></div>';
-        }
-        html += '<div class="muted" style="margin-top:4px">25% escrow locked — returned if you agree, forfeited if arbiter needed</div>';
-        html += '</div>';
-    }
-
-    // Coin age and settlement info
-    var ageInfo = '';
-    if (bet.age > 0) {
-        var ageHrs = (bet.age * 50 / 3600).toFixed(1);
-        ageInfo += '<span>Age: ' + bet.age + ' blocks (~' + ageHrs + 'h)</span>';
-    }
-    var settlementBlk = parseInt(bet.settlement) || 0;
-    if (settlementBlk > 0 && CURRENT_BLOCK > 0) {
-        var blocksLeft = settlementBlk - CURRENT_BLOCK;
-        if (blocksLeft > 0) {
-            var daysLeft = (blocksLeft * 50 / 86400).toFixed(1);
-            ageInfo += '<span>Settles: block ' + settlementBlk + ' (' + daysLeft + ' days)</span>';
-        } else {
-            ageInfo += '<span class="side--yes">Settlement open</span>';
-        }
-    }
-    if (isOpen && bet.timeout) {
-        var timeoutBlocks = parseInt(bet.timeout) || 0;
-        if (timeoutBlocks > 0) {
-            var timeoutHrs = (timeoutBlocks * 50 / 3600).toFixed(0);
-            ageInfo += '<span>Timeout: ' + timeoutBlocks + ' blocks (~' + timeoutHrs + 'h)</span>';
-        }
-    }
-    if (ageInfo) {
-        html += '<div class="betcard__age">' + ageInfo + '</div>';
-    }
-
-    // Coin ID
-    html += '<div class="betcard__coinid mono muted">' + esc(bet.coinid) + '</div>';
-
-    // Actions
-    html += '<div class="betcard__actions">';
-    if (isOpen && bet.isMine) {
-        html += '<button class="btn btn--ghost btn--sm" onclick="event.stopPropagation(); doCancel(\'' + bet.coinid + '\')">Cancel</button>';
-    }
-    if (canFill) {
-        html += '<button class="btn btn--accent" onclick="event.stopPropagation(); doFill(\'' + bet.coinid + '\')">Take Bet</button> ';
-        html += '<button class="btn btn--ghost btn--sm" onclick="event.stopPropagation(); doCounter(\'' + bet.coinid + '\')">Counter</button>';
-    }
-    if (!isOpen && bet.isMyArb) {
-        html += '<button class="btn btn--yes" onclick="event.stopPropagation(); doResolve(\'' + bet.coinid + '\', 1)">TRUE</button> ';
-        html += '<button class="btn btn--no" onclick="event.stopPropagation(); doResolve(\'' + bet.coinid + '\', 0)">FALSE</button> ';
-    }
-    if (!isOpen && !bet.isMyArb && (bet.isMine || bet.isMyCounter)) {
-        html += '<button class="btn btn--yes btn--sm" onclick="event.stopPropagation(); doPropose(\'' + bet.coinid + '\', 1)">TRUE</button> ';
-        html += '<button class="btn btn--no btn--sm" onclick="event.stopPropagation(); doPropose(\'' + bet.coinid + '\', 0)">FALSE</button> ';
-        html += '<button class="btn btn--ghost btn--sm" onclick="event.stopPropagation(); doPropose(\'' + bet.coinid + '\', 2)">Void</button>';
-    }
-    // Incoming settlement proposal
-    var proposal = PENDING_PROPOSALS[bet.coinid];
-    if (proposal && !isOpen && (bet.isMine || bet.isMyCounter)) {
-        var po = parseInt(proposal.outcome);
-        var pLabel = po === 2 ? "VOID" : po === 1 ? "TRUE" : "FALSE";
-        var pClass = po === 2 ? "" : po === 1 ? "side--yes" : "side--no";
-        html += '<div class="betcard__proposal">';
-        html += '<div><strong>Settlement proposed: <span class="' + pClass + '">' + pLabel + '</span></strong>';
-        if (proposal.sender_name) html += ' by ' + esc(proposal.sender_name);
-        html += '</div>';
-        html += '<div class="muted" style="margin:4px 0">Accept = 0% fee &nbsp;|&nbsp; Reject = arbiter decides (10% fee)</div>';
-        html += '<button class="btn btn--yes btn--sm" onclick="event.stopPropagation(); doAcceptProposal(\'' + bet.coinid + '\')">Accept</button> ';
-        html += '<button class="btn btn--no btn--sm" onclick="event.stopPropagation(); doRejectProposal(\'' + bet.coinid + '\')">Reject</button>';
-        html += '</div>';
-    }
-    html += '</div>';
-
-    html += '</div>'; // detail
-    html += '</div>'; // betcard
+    var html = '<div style="font-size:10px;font-weight:700;padding:4px 0 3px;border-bottom:1px solid var(--border);margin-bottom:4px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><strong style="color:var(--text)">' + esc(bet.proposition || "Bet") + '</strong></div>';
+    html += '<div class="chatbox__messages" id="chatmsgs_' + cid + '" style="flex:1;overflow-y:auto"></div>';
+    html += '<div class="chatbox__input" style="padding:6px 0 0"><input class="chatbox__field" id="chatin_' + cid + '" placeholder="Message..." data-coinid="' + bet.coinid + '" data-prop="' + escapedProp + '" onkeydown="if(event.key===\'Enter\')sendChatDirect(this);"><button class="chatbox__send" onclick="sendChatDirect(document.getElementById(\'chatin_' + cid + '\'))">›</button></div>';
     return html;
 }
 
-// -- Markets View --
+function renderActivityPanelHtml() {
+    var el = document.getElementById("logEntries");
+    if (!el) return '';
+    // Clone current log entries
+    return el.innerHTML;
+}
 
-function renderMarketsView(el) {
-    var html = '<h2>Open Markets</h2>';
+function renderMarketsPanelHtml() {
+    var html = '';
     if (OPEN_BETS.length === 0) {
-        html += '<div class="empty">No open bets — be the first to post one</div>';
+        html += '<div style="color:var(--muted);text-align:center;padding:20px;font-size:12px">No active markets — post the first</div>';
     } else {
-        // Group by proposition to show two-sided markets
         var markets = {};
         OPEN_BETS.forEach(function(bet) {
             var key = bet.proposition || bet.coinid;
-            if (!markets[key]) markets[key] = { prop: bet.proposition, forBets: [], againstBets: [] };
-            if (bet.side === 1) markets[key].forBets.push(bet);
-            else markets[key].againstBets.push(bet);
+            if (!markets[key]) markets[key] = { prop: bet.proposition, yesBets: [], noBets: [] };
+            if (bet.side === 1) markets[key].yesBets.push(bet);
+            else markets[key].noBets.push(bet);
         });
+        var keys = Object.keys(markets);
+        for (var k = 0; k < keys.length; k++) {
+            html += renderQuestionCard(markets[keys[k]]);
+        }
+    }
+    return html;
+}
+
+function renderMyBetsPanelHtml() {
+    var myMatched = MATCHED_BETS.filter(function(b) { return b.isMine || b.isMyCounter; });
+    var mine = OPEN_BETS.filter(function(b) { return b.isMine; });
+    var html = '';
+
+    if (myMatched.length === 0 && mine.length === 0) {
+        html += '<div style="color:var(--muted);text-align:center;padding:20px;font-size:12px">No bets yet</div>';
+    }
+    myMatched.forEach(function(bet) { html += renderLiveBet(bet); });
+    mine.forEach(function(bet) {
+        var escRate = 1 + ESCROW_RATE;
+        var betAmt = parseFloat(bet.amount) / escRate;
+        var wantAmt = parseFloat(bet.wantstake || "0") / escRate;
+        var side = bet.side === 1 ? "TRUE" : "FALSE";
+        html += '<div class="livebet" style="opacity:0.7"><div class="livebet__tag livebet__tag--open">Open — waiting</div>';
+        html += '<div class="livebet__question" style="font-size:13px">' + esc(bet.proposition || "Bet") + '</div>';
+        html += '<div class="livebet__stakes" style="padding:2px 18px 8px"><div class="livebet__row"><dt>You</dt><dd style="color:var(--' + (side === "TRUE" ? "true" : "false") + ')">' + side + ' · ' + betAmt.toFixed(2) + '</dd></div></div>';
+        html += '<div style="padding:4px 18px 10px"><button class="btn btn--ghost btn--sm" onclick="doCancel(\'' + bet.coinid + '\')">Cancel</button></div></div>';
+    });
+    return html;
+}
+
+function openPostInDesktop() {
+    if (isDesktop()) {
+        // Render post form inside the Markets pane
+        var mp = document.querySelector("#ddMarkets .dd-pb");
+        if (mp) {
+            var wrapper = { innerHTML: "" };
+            renderPostView(wrapper);
+            mp.innerHTML = wrapper.innerHTML + '<hr style="border:none;border-top:1px solid rgba(255,255,255,0.05);margin:12px 0"><div style="font-size:10px;color:var(--muted);cursor:pointer;text-align:center;padding:4px" onclick="renderCurrentView()">Back to Markets</div>';
+        }
+    } else {
+        showView("post");
+    }
+}
+
+function selectBetForChat(coinid) {
+    SELECTED_BET_COINID = coinid;
+    var chatBody = document.getElementById("ddChatBody");
+    if (chatBody) {
+        chatBody.innerHTML = renderChatPanelHtml();
+        setTimeout(updateChatPreviews, 50);
+    }
+}
+
+/**
+ * Tmux-style resize for desktop dashboard.
+ * Horizontal divider: drag top/bottom row heights.
+ * Vertical dividers: drag left/right pane widths.
+ * Center handle: drag all at once. Double-click to reset 50/50.
+ */
+function initDesktopResize() {
+    var ddTop = document.getElementById("ddTop");
+    var ddChat = document.getElementById("ddChat");
+    var ddMarkets = document.getElementById("ddMarkets");
+    var ddDivH = document.getElementById("ddDivH");
+    var ddDivTV = document.getElementById("ddDivTV");
+    var ddDivBV = document.getElementById("ddDivBV");
+    var ddCenter = document.getElementById("ddCenter");
+    var ddPanes = document.getElementById("ddPanes");
+    if (!ddPanes) return;
+
+    var mode = null;
+
+    function updateCenterPos() {
+        if (ddChat && ddCenter) ddCenter.style.left = (ddChat.offsetWidth - 8) + "px";
+    }
+
+    ddDivH.addEventListener("mousedown", function(e) { if (e.target !== ddCenter) { mode = "h"; e.preventDefault(); } });
+    ddDivTV.addEventListener("mousedown", function(e) { mode = "tv"; e.preventDefault(); });
+    ddDivBV.addEventListener("mousedown", function(e) { mode = "bv"; e.preventDefault(); });
+    ddCenter.addEventListener("mousedown", function(e) { mode = "center"; e.preventDefault(); });
+
+    ddCenter.addEventListener("dblclick", function() {
+        ddTop.style.height = "50%"; ddTop.style.flex = "none";
+        ddChat.style.width = "50%"; ddChat.style.flex = "none";
+        ddMarkets.style.width = "50%"; ddMarkets.style.flex = "none";
+        updateCenterPos();
+    });
+
+    document.addEventListener("mousemove", function(e) {
+        if (!mode) return;
+        var r = ddPanes.getBoundingClientRect();
+        if (mode === "h" || mode === "center") {
+            var yp = ((e.clientY - r.top) / r.height) * 100;
+            yp = Math.max(15, Math.min(70, yp));
+            ddTop.style.height = yp + "%"; ddTop.style.flex = "none";
+        }
+        if (mode === "tv" || mode === "center") {
+            var tr = ddTop.getBoundingClientRect();
+            var xp = ((e.clientX - tr.left) / tr.width) * 100;
+            xp = Math.max(20, Math.min(75, xp));
+            ddChat.style.width = xp + "%"; ddChat.style.flex = "none";
+        }
+        if (mode === "bv" || mode === "center") {
+            var br = document.getElementById("ddBot").getBoundingClientRect();
+            var xp = ((e.clientX - br.left) / br.width) * 100;
+            xp = Math.max(20, Math.min(75, xp));
+            ddMarkets.style.width = xp + "%"; ddMarkets.style.flex = "none";
+        }
+        requestAnimationFrame(updateCenterPos);
+    });
+
+    document.addEventListener("mouseup", function() { mode = null; updateCenterPos(); });
+    window.addEventListener("resize", function() { updateCenterPos(); });
+}
+
+// "More" menu — links to Arbiter, History, Activity Log
+function renderMoreView(el) {
+    var arbCount = MATCHED_BETS.filter(function(b) { return b.isMyArb; }).length;
+    var html = '<h2>More</h2>';
+    html += '<div style="display:flex;flex-direction:column;gap:8px;">';
+    html += '<div class="qcard" style="cursor:pointer" onclick="showView(\'arbiter\')"><div class="qcard__head"><div class="qcard__question">Arbiter' + (arbCount > 0 ? ' <span style="color:var(--gold)">(' + arbCount + ' pending)</span>' : '') + '</div><div class="qcard__meta"><span>Resolve disputed bets</span></div></div></div>';
+    html += '<div class="qcard" style="cursor:pointer" onclick="showView(\'history\')"><div class="qcard__head"><div class="qcard__question">History</div><div class="qcard__meta"><span>Won / Lost / Fees</span></div></div></div>';
+    html += '<div class="qcard" style="cursor:pointer" onclick="showView(\'activity\')"><div class="qcard__head"><div class="qcard__question">Activity Log</div><div class="qcard__meta"><span>All system messages</span></div></div></div>';
+    html += '<div class="qcard" style="cursor:pointer" onclick="showView(\'housekeeping\')"><div class="qcard__head"><div class="qcard__question">Housekeeping</div><div class="qcard__meta"><span>Clear stuck transactions</span></div></div></div>';
+    html += '</div>';
+    el.innerHTML = html;
+}
+
+// -- Refresh bets + pending proposals, then callback --
+// refreshBetsAndProposals and autoAcceptDualProposals — defined in state.js
+// (renderBetCard + toggleCard removed in v2.1.0 — replaced by renderQuestionCard + renderLiveBet)
+
+function renderMarketsView(el) {
+    var html = '<h2>Markets</h2>';
+
+    // Show matched bets first (most important — active bets need attention)
+    var myMatched = MATCHED_BETS.filter(function(b) { return b.isMine || b.isMyCounter || b.isMyArb; });
+    if (myMatched.length > 0) {
+        myMatched.forEach(function(bet) { html += renderLiveBet(bet); });
+    }
+
+    if (OPEN_BETS.length === 0 && myMatched.length === 0) {
+        html += '<div class="empty">No active markets — post the first</div>';
+    } else if (OPEN_BETS.length > 0) {
+        // Group open bets by proposition → show as question cards with odds bars
+        var markets = {};
+        OPEN_BETS.forEach(function(bet) {
+            var key = bet.proposition || bet.coinid;
+            if (!markets[key]) markets[key] = { prop: bet.proposition, yesBets: [], noBets: [] };
+            if (bet.side === 1) markets[key].yesBets.push(bet);
+            else markets[key].noBets.push(bet);
+        });
+
+        if (myMatched.length > 0) html += '<h2 style="margin-top:8px">Open Bets</h2>';
 
         var keys = Object.keys(markets);
         for (var k = 0; k < keys.length; k++) {
             var m = markets[keys[k]];
-            if (m.prop) {
-                // Compute bet/want for each side
-                var escRate = 1 + ESCROW_RATE;
-                var forBet = 0, forWant = 0, againstBet = 0, againstWant = 0;
-                m.forBets.forEach(function(b) {
-                    var bt = parseFloat(b.amount) / escRate;
-                    var wt = parseFloat(b.wantstake || "0") / escRate;
-                    if (bt > forBet) { forBet = bt; }
-                    if (forWant === 0 || wt < forWant) { forWant = wt; }
-                });
-                m.againstBets.forEach(function(b) {
-                    var bt = parseFloat(b.amount) / escRate;
-                    var wt = parseFloat(b.wantstake || "0") / escRate;
-                    if (bt > againstBet) { againstBet = bt; }
-                    if (againstWant === 0 || wt < againstWant) { againstWant = wt; }
-                });
-
-                // Bet size = the fixed stake (same for all participants)
-                var betSize = Math.max(forBet, againstBet);
-                if (betSize === 0) betSize = forBet || againstBet;
-
-                // Spread: what each side WANTS (bet size is fixed, wants vary)
-                var forPrice = 0, againstPrice = 0;
-                if (m.forBets.length > 0 && m.againstBets.length > 0) {
-                    forPrice = forWant;          // what FOR wants from counter
-                    againstPrice = againstWant;  // what AGAINST wants from counter
-                }
-
-                var spreadHtml = '';
-                if (forPrice > 0 && againstPrice > 0) {
-                    spreadHtml = '<div class="market__midspread">' +
-                        '<span class="market__midsize">' + betSize.toFixed(0) + '</span>' +
-                        '<hr class="market__midline"/>' +
-                        '<span class="market__midprice">' + forPrice.toFixed(0) + '-' + againstPrice.toFixed(0) + '</span>' +
-                        '</div>';
-                }
-
-                html += '<div class="market">';
-                html += '<div class="market__title">' + esc(m.prop) + '</div>';
-                html += '<div class="market__sides">';
-
-                // FOR column
-                html += '<div class="market__col"><div class="market__colhead side--yes">FOR</div>';
-                if (m.forBets.length === 0) {
-                    html += '<div class="market__empty">No FOR bets</div>';
-                } else {
-                    m.forBets.forEach(function(bet) {
-                        var role = bet.isMine ? "yours" : null;
-                        html += renderBetCard(bet, role);
-                    });
-                }
-                html += '</div>';
-
-                // Market spread connecting tile
-                html += spreadHtml;
-
-                // AGAINST column
-                html += '<div class="market__col"><div class="market__colhead side--no">AGAINST</div>';
-                if (m.againstBets.length === 0) {
-                    html += '<div class="market__empty">No AGAINST bets</div>';
-                } else {
-                    m.againstBets.forEach(function(bet) {
-                        var role = bet.isMine ? "yours" : null;
-                        html += renderBetCard(bet, role);
-                    });
-                }
-                html += '</div>';
-
-                html += '</div></div>';
-            } else {
-                // No proposition — show individually
-                var allBets = m.forBets.concat(m.againstBets);
-                allBets.forEach(function(bet) {
-                    var role = bet.isMine ? "yours" : bet.isMyArb ? "arbiter" : null;
-                    html += renderBetCard(bet, role);
-                });
-            }
+            html += renderQuestionCard(m);
         }
     }
-
-    var myMatched = MATCHED_BETS.filter(function(b) { return b.isMine || b.isMyCounter || b.isMyArb; });
-    if (myMatched.length > 0) {
-        html += '<h2>Matched Bets</h2>';
-        myMatched.forEach(function(bet) {
-            var role = null;
-            if (bet.isMine || bet.isMyCounter) {
-                var youAreFor = (bet.side === 1 && bet.isMine) || (bet.side === 0 && bet.isMyCounter);
-                role = youAreFor ? "for" : "against";
-            } else if (bet.isMyArb) {
-                role = "arbiter";
-            }
-            html += renderBetCard(bet, role);
-        });
-    }
     el.innerHTML = html;
+    // Update chat previews after render
+    setTimeout(updateChatPreviews, 100);
+}
+
+/**
+ * Render a market card for the Markets view.
+ *
+ * Shows proposition, TRUE/FALSE odds bar, market format, position, actions.
+ * Market format: "TRUE X — FALSE Y | Size Z | Spread X-Y"
+ * The odds bar shows TRUE and FALSE totals proportionally (green/red pill).
+ * Amounts shown WITHOUT escrow — escrow is an implementation detail.
+ */
+function renderQuestionCard(market) {
+    var escRate = 1 + ESCROW_RATE;
+
+    // Calculate per-side: bet amounts (stakes) and want amounts (asks)
+    // Stakes = what each side put up. Wants = what each side asks from the counter.
+    // The odds bar shows WANTS (the price to take each side), not stakes.
+    var trueStake = 0, falseStake = 0;   // total staked per side
+    var trueWants = 0, falseWants = 0;   // what each side is asking
+    var bestTrue = null, bestFalse = null;
+    market.yesBets.forEach(function(b) {
+        var bt = parseFloat(b.amount) / escRate;
+        var wt = parseFloat(b.wantstake || "0") / escRate;
+        trueStake += bt;
+        trueWants += wt;
+        if (!bestTrue || bt > parseFloat(bestTrue.amount) / escRate) bestTrue = b;
+    });
+    market.noBets.forEach(function(b) {
+        var bt = parseFloat(b.amount) / escRate;
+        var wt = parseFloat(b.wantstake || "0") / escRate;
+        falseStake += bt;
+        falseWants += wt;
+        if (!bestFalse || bt > parseFloat(bestFalse.amount) / escRate) bestFalse = b;
+    });
+
+    // Bet size = the larger side's stake (common reference point)
+    var betSize = Math.max(trueStake, falseStake);
+    if (betSize === 0) betSize = trueStake || falseStake;
+
+    // Am I in this market?
+    var myBet = null;
+    var mySide = "";
+    market.yesBets.concat(market.noBets).forEach(function(b) {
+        if (b.isMine) { myBet = b; mySide = b.side === 1 ? "TRUE" : "FALSE"; }
+    });
+
+    var betCount = market.yesBets.length + market.noBets.length;
+
+    var html = '<div class="qcard">';
+
+    // Proposition + market format: "TRUE [wants] — FALSE [wants] | Size [stake]"
+    html += '<div class="qcard__head">';
+    html += '<div class="qcard__question">' + esc(market.prop || "Unnamed") + '</div>';
+    html += '<div class="qcard__meta">';
+    // Market format shows what each side WANTS — the price to take each side
+    var trueAsk = trueWants > 0 ? fmtAmt(trueWants) : "—";
+    var falseAsk = falseWants > 0 ? fmtAmt(falseWants) : "—";
+    html += '<span>TRUE ' + trueAsk + ' — FALSE ' + falseAsk + '</span>';
+    if (betSize > 0) html += '<span>in ' + fmtAmt(betSize) + '</span>';
+    // Odds ratios — the universal betting language
+    if (trueWants > 0 && falseWants > 0) {
+        var trueOdds = calcOdds(trueStake, trueWants);
+        var falseOdds = calcOdds(falseStake, falseWants);
+        html += '<span style="color:var(--true)">' + trueOdds + '</span>';
+        html += '<span style="color:var(--false)">' + falseOdds + '</span>';
+    } else if (trueWants > 0) {
+        html += '<span style="color:var(--true)">' + calcOdds(trueStake, trueWants) + '</span>';
+    } else if (falseWants > 0) {
+        html += '<span style="color:var(--false)">' + calcOdds(falseStake, falseWants) + '</span>';
+    }
+    html += '<span>' + betCount + ' bet' + (betCount !== 1 ? 's' : '') + '</span>';
+    html += '</div></div>';
+
+    // Odds bar — proportional to WANTS (the price to take each side)
+    html += '<div class="oddsbar">';
+    if (trueWants > 0) {
+        html += '<div class="oddsbar__yes" style="flex:' + Math.max(trueWants, 0.5) + '">TRUE ' + fmtAmt(trueWants) + '</div>';
+    } else if (trueStake > 0) {
+        html += '<div class="oddsbar__yes" style="flex:' + Math.max(trueStake, 0.5) + '">TRUE ' + fmtAmt(trueStake) + '</div>';
+    } else {
+        html += '<div class="oddsbar__open">Needs TRUE</div>';
+    }
+    if (falseWants > 0) {
+        html += '<div class="oddsbar__no" style="flex:' + Math.max(falseWants, 0.5) + '">FALSE ' + fmtAmt(falseWants) + '</div>';
+    } else if (falseStake > 0) {
+        html += '<div class="oddsbar__no" style="flex:' + Math.max(falseStake, 0.5) + '">FALSE ' + fmtAmt(falseStake) + '</div>';
+    } else {
+        html += '<div class="oddsbar__open">Needs FALSE</div>';
+    }
+    html += '</div>';
+
+    // Your position — bet and profit (not total pot)
+    if (myBet) {
+        var myAmt = parseFloat(myBet.amount) / escRate;
+        var myWantAmt = parseFloat(myBet.wantstake || "0") / escRate;
+        var myOdds = calcOdds(myAmt, myWantAmt);
+        var myMult = myWantAmt > 0 && myAmt > 0 ? (myWantAmt / myAmt) : 0;
+        var multStr = myMult > 0 ? (myMult % 1 === 0 ? myMult.toFixed(0) : myMult.toFixed(1)) + 'x' : '';
+        html += '<div class="qcard__yours">';
+        html += '<div class="qcard__dot qcard__dot--' + (mySide === "TRUE" ? "yes" : "no") + '"></div>';
+        html += '<span>YOURS: ' + mySide + ' ' + fmtAmt(myAmt) + ' wants ' + fmtAmt(myWantAmt) + ' | ' + multStr + ' | ' + myOdds + '</span>';
+        html += '</div>';
+    }
+
+    // Actions: Counter TRUE / Counter FALSE / Cancel
+    html += '<div class="qcard__actions">';
+    if (myBet) {
+        html += '<button class="btn btn--ghost btn--sm" onclick="event.stopPropagation();doCancel(\'' + myBet.coinid + '\')">Cancel</button>';
+    }
+    // Counter buttons: countering a TRUE bet = you bet FALSE (red). Countering FALSE = you bet TRUE (green).
+    if (!myBet || !myBet.isMyArb) {
+        if (bestTrue && !bestTrue.isMine) {
+            html += '<button class="btn btn--no" onclick="event.stopPropagation();doCounter(\'' + bestTrue.coinid + '\')">Counter FALSE</button>';
+        }
+        if (bestFalse && !bestFalse.isMine) {
+            html += '<button class="btn btn--yes" onclick="event.stopPropagation();doCounter(\'' + bestFalse.coinid + '\')">Counter TRUE</button>';
+        }
+    }
+    html += '</div>';
+
+    html += '</div>';
+    return html;
+}
+
+/**
+ * Render a live/matched bet card.
+ * Shows: status tag, question, stakes, settlement, chat.
+ */
+function renderLiveBet(bet) {
+    var isOpen = bet.phase === 0;
+    var escRate = 1 + ESCROW_RATE;
+    var locked = parseFloat(bet.amount);
+
+    // Figure out who I am
+    var iAmOwner = bet.isMine;
+    var iAmCounter = bet.isMyCounter;
+    var iAmArb = bet.isMyArb;
+    var mySide = (bet.side === 1 && iAmOwner) || (bet.side === 0 && iAmCounter) ? "TRUE" : "FALSE";
+    var myStake, theirStake;
+    if (!isOpen) {
+        var osLock = parseFloat(bet.ownerstake || "0");
+        var csLock = locked - osLock;
+        myStake = (iAmOwner ? osLock : csLock) / escRate;
+        theirStake = (iAmOwner ? csLock : osLock) / escRate;
+    }
+
+    // On desktop, clicking a live bet selects it for the chat panel
+    var isSelected = (bet.coinid === SELECTED_BET_COINID);
+    var html = '<div class="livebet' + (isSelected ? ' livebet--selected' : '') + '" onclick="selectBetForChat(\'' + bet.coinid + '\')" style="cursor:pointer">';
+
+    // Status tag with pulsing dot
+    html += '<div class="livebet__tag livebet__tag--live"><div class="livebet__pulse"></div>Live bet</div>';
+
+    // Question
+    html += '<div class="livebet__question">' + esc(bet.proposition || "Bet") + '</div>';
+
+    // Stakes
+    html += '<div class="livebet__stakes">';
+    html += '<div class="livebet__row"><dt>You said</dt><dd style="color:var(--' + (mySide === "TRUE" ? "true" : "false") + ')">' + mySide + ' &middot; ' + myStake.toFixed(2) + ' MINIMA</dd></div>';
+    html += '<div class="livebet__row"><dt>They said</dt><dd style="color:var(--' + (mySide === "TRUE" ? "false" : "true") + ')">' + (mySide === "TRUE" ? "FALSE" : "TRUE") + ' &middot; ' + theirStake.toFixed(2) + ' MINIMA</dd></div>';
+    html += '<div class="livebet__row"><dt>If ' + mySide + '</dt><dd class="side--yes">+' + theirStake.toFixed(2) + ' MINIMA</dd></div>';
+    html += '<div class="livebet__row"><dt>If ' + (mySide === "TRUE" ? "FALSE" : "TRUE") + '</dt><dd class="side--no">-' + myStake.toFixed(2) + ' MINIMA</dd></div>';
+    html += '</div>';
+
+    // Incoming proposal
+    var proposal = PENDING_PROPOSALS[bet.coinid];
+    if (proposal && !isOpen && (iAmOwner || iAmCounter)) {
+        var po = parseInt(proposal.outcome);
+        var pWord = po === 2 ? "VOID — cancel the bet" : po === 1 ? "TRUE" : "FALSE";
+        html += '<div class="proposal">';
+        var propQuote = bet.proposition ? '"' + esc(bet.proposition) + '"' : 'the proposition';
+        html += '<div class="proposal__from">Your counterparty says:</div>';
+        html += '<div class="proposal__verdict">' + propQuote + ' is ' + pWord + '</div>';
+        html += '<div class="proposal__fee">Do you agree? Disagreement invokes the arbiter — escrow forfeit for the loser, 10% fee from the pot.</div>';
+        html += '<div class="proposal__btns">';
+        html += '<button class="btn btn--yes" onclick="doAcceptProposal(\'' + bet.coinid + '\')">Agree</button>';
+        html += '<button class="btn btn--no" onclick="doRejectProposal(\'' + bet.coinid + '\')">Disagree</button>';
+        html += '</div></div>';
+    }
+
+    // Settlement prompt — "What happened?"
+    if (!isOpen && !iAmArb && (iAmOwner || iAmCounter) && !proposal) {
+        html += '<div class="decide">';
+        var propText = bet.proposition ? '"' + esc(bet.proposition) + '"' : 'the proposition';
+        html += '<div class="decide__title">Is ' + propText + ' TRUE or FALSE?</div>';
+        html += '<div class="decide__sub">Both agree: 0% fee. Disagree: arbiter decides (10%).</div>';
+        html += '<div class="decide__btns">';
+        html += '<button class="btn btn--yes" onclick="doPropose(\'' + bet.coinid + '\',1)">TRUE</button>';
+        html += '<button class="btn btn--no" onclick="doPropose(\'' + bet.coinid + '\',0)">FALSE</button>';
+        html += '<button class="btn btn--ghost btn--sm" style="flex:0.4" onclick="doPropose(\'' + bet.coinid + '\',2)">Void</button>';
+        html += '</div></div>';
+    }
+
+    // Chat — always visible for matched bets
+    if (!isOpen && (iAmOwner || iAmCounter)) {
+        var escapedProp = (bet.proposition || "").replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        var cid = bet.coinid.substring(2, 18);
+        html += '<div class="chatbox">';
+        html += '<div class="chatbox__title">Chat</div>';
+        html += '<div class="chatbox__messages" id="chatmsgs_' + cid + '"></div>';
+        html += '<div class="chatbox__input">';
+        html += '<input class="chatbox__field" id="chatin_' + cid + '" placeholder="Message..." data-coinid="' + bet.coinid + '" data-prop="' + escapedProp + '" onkeydown="if(event.key===\'Enter\')sendChatDirect(this);">';
+        html += '<button class="chatbox__send" onclick="sendChatDirect(document.getElementById(\'chatin_' + cid + '\'))">&#9654;</button>';
+        html += '</div></div>';
+    }
+
+    html += '</div>';
+    return html;
 }
 
 // -- Post Bet View --
 
 function renderPostView(el) {
-    var html = '<h2>Post a Bet</h2>';
-    html += '<div class="card">';
+    var html = '<div class="postform">';
+    html += '<div class="postform__title">Post a proposition</div>';
 
     html += '<div class="form-group">';
     html += '<label>Proposition</label>';
-    html += '<input type="text" id="betMarket" placeholder="e.g. Arsenal beats Chelsea incl. extra time" />';
+    html += '<input class="form-input" type="text" id="betMarket" placeholder="e.g. BTC above 80k by Friday" />';
     html += '</div>';
+
+    html += '<div class="form-group">';
+    html += '<label>Your side</label>';
+    html += '<div class="side-toggle">';
+    html += '<button class="side-toggle__btn active--yes" id="sideYes" onclick="pickSide(1)">TRUE</button>';
+    html += '<button class="side-toggle__btn" id="sideNo" onclick="pickSide(0)">FALSE</button>';
+    html += '</div></div>';
 
     html += '<div class="form-row">';
     html += '<div class="form-group">';
-    html += '<label>Your Side</label>';
-    html += '<div class="side-picker">';
-    html += '<button class="btn btn--yes active" id="sideYes" onclick="pickSide(1)">FOR</button>';
-    html += '<button class="btn btn--no" id="sideNo" onclick="pickSide(0)">AGAINST</button>';
+    html += '<label>Your Bet</label>';
+    html += '<input class="form-input" type="number" id="betStake" min="0.01" step="0.01" placeholder="10" oninput="updateOddsPreview()" />';
+    html += '</div>';
+    html += '<div class="form-group">';
+    html += '<label>They Must Bet</label>';
+    html += '<input class="form-input" type="number" id="betWantStake" min="0.01" step="0.01" placeholder="10" oninput="updateOddsPreview()" />';
     html += '</div></div>';
 
-    html += '<div class="form-group">';
-    html += '<label>You Bet (MINIMA)</label>';
-    html += '<input type="number" id="betStake" min="0.01" step="0.01" placeholder="30" oninput="updateOddsPreview()" />';
-    html += '</div>';
-
-    html += '<div class="form-group">';
-    html += '<label>You Want (MINIMA)</label>';
-    html += '<input type="number" id="betWantStake" min="0.01" step="0.01" placeholder="90" oninput="updateOddsPreview()" />';
-    html += '</div>';
-    html += '</div>';
-
-    html += '<div class="odds-preview" id="oddsPreview">Set bets to see odds</div>';
+    html += '<div class="payout" id="oddsPreview"><div class="payout__row" style="color:var(--muted)">Enter amounts to see your odds</div></div>';
 
     html += '<div class="form-group">';
     html += '<label>Arbiter Public Key</label>';
-    html += '<input type="text" id="betArbPk" placeholder="0x..." />';
+    html += '<input class="form-input form-input--mono" type="text" id="betArbPk" placeholder="0x..." />';
     html += '</div>';
     html += '<div class="form-group">';
     html += '<label>Arbiter Address</label>';
-    html += '<input type="text" id="betArbAddr" placeholder="0x..." />';
+    html += '<input class="form-input form-input--mono" type="text" id="betArbAddr" placeholder="0x..." />';
     html += '</div>';
     html += '<div class="form-group">';
     html += '<label>Arbiter Maxima Key</label>';
-    html += '<input type="text" id="betArbMxKey" placeholder="Mx..." />';
+    html += '<input class="form-input form-input--mono" type="text" id="betArbMxKey" placeholder="Mx..." />';
     html += '</div>';
 
     // Load saved arbiter settings
     setTimeout(function() {
         MDS.keypair.get("wager_arb_pk", function(r1) {
-            if (r1.status && r1.value) document.getElementById("betArbPk").value = r1.value;
+            if (r1.status && r1.value) { var e = document.getElementById("betArbPk"); if (e) e.value = r1.value; }
         });
         MDS.keypair.get("wager_arb_addr", function(r2) {
-            if (r2.status && r2.value) document.getElementById("betArbAddr").value = r2.value;
+            if (r2.status && r2.value) { var e = document.getElementById("betArbAddr"); if (e) e.value = r2.value; }
         });
         MDS.keypair.get("wager_arb_mx", function(r3) {
-            if (r3.status && r3.value) document.getElementById("betArbMxKey").value = r3.value;
+            if (r3.status && r3.value) { var e = document.getElementById("betArbMxKey"); if (e) e.value = r3.value; }
         });
     }, 50);
 
     html += '<div class="form-group">';
-    html += '<label>Timeout</label>';
-    html += '<select id="betTimeout">';
-    html += '<option value="1500">~21 hours</option>';
-    html += '<option value="3000">~42 hours</option>';
-    html += '<option value="5000" selected>~3 days</option>';
-    html += '<option value="10000">~6 days</option>';
-    html += '</select>';
+    html += '<label>Timeout (blocks)</label>';
+    html += '<div style="display:flex;gap:8px;align-items:center">';
+    html += '<select class="form-input" id="betTimeoutSelect" style="flex:1" onchange="if(this.value===\'custom\'){document.getElementById(\'betTimeoutCustom\').style.display=\'block\'}else{document.getElementById(\'betTimeoutCustom\').style.display=\'none\'}">';
+    html += '<option value="1500">1500 (~21 hours)</option>';
+    html += '<option value="3000">3000 (~42 hours)</option>';
+    html += '<option value="5000" selected>5000 (~3 days)</option>';
+    html += '<option value="10000">10000 (~6 days)</option>';
+    html += '<option value="custom">Custom...</option>';
+    html += '</select></div>';
+    html += '<input class="form-input" type="number" id="betTimeoutCustom" placeholder="e.g. 100" min="10" style="display:none;margin-top:6px" />';
     html += '</div>';
 
     html += '<div id="postStatus" class="status"></div>';
-    html += '<button class="btn btn--accent" onclick="doPost()">Post Bet</button>';
+    html += '<button class="btn btn--accent btn--big" onclick="doPost()">Post Proposition</button>';
     html += '</div>';
     el.innerHTML = html;
-
 }
 
 var SELECTED_SIDE = 1;
 
 function pickSide(side) {
     SELECTED_SIDE = side;
-    document.getElementById("sideYes").classList.toggle("active", side === 1);
-    document.getElementById("sideNo").classList.toggle("active", side === 0);
+    var yesBtn = document.getElementById("sideYes");
+    var noBtn = document.getElementById("sideNo");
+    if (yesBtn) { yesBtn.className = "side-toggle__btn" + (side === 1 ? " active--yes" : ""); }
+    if (noBtn) { noBtn.className = "side-toggle__btn" + (side === 0 ? " active--no" : ""); }
     updateOddsPreview();
 }
 
@@ -750,19 +933,22 @@ function updateOddsPreview() {
     var bet = parseFloat(document.getElementById("betStake").value) || 0;
     var want = parseFloat(document.getElementById("betWantStake").value) || 0;
     var el = document.getElementById("oddsPreview");
-    if (bet <= 0 || want <= 0) { el.innerText = "You bet X, you want Y"; return; }
+    if (!el) return;
+    if (bet <= 0 || want <= 0) {
+        el.innerHTML = '<div class="payout__row" style="color:var(--muted)">Enter amounts to see your odds</div>';
+        return;
+    }
 
     var totalPot = bet + want;
-    var myOdds = calcOdds(bet, want);
-    var mv = want / bet;
-    var mult = (mv % 1 === 0 ? mv.toFixed(0) : mv.toFixed(1)) + 'x';
-    var side = SELECTED_SIDE === 1 ? "FOR" : "AGAINST";
+    var lockAmt = (bet * (1 + ESCROW_RATE)).toFixed(2);
+    var side = SELECTED_SIDE === 1 ? "TRUE" : "FALSE";
 
     el.innerHTML =
-        '<strong>' + bet.toFixed(0) + ' wants ' + want.toFixed(0) + '</strong> &nbsp; ' + mult + ' &nbsp; ' + myOdds + ' &nbsp; ' + side + '<br/>' +
-        'Winner takes: <strong>' + totalPot.toFixed(2) + ' MINIMA</strong> (+' + want.toFixed(2) + ' profit)<br/>' +
-        'If you lose: <strong>-' + bet.toFixed(2) + ' MINIMA</strong><br/>' +
-        '<span class="muted">25% escrow locked as honesty insurance | Agree: 0% fee | Arbiter: 10%</span>';
+        '<div class="payout__row"><span>You stake (' + side + ')</span><strong>' + bet.toFixed(2) + ' MINIMA</strong></div>' +
+        '<div class="payout__row"><span>They must stake</span><strong>' + want.toFixed(2) + ' MINIMA</strong></div>' +
+        '<div class="payout__row payout__row--big"><span>If ' + side + '</span><strong class="payout__win">+' + want.toFixed(2) + ' MINIMA</strong></div>' +
+        '<div class="payout__row"><span>If ' + (side === "TRUE" ? "FALSE" : "TRUE") + '</span><strong class="payout__lose">-' + bet.toFixed(2) + ' MINIMA</strong></div>' +
+        '<div class="payout__row" style="font-size:12px;color:var(--muted)"><span>Locked (inc. 25% escrow)</span><span>' + lockAmt + ' MINIMA</span></div>';
 }
 
 var POST_PENDING = false;
@@ -774,7 +960,8 @@ function doPost() {
     var arbpk = document.getElementById("betArbPk").value.trim();
     var arbaddr = document.getElementById("betArbAddr").value.trim();
     var arbmxkey = document.getElementById("betArbMxKey").value.trim();
-    var timeout = document.getElementById("betTimeout").value;
+    var timeoutSel = document.getElementById("betTimeoutSelect").value;
+    var timeout = timeoutSel === "custom" ? (document.getElementById("betTimeoutCustom").value || "5000") : timeoutSel;
     var statusEl = document.getElementById("postStatus");
 
     if (!market) { showStatus(statusEl, "Enter a proposition", "err"); return; }
@@ -806,7 +993,8 @@ function doPost() {
         timeout: parseInt(timeout)
     }, function(ok, err) {
         if (ok) {
-            showStatus(statusEl, "Bet posted!", "ok");
+            showStatus(statusEl, "Question posted!", "ok");
+            notify("Your bet is confirming on-chain — takes 1-2 minutes", "pending");
             if (arbmxkey) notifyArbiter("", arbmxkey, market, stake);
             setTimeout(function() { POST_PENDING = false; refreshBetsAndProposals(renderCurrentView); }, 2000);
         } else if (err === "pending") {
@@ -859,7 +1047,7 @@ function doFill(coinid) {
         notify("Taking bet — building transaction...", "info");
         fillBet(bet, function(ok, err) {
             if (ok) {
-                notify("Bet filled — waiting for on-chain confirmation (2-3 blocks)...", "info");
+                notify("Bet taken! Confirming on-chain — this takes 1-2 minutes, sit tight", "pending");
                 refreshBetsAndProposals(renderCurrentView);
             } else {
                 notify("Fill failed: " + (err || "unknown"), "err");
@@ -920,13 +1108,15 @@ function showCounterModal() {
         sliderMin = Math.min(bestCounterWant, theirAsk);
         sliderMax = Math.max(bestCounterWant, theirAsk);
     } else {
-        // First counter — slider = 0.01 to theirAsk
-        sliderMin = 0.01;
+        // Slider from 0 to theirAsk. Zero = 0.01 minimum (substituted at read time).
+        // No rounding, no alignment. Clean integers: 0, 1, 2... or 0, 0.5, 1.0...
+        sliderMin = 0;
         sliderMax = theirAsk;
     }
     if (sliderMax <= sliderMin) sliderMax = sliderMin + 1;
     var spread = sliderMax - sliderMin;
-    var sliderStep = spread <= 1 ? 0.01 : spread <= 10 ? 0.1 : spread <= 50 ? 0.5 : 1;
+    // Consistent step across all ranges — always 0.1 for predictable granularity
+    var sliderStep = spread <= 1 ? 0.01 : 0.1;
     var sliderDefault = (theirAsk >= sliderMin && theirAsk <= sliderMax) ? theirAsk : sliderMax;
 
     var modal = document.getElementById("counterModal");
@@ -937,46 +1127,33 @@ function showCounterModal() {
         document.body.appendChild(modal);
     }
 
+    // FOR = TRUE, AGAINST = FALSE.
+    var mySideWord = mySide === "FOR" ? "TRUE" : "FALSE";
+    var theirSideWord = theirSide === "FOR" ? "TRUE" : "FALSE";
+
     modal.innerHTML =
         '<div class="modal__overlay" onclick="closeCounterModal()"></div>' +
         '<div class="modal__content">' +
+        '<div class="modal__pill"></div>' +
         '<div class="modal__header">' +
-        '<h3>Counter Bet</h3>' +
-        '<span class="modal__close" onclick="closeCounterModal()">&times;</span>' +
+        '<h3>Counter ' + mySideWord + '</h3>' +
+        '<button class="modal__close" onclick="closeCounterModal()">&times;</button>' +
         '</div>' +
-
-        '<div class="modal__prop">' + esc(bet.proposition || "Unknown proposition") + '</div>' +
-
+        '<div class="modal__prop">' + esc(bet.proposition || "Unknown") + '</div>' +
         '<div class="modal__info">' +
-        '<div class="modal__row"><span class="muted">They bet</span><span><strong>' + theirBet.toFixed(2) + ' MINIMA</strong> ' + theirSide + '</span></div>' +
-        '<div class="modal__row"><span class="muted">They want from you</span><span>' + theirAsk.toFixed(2) + ' MINIMA</span></div>' +
-        '<div class="modal__row"><span class="muted">Your side</span><span class="' + (mySide === "FOR" ? "side--yes" : "side--no") + '"><strong>' + mySide + '</strong></span></div>' +
+        '<div class="modal__row"><span style="color:var(--dim)">They bet</span><span><strong>' + theirBet.toFixed(2) + ' MINIMA</strong> ' + theirSideWord + '</span></div>' +
+        '<div class="modal__row"><span style="color:var(--dim)">They want from you</span><span>' + theirAsk.toFixed(2) + ' MINIMA</span></div>' +
         '</div>' +
-
-        '<div class="form-group">' +
-        '<label>You bet ' + theirBet.toFixed(2) + ' — choose what you want back</label>' +
-        '<div class="counter__spread">' +
-        '<span class="counter__end counter__end--mine">' + sliderMin.toFixed(2) + '<br/><small>' + (bestCounterWant > 0 ? 'best bid' : 'min') + '</small></span>' +
-        '<div class="counter__sliderWrap">' +
-        '<div class="counter__slider">' +
-        '<button class="btn btn--ghost btn--sm" onclick="adjustCounterAmt(-' + sliderStep + ')">&#9664;</button>' +
+        '<div class="bignumber">' +
+        '<div class="bignumber__label">Your bet</div>' +
+        '<div><span class="bignumber__val" id="counterAmtLabel">' + sliderDefault.toFixed(0) + '</span> <span class="bignumber__unit">M</span></div>' +
+        '</div>' +
         '<input type="range" id="counterAmtSlider" min="' + sliderMin.toFixed(1) + '" max="' + sliderMax.toFixed(1) + '" step="' + sliderStep + '" value="' + sliderDefault.toFixed(1) + '" oninput="updateCounterPreview()" />' +
-        '<button class="btn btn--ghost btn--sm" onclick="adjustCounterAmt(' + sliderStep + ')">&#9654;</button>' +
-        '</div>' +
-        '<div class="counter__oddsLabel" id="counterAmtLabel">' + sliderDefault.toFixed(2) + ' M</div>' +
-        '</div>' +
-        '<span class="counter__end counter__end--theirs">' + sliderMax.toFixed(2) + '<br/><small>full ask</small></span>' +
-        '</div>' +
-        '</div>' +
-
-        '<div class="counter__preview" id="counterPreview"></div>' +
-
-        '<div class="modal__actions">' +
-        '<button class="btn btn--accent" onclick="submitCounter()">Post Counter Bet</button>' +
-        '<button class="btn btn--ghost" onclick="closeCounterModal()">Cancel</button>' +
-        '</div>' +
-
+        '<div class="slider-ends"><span>' + fmtAmt(sliderMin) + ' (counter)</span><span>' + fmtAmt(sliderMax) + ' (take bet)</span></div>' +
+        '<div class="payout" id="counterPreview"></div>' +
         '<div id="counterStatus" class="status"></div>' +
+        '<button class="btn btn--accent btn--big" onclick="submitCounter()" id="counterSubmitBtn">Confirm</button>' +
+        '<div style="text-align:center;margin-top:10px"><button class="btn btn--ghost btn--sm btn--pill" onclick="closeCounterModal()">Cancel</button></div>' +
         '</div>';
 
     modal.style.display = "flex";
@@ -1003,29 +1180,38 @@ function adjustCounterAmt(delta) {
 
 function updateCounterPreview() {
     var myWant = parseFloat(document.getElementById("counterAmtSlider").value) || 0;
+    if (myWant < 0.01) myWant = 0.01; // zero on slider = minimum 0.01
     var label = document.getElementById("counterAmtLabel");
     var preview = document.getElementById("counterPreview");
+    var submitBtn = document.getElementById("counterSubmitBtn");
     var myBet = COUNTER_THEIR_BET;  // stake is FIXED at their bet size
-    var theirBet = COUNTER_THEIR_BET;
     var theirAsk = COUNTER_THEIR_ASK;
 
-    label.innerText = myWant.toFixed(2) + " M";
-
-    var totalPot = myBet + myWant;
-    var myOdds = calcOdds(myBet, myWant);
-    var theirOdds = calcOdds(myWant, myBet);
+    // Big number display
+    if (label) label.innerText = fmtAmt(myWant);
 
     var isFullAsk = Math.abs(myWant - theirAsk) < 0.01;
+    var totalPot = myBet + myWant;
 
-    preview.innerHTML =
-        '<div style="margin-bottom:8px"><strong>You bet ' + myBet.toFixed(2) + ', you want ' + myWant.toFixed(2) + '</strong>' +
-        (isFullAsk ? ' <span class="side--yes">(takes their bet)</span>' : '') + '</div>' +
-        '<div>Winner takes: <strong>' + totalPot.toFixed(2) + ' MINIMA</strong></div>' +
-        '<div>Your odds: <strong>' + myOdds + '</strong> — Their odds: <strong>' + theirOdds + '</strong></div>' +
-        '<div style="margin-top:6px">If you win: <strong>+' + myWant.toFixed(2) + ' profit</strong></div>' +
-        '<div>If you lose: <strong>-' + myBet.toFixed(2) + '</strong></div>' +
-        (isFullAsk ? '' : '<div class="muted" style="margin-top:6px">This is a counter-offer — they can accept, counter back, or wait</div>') +
-        '<div class="muted" style="margin-top:6px">25% escrow locked as honesty insurance</div>';
+    // Button text
+    if (submitBtn) {
+        submitBtn.innerText = isFullAsk ? "Take bet — " + fmtAmt(myWant) + "M" : "Counter — " + fmtAmt(myWant) + "M";
+    }
+
+    // Cash flow preview — myBet is what you stake (fixed), myWant is what you get if you win
+    var counterSide = COUNTER_BET ? (COUNTER_BET.side === 1 ? "FALSE" : "TRUE") : "?";
+    var theirSideLabel = COUNTER_BET ? (COUNTER_BET.side === 1 ? "TRUE" : "FALSE") : "?";
+
+    if (preview) {
+        preview.innerHTML =
+            '<div class="payout__row"><span>You bet ' + fmtAmt(myBet) + ' (' + counterSide + '), want ' + fmtAmt(myWant) + '</span></div>' +
+            '<div class="payout__row"><span>Pot</span><strong>' + fmtAmt(totalPot) + ' MINIMA</strong></div>' +
+            '<div class="payout__row payout__row--big"><span>If you win</span><strong class="payout__win">+' + fmtAmt(myWant) + ' MINIMA profit</strong></div>' +
+            '<div class="payout__row"><span>If you lose</span><strong class="payout__lose">-' + fmtAmt(myBet) + ' MINIMA</strong></div>' +
+            '<div class="payout__row" style="font-size:12px;color:var(--muted)"><span>Locked (inc. escrow)</span><span>' + fmtAmt(myBet * (1 + ESCROW_RATE)) + ' MINIMA</span></div>' +
+            (isFullAsk ? '<div class="payout__row" style="font-size:12px;color:var(--true);font-weight:700"><span>Takes their bet directly!</span></div>' :
+            '<div class="payout__row" style="font-size:12px;color:var(--muted)"><span>Counter-offer — they can accept or counter back</span></div>');
+    }
 }
 
 function submitCounter() {
@@ -1033,6 +1219,7 @@ function submitCounter() {
     if (!bet) return;
 
     var myWant = parseFloat(document.getElementById("counterAmtSlider").value) || 0;
+    if (myWant < 0.01) myWant = 0.01;
     var statusEl = document.getElementById("counterStatus");
 
     if (myWant < 0.01) { showStatus(statusEl, "Minimum want is 0.01", "err"); return; }
@@ -1101,9 +1288,22 @@ function submitCounter() {
     }
 
     if (isFullAsk) {
-        // Full ask = fill directly. Do NOT cancel existing bets first —
-        // if the fill fails, we'd lose our position for nothing.
+        // Full ask = fill the bet, then cancel our stale counter leg AFTER.
+        // We cancel AFTER (not before) so if the fill fails we keep our position.
+        // BUG FIX (v2.0.6): v2.0.5 never cancelled the counter leg at all.
         doFill();
+        // Queue cancellation of our old same-side bets once fill is submitted.
+        // The fill callback closes the modal after 1.5s — we cancel in parallel.
+        if (myExisting.length > 0) {
+            setTimeout(function() {
+                myExisting.forEach(function(b) {
+                    notify("Cancelling your old counter...", "info");
+                    cancelBet(b.coinid, function(ok) {
+                        if (ok) notify("Old counter cancelled", "ok");
+                    });
+                });
+            }, 2000);
+        }
     } else if (myExisting.length > 0) {
         // Counter: cancel existing same-side bet, then post new counter
         cancelExisting(0, function() {
@@ -1128,21 +1328,25 @@ function doCancel(coinid) {
 
 function doResolve(coinid, outcome) {
     var bet = MATCHED_BETS.find(function(b) { return b.coinid === coinid; });
-    var propText = bet && bet.proposition ? "\n\"" + bet.proposition + "\"\n" : "\n";
-    var msg;
-    if (outcome === 2) {
-        msg = "Declare VOID?" + propText + "Both get 90% back, you earn 10% of pot.";
-    } else {
-        var label = outcome === 1 ? "TRUE — proposition happened" : "FALSE — proposition did not happen";
-        msg = "Declare: " + label + "?" + propText + "You earn 10% of the winner's profit.\nThis is final.";
-    }
+    if (!bet) { notify("Bet not found", "err"); return; }
+
+    var propText = bet.proposition ? "\n\"" + bet.proposition + "\"\n" : "\n";
+    var label = outcome === 1 ? "TRUE — proposition happened" : "FALSE — proposition did not happen";
+    var totalPot = parseFloat(bet.amount);
+    var fee = (totalPot / 10).toFixed(2);
+    var msg = "Declare: " + label + "?" + propText + "Winner gets 90% of pot. You earn " + fee + " MINIMA (10% of total pot).\nThis is final.";
     if (!confirm(msg)) return;
 
-    var rLabel = outcome === 2 ? "VOID" : outcome === 1 ? "TRUE" : "FALSE";
+    var rLabel = outcome === 1 ? "TRUE" : "FALSE";
     notify("Resolving bet — " + rLabel + "...", "info");
     resolveBet(coinid, outcome, function(ok, err) {
-        if (ok) { notify("Resolved — " + rLabel, "ok"); logTx("ARBITER", "fee", "IN", "", "Arbiter resolved: " + rLabel); refreshBetsAndProposals(renderCurrentView); }
-        else { notify("Resolve failed: " + (err || "unknown"), "err"); }
+        if (ok) {
+            notify("Resolved — " + rLabel, "ok");
+            logTx("ARBITER", fee, "IN", bet.proposition || "", "Arbiter resolved: " + rLabel);
+            refreshBetsAndProposals(renderCurrentView);
+        } else {
+            notify("Resolve failed: " + (err || "unknown"), "err");
+        }
     });
 }
 
@@ -1172,7 +1376,7 @@ function doPropose(coinid, outcome) {
                 var outcomeWord = outcome === 2 ? "VOID" : outcome === 1 ? "TRUE" : "FALSE";
                 sendSettlePropose(counterMxKey, coinid, outcome, txnHex, bet.proposition, function() {
                     notifyService("settle_pending", bet.proposition);
-                    notify("Proposal (" + outcomeWord + ") sent — waiting for counterparty to accept or reject", "ok");
+                    notify("Proposal sent — your counterparty will see it shortly. Be patient, on-chain delivery takes 1-2 minutes.", "pending");
                 });
             } else {
                 notifyService("settle_pending", bet.proposition);
@@ -1203,10 +1407,37 @@ function doAcceptProposal(coinid) {
                 var outcomeNum = parseInt(proposal.outcome);
                 iWin = (myIsOwner && outcomeNum === ownerSide) || (!myIsOwner && outcomeNum !== ownerSide);
             }
-            var resultMsg = iWin ? "You WIN — winnings incoming (~2 min)" : "You LOSE — settled at 0% fee";
-            notify("Settlement accepted: " + outcomeLabel + ". " + resultMsg, iWin ? "ok" : "warn");
+            // Calculate exact profit/loss for the banner
+            var profit = "?";
+            var escrowStatus = "returned";
+            if (bet) {
+                var escRate = 1 + ESCROW_RATE;
+                var myLock = bet.isMine ? parseFloat(bet.ownerstake || "0") : parseFloat(bet.amount) - parseFloat(bet.ownerstake || "0");
+                var theirLock = parseFloat(bet.amount) - myLock;
+                var myBetAmt = myLock / escRate;
+                var theirBetAmt = theirLock / escRate;
+                if (iWin) {
+                    // Winner gets pot minus loser's escrow (loser gets escrow back)
+                    profit = "+" + theirBetAmt.toFixed(2);
+                    escrowStatus = "returned";
+                } else {
+                    profit = "-" + myBetAmt.toFixed(2);
+                    escrowStatus = "returned (0% fee)";
+                }
+            }
+            var resultMsg = iWin ? "YOU WON! " + profit + " MINIMA" : "You lost. " + profit + " MINIMA";
+            notify(resultMsg + " — " + (bet ? bet.proposition : ""), iWin ? "ok" : "err");
             logTx("SETTLE", bet ? bet.amount : "?", iWin ? "IN" : "OUT", bet ? bet.proposition : "", outcomeLabel + " — " + resultMsg);
-            if (proposal.sender_mxkey) sendSettleAccept(proposal.sender_mxkey, coinid, bet ? bet.proposition : "");
+
+            // Set the win/loss banner for My Bets view
+            WIN_LOSS_BANNER = {
+                type: iWin ? "win" : "loss",
+                prop: bet ? bet.proposition : "?",
+                amount: profit + " MINIMA",
+                fee: "0%",
+                escrow: escrowStatus
+            };
+            if (proposal.sender_mxkey) sendSettleAccept(proposal.sender_mxkey, coinid, bet ? bet.proposition : "", parseInt(proposal.outcome));
             if (bet && bet.proposition) {
                 notifyService("settle_cleared", bet.proposition);
             }
@@ -1259,43 +1490,94 @@ function renderMyBetsView(el) {
     var myMatched = MATCHED_BETS.filter(function(b) { return b.isMine || b.isMyCounter; });
     var html = '<h2>My Bets</h2>';
 
-    if (mine.length === 0 && myMatched.length === 0) {
-        html += '<div class="empty">No bets yet</div>';
+    // Win/loss banner — prominent feedback after settlement
+    if (WIN_LOSS_BANNER) {
+        var b = WIN_LOSS_BANNER;
+        var isWin = b.type === "win";
+        html += '<div style="background:var(--' + (isWin ? 'true-soft' : 'false-soft') + ');border:2px solid var(--' + (isWin ? 'true' : 'false') + ');border-radius:var(--r);padding:16px;margin-bottom:12px;text-align:center">';
+        html += '<div style="font-size:20px;font-weight:800;color:var(--' + (isWin ? 'true' : 'false') + ')">' + (isWin ? 'YOU WON!' : 'You lost.') + '</div>';
+        html += '<div style="font-size:16px;font-weight:700;margin:4px 0">' + esc(b.amount) + '</div>';
+        html += '<div style="font-size:13px;color:var(--dim)">' + esc(b.prop) + '</div>';
+        html += '<div style="font-size:12px;color:var(--muted);margin-top:4px">Fee: ' + b.fee + ' · Escrow: ' + b.escrow + '</div>';
+        html += '<button class="btn btn--ghost btn--sm" style="margin-top:8px" onclick="WIN_LOSS_BANNER=null;renderCurrentView();">Dismiss</button>';
+        html += '</div>';
+    }
+
+    if (mine.length === 0 && myMatched.length === 0 && !WIN_LOSS_BANNER) {
+        html += '<div class="empty"><div class="empty__text">No bets yet — post one or take a bet from Markets</div></div>';
         el.innerHTML = html; return;
     }
-    if (mine.length > 0) {
-        html += '<h3>Open</h3>';
-        mine.forEach(function(bet) { html += renderBetCard(bet, "yours"); });
-    }
+
+    // Live matched bets first (most important)
     if (myMatched.length > 0) {
-        html += '<h3>Matched</h3>';
-        myMatched.forEach(function(bet) {
-            var youAreFor = (bet.side === 1 && bet.isMine) || (bet.side === 0 && bet.isMyCounter);
-            var role = youAreFor ? "for" : "against";
-            html += renderBetCard(bet, role);
+        myMatched.forEach(function(bet) { html += renderLiveBet(bet); });
+    }
+
+    // Open bets (waiting to be taken)
+    if (mine.length > 0) {
+        html += '<h2 style="margin-top:8px">Open</h2>';
+        mine.forEach(function(bet) {
+            var escRate = 1 + ESCROW_RATE;
+            var betAmt = parseFloat(bet.amount) / escRate;
+            var wantAmt = parseFloat(bet.wantstake || "0") / escRate;
+            var side = bet.side === 1 ? "TRUE" : "FALSE";
+
+            html += '<div class="livebet">';
+            html += '<div class="livebet__tag livebet__tag--open">Open — waiting for taker</div>';
+            html += '<div class="livebet__question">' + esc(bet.proposition || "Bet") + '</div>';
+            html += '<div class="livebet__stakes">';
+            html += '<div class="livebet__row"><dt>You said</dt><dd style="color:var(--' + (side === "TRUE" ? "true" : "false") + ')">' + side + ' &middot; ' + betAmt.toFixed(2) + ' MINIMA</dd></div>';
+            html += '<div class="livebet__row"><dt>You want</dt><dd>' + wantAmt.toFixed(2) + ' MINIMA from the other side</dd></div>';
+            html += '</div>';
+            html += '<div style="padding:12px 18px;display:flex;gap:10px">';
+            html += '<button class="btn btn--ghost btn--sm" onclick="doCancel(\'' + bet.coinid + '\')">Cancel</button>';
+            html += '</div>';
+            html += '</div>';
         });
     }
     el.innerHTML = html;
+    setTimeout(updateChatPreviews, 100);
 }
-
-// -- Arbiter View --
 
 function renderArbiterView(el) {
     var arbBets = MATCHED_BETS.filter(function(b) { return b.isMyArb; });
-    var html = '<h2>Arbiter Dashboard</h2>';
+    var html = '<h2>Arbiter</h2>';
 
     if (arbBets.length === 0) {
-        html += '<div class="empty">No bets pending your resolution</div>';
-        html += '<div class="card">';
-        html += '<p>Share your details to be selected as an arbiter. You earn 10% of the winner\'s profit on disputes.</p>';
-        html += '<div class="betcard__grid">';
-        html += '<dl><dt>Public Key</dt><dd class="mono" style="font-size:11px;word-break:break-all">' + esc(MY_PUBKEY) + '</dd></dl>';
-        html += '<dl><dt>Address</dt><dd class="mono" style="font-size:11px;word-break:break-all">' + esc(MY_HEX_ADDR) + '</dd></dl>';
-        html += '<dl><dt>Maxima Key</dt><dd class="mono" style="font-size:11px;word-break:break-all">' + esc(MY_MXKEY) + '</dd></dl>';
-        html += '</div></div>';
+        html += '<div class="arb-info">';
+        html += '<div class="arb-info__title">Become an arbiter</div>';
+        html += '<div class="arb-info__text">Share your details to be selected as an arbiter. You earn 10% of the total pot when you resolve disputes.</div>';
+        html += '<div class="arb-info__label">Public Key</div>';
+        html += '<div class="arb-info__key">' + esc(MY_PUBKEY) + '</div>';
+        html += '<div class="arb-info__label">Address</div>';
+        html += '<div class="arb-info__key">' + esc(MY_HEX_ADDR) + '</div>';
+        html += '<div class="arb-info__label">Maxima Key</div>';
+        html += '<div class="arb-info__key">' + esc(MY_MXKEY) + '</div>';
+        html += '</div>';
     } else {
-        html += '<p>' + arbBets.length + ' bet(s) awaiting resolution. You earn 10% of winner\'s profit.</p>';
-        arbBets.forEach(function(bet) { html += renderBetCard(bet, "arbiter"); });
+        arbBets.forEach(function(bet) {
+            var totalPot = parseFloat(bet.amount);
+            var escRate = 1 + ESCROW_RATE;
+            var osLock = parseFloat(bet.ownerstake || "0");
+            var csLock = totalPot - osLock;
+            var yesAmt = (bet.side === 1 ? osLock : csLock) / escRate;
+            var noAmt = (bet.side === 1 ? csLock : osLock) / escRate;
+            var fee = (totalPot / 10).toFixed(2);
+
+            html += '<div class="arbiter-card">';
+            html += '<div class="arbiter-card__tag">⚖️ Awaiting your decision</div>';
+            html += '<div class="arbiter-card__q">' + esc(bet.proposition || "Bet") + '</div>';
+            html += '<div class="arbiter-card__grid">';
+            html += '<div class="arbiter-card__side"><div class="arbiter-card__side-label">TRUE side</div><div class="arbiter-card__side-val" style="color:var(--true)">' + yesAmt.toFixed(2) + '</div></div>';
+            html += '<div class="arbiter-card__side"><div class="arbiter-card__side-label">FALSE side</div><div class="arbiter-card__side-val" style="color:var(--false)">' + noAmt.toFixed(2) + '</div></div>';
+            html += '</div>';
+            html += '<div class="arbiter-card__fee">Your fee: ' + fee + ' MINIMA</div>';
+            html += '<div class="arbiter-card__btns">';
+            html += '<button class="btn btn--yes" onclick="doResolve(\'' + bet.coinid + '\',1)">TRUE</button>';
+            html += '<button class="btn btn--no" onclick="doResolve(\'' + bet.coinid + '\',0)">FALSE</button>';
+            html += '</div>';
+            html += '</div>';
+        });
     }
     el.innerHTML = html;
 }
@@ -1346,60 +1628,136 @@ function sendChatDirect(inputEl) {
 }
 
 function updateChatPreviews() {
+    // Load chat messages and render them into the chatbox__messages divs
     MDS.sql("SELECT * FROM messages WHERE type='CHAT_MESSAGE' ORDER BY created DESC LIMIT 100", function(res) {
         var rows = (res.status && res.rows) ? res.rows : [];
-        // Group latest message per proposition
-        var latest = {};
-        var counts = {};
+        // Group messages by proposition
+        var byProp = {};
         rows.forEach(function(r) {
             try {
                 var data = JSON.parse(r.DATA || "{}");
                 var p = data.proposition || "";
                 if (!p) return;
-                if (!counts[p]) counts[p] = 0;
-                counts[p]++;
-                if (!latest[p]) latest[p] = { name: data.sender_name || r.SENDER_NAME || "?", text: data.message || "", time: r.CREATED, isMine: r.DIRECTION === "sent" || (data.sender_mxkey === MY_MXKEY) };
+                if (!byProp[p]) byProp[p] = [];
+                byProp[p].push({
+                    name: data.sender_name || r.SENDER_NAME || "?",
+                    text: data.message || "",
+                    isMine: r.DIRECTION === "sent" || (data.sender_mxkey === MY_MXKEY)
+                });
             } catch(e) {}
         });
-        // Update preview elements for each matched bet
+        // Render messages into chat divs for each matched bet
         MATCHED_BETS.forEach(function(bet) {
-            var el = document.getElementById("chatpreview_" + bet.coinid.substring(2, 18));
-            if (!el) return;
+            var cid = bet.coinid.substring(2, 18);
+            var msgsEl = document.getElementById("chatmsgs_" + cid);
+            if (!msgsEl) return;
             var p = bet.proposition || "";
-            var msg = latest[p];
-            var count = counts[p] || 0;
-            if (msg) {
-                var preview = msg.isMine ? "You: " : (msg.name + ": ");
-                preview += msg.text.length > 30 ? msg.text.substring(0, 30) + "..." : msg.text;
-                el.innerHTML = '<span class="chatpreview__count">' + count + '</span> ' + esc(preview);
-            } else {
-                el.innerHTML = '<span class="muted">No messages</span>';
+            var msgs = byProp[p] || [];
+            var html = "";
+            // Show in chronological order (array is newest-first, reverse it)
+            msgs.reverse().forEach(function(m) {
+                if (m.isMine) {
+                    html += '<div style="text-align:right"><div class="msg__name" style="text-align:right">You</div>';
+                    html += '<div class="msg msg--me">' + esc(m.text) + '</div></div>';
+                } else {
+                    html += '<div class="msg__name">' + esc(m.name) + '</div>';
+                    html += '<div class="msg msg--them">' + esc(m.text) + '</div>';
+                }
+            });
+            if (msgs.length === 0) {
+                html = '<div style="font-size:12px;color:var(--muted);text-align:center;padding:8px">No messages yet</div>';
             }
+            msgsEl.innerHTML = html;
+            msgsEl.scrollTop = msgsEl.scrollHeight;
         });
     });
 }
 
 function renderHistoryView(el) {
+    // Simplified history: proposition, won/lost, amount, fee, escrow
+    // Query from activity log — filter for SETTLE/ARBITER entries
     loadHistory(function(rows) {
-        var html = '<h2>Transaction History</h2>';
-        if (rows.length === 0) {
-            html += '<div class="empty">No transactions yet — post a bet to get started</div>';
+        var html = '<h2>History</h2>';
+        var bets = rows.filter(function(r) {
+            var msg = r.MSG || "";
+            return msg.indexOf("SETTLE") >= 0 || msg.indexOf("ARBITER") >= 0 || msg.indexOf("CANCEL") >= 0 || msg.indexOf("settled") >= 0 || msg.indexOf("WON") >= 0 || msg.indexOf("LOST") >= 0;
+        });
+        if (bets.length === 0) {
+            html += '<div class="empty">No completed bets yet</div>';
         } else {
-            html += '<div class="history">';
-            rows.forEach(function(r) {
-                var time = new Date(parseInt(r.TIMESTAMP)).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-                var dir = r.TYPE || "";
-                var dirClass = dir === "IN" ? "side--yes" : dir === "OUT" ? "side--no" : "";
-                var dirLabel = dir === "IN" ? "IN" : dir === "OUT" ? "OUT" : dir;
-                html += '<div class="history__row">';
-                html += '<span class="history__time">' + time + '</span>';
-                html += '<span class="history__status ' + dirClass + '">' + dirLabel + '</span>';
-                html += '<span class="history__desc">' + esc(r.MSG) + '</span>';
+            bets.forEach(function(r) {
+                var msg = r.MSG || "";
+                var time = new Date(parseInt(r.TIMESTAMP)).toLocaleString([], { month: "short", day: "numeric" });
+                var isWin = msg.indexOf("WIN") >= 0 || msg.indexOf("IN ") === 0;
+                var isLoss = msg.indexOf("LOSE") >= 0 || msg.indexOf("OUT ") === 0;
+                var cls = isWin ? "ok" : isLoss ? "err" : "info";
+                var result = isWin ? "WON" : isLoss ? "LOST" : "—";
+                html += '<div class="logrow logrow--' + cls + '" style="padding:8px 12px">';
+                html += '<span class="logrow__time">' + time + '</span>';
+                html += '<strong style="margin-right:8px;color:var(--' + (isWin ? "true" : isLoss ? "false" : "muted") + ')">' + result + '</strong>';
+                html += '<span class="logrow__msg">' + esc(msg) + '</span>';
                 html += '</div>';
             });
-            html += '</div>';
         }
         el.innerHTML = html;
+    });
+}
+
+/**
+ * Housekeeping view — clear stuck pending actions, check health.
+ */
+function renderHousekeepingView(el) {
+    var html = '<h2>Housekeeping</h2>';
+
+    // Check pending actions count
+    MDS.cmd("mds action:pending", function(res) {
+        var pending = [];
+        try { pending = res.response.pending || []; } catch(e) {}
+        var count = pending.length;
+
+        html += '<div class="qcard"><div class="qcard__head">';
+        html += '<div class="qcard__question">Pending Actions: ' + count + '</div>';
+        html += '<div class="qcard__meta"><span>Stuck transactions awaiting approval in MiniHub</span></div>';
+        html += '</div>';
+        if (count > 0) {
+            html += '<div style="padding:12px 18px"><button class="btn btn--no" onclick="clearAllPending()">Deny all ' + count + ' pending actions</button></div>';
+        }
+        html += '</div>';
+
+        // Permission mode
+        MDS.cmd("checkmode", function(modeRes) {
+            var mode = "unknown";
+            try { mode = modeRes.response.mode || "unknown"; } catch(e) {}
+            html += '<div class="qcard"><div class="qcard__head">';
+            html += '<div class="qcard__question">Permission Mode: ' + mode + '</div>';
+            html += '<div class="qcard__meta"><span>' + (mode === "READ" ? "Auto-refresh disabled (would create pending actions)" : "Auto-refresh enabled") + '</span></div>';
+            html += '</div></div>';
+
+            // Contract status
+            html += '<div class="qcard"><div class="qcard__head">';
+            html += '<div class="qcard__question">Contract: ' + (WAGER_SCRIPT_ADDRESS ? "Registered" : "NOT registered") + '</div>';
+            html += '<div class="qcard__meta"><span>' + (WAGER_SCRIPT_ADDRESS || "—").substring(0, 30) + '...</span></div>';
+            html += '</div></div>';
+
+            el.innerHTML = html;
+        });
+    });
+}
+
+function clearAllPending() {
+    notify("Clearing pending actions...", "info");
+    MDS.cmd("mds action:pending", function(res) {
+        var pending = [];
+        try { pending = res.response.pending || []; } catch(e) {}
+        var count = 0;
+        pending.forEach(function(p) {
+            if (p.uid) {
+                MDS.cmd("mds action:deny uid:" + p.uid);
+                count++;
+            }
+        });
+        notify("Denied " + count + " pending actions", "ok");
+        setTimeout(function() { renderCurrentView(); }, 1000);
     });
 }
 
@@ -1407,12 +1765,16 @@ function renderActivityView(el) {
     loadActivity(function(logs) {
         var html = '<h2>Activity Log</h2>';
         if (logs.length === 0) {
-            html += '<div class="empty">No activity yet</div>';
+            html += '<div class="empty"><div class="empty__text">No activity yet</div></div>';
         } else {
-            html += '<div class="log">';
+            html += '<div class="loglist">';
             logs.forEach(function(l) {
                 var time = new Date(parseInt(l.TIMESTAMP)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-                html += '<div class="log__row log__' + (l.TYPE || "info") + '"><span class="log__time">' + time + '</span> ' + esc(l.MSG) + '</div>';
+                var cls = l.TYPE || "info";
+                html += '<div class="logrow logrow--' + cls + '">';
+                html += '<span class="logrow__time">' + time + '</span>';
+                html += '<span class="logrow__msg">' + esc(l.MSG) + '</span>';
+                html += '</div>';
             });
             html += '</div>';
         }
@@ -1428,18 +1790,109 @@ function showStatus(el, msg, type) {
     el.innerText = msg;
 }
 
+/**
+ * Set or clear settle-pending flag via shared MDS.keypair.
+ * Both app.js and service.js read the same keypair key.
+ * This replaces the old fire-and-forget MDSCOMMS approach.
+ */
 function notifyService(action, proposition) {
     if (!proposition) return;
-    try {
-        if (MDS.comms && MDS.comms.solo) {
-            MDS.comms.solo(JSON.stringify({action: action, proposition: proposition}));
-        }
-    } catch(e) {}
+    MDS.keypair.get("wager_settle_pending", function(val) {
+        try {
+            var sp = val && val.value ? JSON.parse(val.value) : {};
+            if (action === "settle_pending") {
+                sp[proposition] = Date.now();
+            } else if (action === "settle_cleared") {
+                delete sp[proposition];
+            }
+            MDS.keypair.set("wager_settle_pending", JSON.stringify(sp));
+        } catch(e) {}
+    });
 }
+
+// ============================================================
+// ONBOARDING — 3 cinematic slides, shown once on first open
+// Stored in MDS.keypair so it survives app updates.
+// ============================================================
+
+var ONBOARD_SLIDES = [
+    {
+        cls: "onboard--3",
+        icon: "▣",
+        title: "No house.<br>No middleman.<br>No loophole.",
+        body: "Self-settle and keep everything — <strong>0% fee</strong>. Disagree? An arbiter decides for 10%. Powered by Minima — the blockchain that runs on your phone.",
+        btn: "Next"
+    },
+    {
+        cls: "onboard--2",
+        icon: "⚖",
+        title: "Skin in the game.",
+        body: "Both sides stake 125% of the bet. The extra 25% is <strong>honesty insurance</strong> — held in escrow to encourage truthful declarations. Bluffing costs you.<br><br>Choose your own arbiter who decides if you disagree. Invoke the arbiter and risk your honesty escrow (25%) and give up 10% of the total. <strong>Declare honestly</strong> and enjoy trustless, permissionless, fee-free, safe, fair gambling. Playing by your rules — enforced by smart contract immutable code.",
+        btn: "Next"
+    },
+    {
+        cls: "onboard--1",
+        icon: "◎",
+        title: "Propose anything.<br>Bet anyone.<br>Trust no one.",
+        body: "<strong>Trust not required.</strong> The smart contract holds everything until reality decides. No platform takes a cut. No operator can freeze your funds. No counterparty can walk away.",
+        btn: "Start betting"
+    }
+];
+
+var ONBOARD_STEP = 0;
+
+function showOnboardingIfNeeded() {
+    MDS.keypair.get("wager_onboard_done", function(res) {
+        if (res.status && res.value === "true") return; // Already seen
+        ONBOARD_STEP = 0;
+        renderOnboardSlide();
+    });
+}
+
+function renderOnboardSlide() {
+    var container = document.getElementById("onboarding");
+    if (!container) return;
+    if (ONBOARD_STEP >= ONBOARD_SLIDES.length) {
+        // Done — save and hide
+        container.innerHTML = "";
+        MDS.keypair.set("wager_onboard_done", "true");
+        return;
+    }
+    var s = ONBOARD_SLIDES[ONBOARD_STEP];
+    var dots = "";
+    for (var i = 0; i < ONBOARD_SLIDES.length; i++) {
+        dots += '<div class="onboard__dot' + (i === ONBOARD_STEP ? ' active' : '') + '"></div>';
+    }
+    container.innerHTML =
+        '<div class="onboard ' + s.cls + '">' +
+        '<div class="onboard__glow"></div>' +
+        '<div class="onboard__brand"><b>O</b>pen<b>l</b>y</div>' +
+        '<div class="onboard__icon">' + s.icon + '</div>' +
+        '<div class="onboard__title">' + s.title + '</div>' +
+        '<div class="onboard__body">' + s.body + '</div>' +
+        '<div class="onboard__dots">' + dots + '</div>' +
+        '<button class="onboard__btn" onclick="nextOnboardSlide()">' + s.btn + '</button>' +
+        '</div>';
+}
+
+function nextOnboardSlide() {
+    ONBOARD_STEP++;
+    renderOnboardSlide();
+}
+
+// ============================================================
 
 function esc(s) {
     if (!s) return "";
     var d = document.createElement("div");
     d.appendChild(document.createTextNode(s));
     return d.innerHTML;
+}
+
+// Smart number formatting: 2dp when <1, 1dp when <10, 0dp when >=10
+function fmtAmt(n) {
+    if (n === 0) return "0";
+    if (n < 1) return n.toFixed(2);
+    if (n < 10) return n.toFixed(1);
+    return n.toFixed(0);
 }

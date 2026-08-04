@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Openly — Design Mockup v4</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ================================================================
+   OPENLY — Design System
+   ================================================================ */
+:root {
+    --bg: #F5F3EE;
+    --card: #FFFFFF;
+    --border: #E5E2DB;
+    --text: #111111;
+    --dim: #555550;
+    --muted: #999590;
+    --true: #00A651;
+    --true-soft: #DBFBE8;
+    --false: #E6303A;
+    --false-soft: #FFE0E2;
+    --accent: #6C3AED;
+    --accent-soft: #F0EBFF;
+    --gold: #D4A012;
+    --gold-soft: #FFF8E5;
+    --shadow: 0 2px 8px rgba(0,0,0,0.06);
+    --shadow-lg: 0 8px 24px rgba(0,0,0,0.10);
+    --r: 20px;
+    --rs: 12px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Manrope',sans-serif;background:var(--bg);color:var(--text);max-width:460px;margin:0 auto;min-height:100vh;font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;}
+
+/* -- Notes (mockup only) -- */
+.divider{background:#111;color:#ddd;text-align:center;padding:16px 20px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:3px;margin-top:60px;}
+.divider:first-child{margin-top:0;}
+.note{background:#FFF8E5;border-left:3px solid var(--gold);padding:10px 14px;font-size:11px;color:#7A6520;margin:12px 16px;border-radius:0 8px 8px 0;line-height:1.5;}
+
+/* ================================================================
+   ONBOARDING
+   ================================================================ */
+.onboard{min-height:100vh;display:flex;flex-direction:column;justify-content:flex-end;padding:40px 32px 48px;color:white;position:relative;overflow:hidden;}
+.onboard--1{background:linear-gradient(160deg,#0D0D1A 0%,#1A1040 40%,#2D1B69 100%);}
+.onboard--2{background:linear-gradient(160deg,#0A2A1A 0%,#0D4A2D 40%,#1A6B45 100%);}
+.onboard--3{background:linear-gradient(160deg,#1A0A0A 0%,#3A1515 40%,#5A2020 100%);}
+.onboard__glow{position:absolute;width:280px;height:280px;border-radius:50%;filter:blur(80px);opacity:0.25;}
+.onboard--1 .onboard__glow{background:#6C3AED;top:15%;right:-15%;}
+.onboard--2 .onboard__glow{background:#00A651;top:20%;left:-15%;}
+.onboard--3 .onboard__glow{background:#E6303A;bottom:25%;right:-10%;}
+.onboard__icon{font-size:56px;margin-bottom:24px;opacity:0.9;}
+.onboard__brand{font-size:14px;font-weight:700;letter-spacing:2px;text-transform:uppercase;opacity:0.5;margin-bottom:24px;}
+.onboard__title{font-size:32px;font-weight:800;line-height:1.15;letter-spacing:-0.8px;margin-bottom:14px;}
+.onboard__body{font-size:15px;line-height:1.65;opacity:0.75;margin-bottom:36px;max-width:320px;}
+.onboard__body strong{opacity:1;font-weight:700;}
+.onboard__dots{display:flex;gap:6px;margin-bottom:20px;}
+.onboard__dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.25);}
+.onboard__dot.on{background:white;width:28px;border-radius:4px;}
+.onboard__btn{display:block;width:100%;padding:18px;border-radius:14px;font-family:inherit;font-size:16px;font-weight:800;border:none;cursor:pointer;background:white;color:#111;text-align:center;letter-spacing:-0.3px;}
+
+/* ================================================================
+   TOP BAR
+   ================================================================ */
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;background:rgba(255,255,255,0.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(0,0,0,0.06);position:sticky;top:0;z-index:100;}
+.topbar__brand{font-weight:800;font-size:20px;letter-spacing:-0.5px;}
+.topbar__right{text-align:right;}
+.topbar__bal{font-size:13px;font-weight:800;}
+.topbar__sub{font-size:11px;color:var(--muted);}
+
+/* ================================================================
+   BOTTOM NAV — no emoji, SVG icons
+   ================================================================ */
+.bnav{position:fixed;bottom:0;left:0;right:0;max-width:460px;margin:0 auto;display:flex;background:rgba(255,255,255,0.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--border);padding:4px 0 max(env(safe-area-inset-bottom),6px);z-index:100;}
+.bnav__tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0 4px;background:none;border:none;font-family:inherit;font-size:9px;font-weight:700;color:var(--muted);cursor:pointer;letter-spacing:0.3px;text-transform:uppercase;}
+.bnav__tab.on{color:var(--accent);}
+.bnav__tab svg{width:20px;height:20px;stroke-width:1.8;fill:none;stroke:currentColor;}
+.bnav__tab.on svg{stroke-width:2.2;}
+
+/* ================================================================
+   MAIN
+   ================================================================ */
+.page{padding:16px 16px 160px;}
+.page h2{font-size:20px;font-weight:800;letter-spacing:-0.4px;margin-bottom:14px;}
+
+/* ================================================================
+   MARKET CARD
+   ================================================================ */
+.mcard{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:12px;overflow:hidden;}
+.mcard__head{padding:16px 18px 6px;}
+.mcard__prop{font-size:15px;font-weight:700;line-height:1.35;}
+.mcard__meta{font-size:12px;color:var(--muted);margin-top:5px;display:flex;gap:8px;flex-wrap:wrap;}
+.mcard__meta span{white-space:nowrap;}
+
+/* Odds bar */
+.obar{display:flex;margin:10px 16px;height:38px;border-radius:19px;overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,0.06);}
+.obar__t{background:linear-gradient(135deg,#00A651,#00C060);display:flex;align-items:center;padding:0 14px;color:white;font-weight:800;font-size:12px;white-space:nowrap;min-width:60px;}
+.obar__f{background:linear-gradient(135deg,#D92B35,#E6303A);display:flex;align-items:center;justify-content:flex-end;padding:0 14px;color:white;font-weight:800;font-size:12px;white-space:nowrap;min-width:60px;}
+.obar__empty{flex:1;background:var(--bg);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;font-weight:700;border:2px dashed var(--border);border-left:none;border-right:none;}
+
+/* Position */
+.mcard__pos{display:flex;align-items:center;gap:6px;padding:6px 18px 0;font-size:12px;font-weight:600;}
+.mcard__dot{width:7px;height:7px;border-radius:50%;}
+.mcard__dot--t{background:var(--true);box-shadow:0 0 4px rgba(0,166,81,0.4);}
+.mcard__dot--f{background:var(--false);box-shadow:0 0 4px rgba(230,48,58,0.4);}
+
+/* Actions */
+.mcard__actions{display:flex;gap:8px;padding:12px 16px 16px;}
+
+/* ================================================================
+   BUTTONS
+   ================================================================ */
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:12px 20px;border-radius:12px;font-family:inherit;font-size:14px;font-weight:700;border:none;cursor:pointer;letter-spacing:-0.2px;transition:transform 0.1s;}
+.btn:active{transform:scale(0.97);}
+.btn--t{background:var(--true);color:white;}
+.btn--f{background:var(--false);color:white;}
+.btn--accent{background:var(--accent);color:white;}
+.btn--ghost{background:transparent;color:var(--dim);border:1.5px solid var(--border);}
+.btn--sm{padding:8px 14px;font-size:12px;border-radius:10px;}
+.btn--big{width:100%;padding:16px;font-size:15px;border-radius:14px;}
+.btn--disabled{opacity:0.35;pointer-events:none;}
+.btn--flex{flex:1;}
+
+/* ================================================================
+   LIVE BET
+   ================================================================ */
+.live{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:12px;overflow:hidden;}
+.live__tag{padding:10px 18px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;display:flex;align-items:center;gap:8px;}
+.live__tag--on{background:var(--accent-soft);color:var(--accent);}
+.live__tag--open{background:var(--gold-soft);color:var(--gold);}
+.live__tag--cancel{background:#eee;color:#999;}
+.live__pulse{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 2s ease infinite;}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(108,58,237,0.35);}50%{box-shadow:0 0 0 7px rgba(108,58,237,0);}}
+.live__prop{padding:14px 18px 4px;font-size:16px;font-weight:800;line-height:1.3;}
+.live__rows{padding:4px 18px 14px;}
+.live__row{display:flex;justify-content:space-between;font-size:13px;padding:3px 0;}
+.live__row dt{color:var(--dim);}
+.live__row dd{font-weight:700;}
+
+/* Settlement */
+.settle{padding:16px 18px;background:var(--bg);border-top:1px solid var(--border);}
+.settle__q{font-size:14px;font-weight:700;margin-bottom:4px;}
+.settle__q em{font-style:normal;color:var(--accent);font-weight:800;}
+.settle__sub{font-size:12px;color:var(--dim);margin-bottom:12px;}
+.settle__btns{display:flex;gap:8px;}
+
+/* Proposal */
+.proposal{margin:12px 16px;padding:16px;background:linear-gradient(135deg,var(--accent-soft),#E8DFFF);border-radius:16px;border:2px solid var(--accent);position:relative;}
+.proposal__label{font-size:11px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:0.5px;}
+.proposal__verdict{font-size:18px;font-weight:800;margin:4px 0 6px;}
+.proposal__fee{font-size:12px;color:var(--dim);margin-bottom:12px;}
+.proposal__btns{display:flex;gap:8px;}
+
+/* Chat */
+.chatbox{border-top:1px solid var(--border);padding:14px 18px;}
+.chatbox__label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;}
+.chatbox__msgs{max-height:100px;overflow-y:auto;margin-bottom:8px;}
+.bubble{max-width:78%;padding:7px 12px;border-radius:14px;font-size:13px;margin-bottom:4px;line-height:1.4;}
+.bubble--them{background:var(--bg);border-bottom-left-radius:4px;}
+.bubble--me{background:var(--accent);color:white;margin-left:auto;border-bottom-right-radius:4px;}
+.bubble__name{font-size:9px;font-weight:700;color:var(--muted);margin-bottom:1px;}
+.chatbox__input{display:flex;gap:6px;}
+.chatbox__field{flex:1;padding:9px 14px;border:1.5px solid var(--border);border-radius:20px;font-family:inherit;font-size:13px;outline:none;background:var(--card);}
+.chatbox__field:focus{border-color:var(--accent);}
+.chatbox__send{width:36px;height:36px;border-radius:50%;background:var(--accent);color:white;border:none;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+
+/* ================================================================
+   POST FORM
+   ================================================================ */
+.postform{background:var(--card);border-radius:var(--r);padding:20px;box-shadow:var(--shadow);}
+.postform__title{font-size:18px;font-weight:800;margin-bottom:16px;letter-spacing:-0.3px;}
+.fg{margin-bottom:14px;}
+.fg label{display:block;font-size:10px;font-weight:800;color:var(--dim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;}
+.fg input,.fg select{width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:10px;font-family:inherit;font-size:14px;outline:none;background:var(--card);}
+.fg input:focus{border-color:var(--accent);}
+.fg input::placeholder{color:var(--muted);}
+.fg--mono input{font-size:11px;font-family:'SF Mono',monospace;}
+.fg--row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.side-tog{display:flex;border-radius:10px;overflow:hidden;border:1.5px solid var(--border);}
+.side-tog__btn{flex:1;padding:11px;border:none;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;background:var(--card);color:var(--muted);text-align:center;}
+.side-tog__btn.on--t{background:var(--true);color:white;}
+.side-tog__btn.on--f{background:var(--false);color:white;}
+.preview{background:var(--bg);border-radius:var(--rs);padding:14px;margin:14px 0;}
+.preview__row{display:flex;justify-content:space-between;padding:4px 0;font-size:13px;}
+.preview__row--big{font-size:15px;font-weight:800;padding:8px 0 4px;border-top:1.5px solid var(--border);margin-top:4px;}
+.preview__t{color:var(--true);}
+.preview__f{color:var(--false);}
+.advanced{margin-top:12px;border-top:1px solid var(--border);padding-top:12px;}
+.advanced__toggle{font-size:12px;font-weight:700;color:var(--accent);cursor:pointer;margin-bottom:10px;}
+
+/* ================================================================
+   COUNTER SHEET
+   ================================================================ */
+.sheet{background:var(--card);border-radius:24px 24px 0 0;padding:24px 20px 36px;box-shadow:var(--shadow-lg);margin:20px 16px 0;}
+.sheet__pill{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 20px;}
+.sheet__title{font-size:17px;font-weight:800;letter-spacing:-0.3px;margin-bottom:2px;}
+.sheet__market{font-size:12px;color:var(--dim);margin-bottom:20px;}
+.bignumber{text-align:center;padding:16px 0;}
+.bignumber__val{font-size:52px;font-weight:800;letter-spacing:-2px;line-height:1;}
+.bignumber__unit{font-size:14px;color:var(--muted);font-weight:600;margin-left:2px;}
+input[type="range"]{-webkit-appearance:none;width:100%;height:6px;border-radius:3px;background:linear-gradient(to right,var(--accent) 35%,var(--border) 35%);outline:none;margin:12px 0 6px;}
+input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;background:white;box-shadow:0 1px 6px rgba(0,0,0,0.18);border:3px solid var(--accent);cursor:pointer;}
+.slider-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);font-weight:600;}
+
+/* ================================================================
+   ARBITER
+   ================================================================ */
+.arb{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:12px;overflow:hidden;border:2px solid var(--gold);}
+.arb__tag{padding:10px 18px;background:var(--gold-soft);font-size:10px;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:1.5px;}
+.arb__prop{padding:14px 18px 6px;font-size:16px;font-weight:800;}
+.arb__grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:8px 18px;}
+.arb__side{background:var(--bg);border-radius:var(--rs);padding:12px;text-align:center;}
+.arb__side-label{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;}
+.arb__side-val{font-size:20px;font-weight:800;margin-top:2px;}
+.arb__fee{text-align:center;padding:10px 18px;font-size:14px;font-weight:800;color:var(--gold);}
+.arb__btns{display:flex;gap:10px;padding:4px 18px 18px;}
+
+/* ================================================================
+   PERSISTENT LOG
+   ================================================================ */
+.logpanel{background:var(--card);border-bottom:1px solid var(--border);padding:8px 16px;max-height:96px;overflow-y:auto;font-size:12px;}
+.logpanel__title{font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
+.logrow{display:flex;gap:8px;padding:3px 0;font-size:12px;line-height:1.4;border-bottom:1px solid rgba(0,0,0,0.03);}
+.logrow__time{color:var(--muted);font-weight:600;white-space:nowrap;min-width:40px;font-size:11px;}
+.logrow__msg{flex:1;color:var(--dim);}
+.logrow--ok .logrow__msg{color:var(--true);}
+.logrow--err .logrow__msg{color:var(--false);}
+.logrow--warn .logrow__msg{color:var(--gold);}
+
+/* ================================================================
+   DESKTOP DASHBOARD
+   ================================================================ */
+.dashboard{display:grid;gap:16px;padding:16px;}
+.dashboard--3{grid-template-columns:1fr 1fr;grid-template-rows:auto auto;}
+.dashboard--3 .dash__col--log{grid-column:1 / -1;}
+.dash__col{min-width:0;}
+.dash__col h3{font-size:14px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:10px;padding-bottom:6px;border-bottom:1.5px solid var(--border);}
+
+/* ================================================================
+   UTILITY
+   ================================================================ */
+.empty{text-align:center;padding:32px 20px;color:var(--muted);font-size:14px;font-weight:600;}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     ONBOARDING 1 (was slide 3)
+     ============================================================ -->
+<div class="divider">Onboarding — Slide 1</div>
+<div class="note">Old slide 1 removed. Old slide 3 becomes slide 1. Brand: O·P·L bold in Openly.</div>
+
+<div class="onboard onboard--3">
+    <div class="onboard__glow"></div>
+    <div class="onboard__brand"><b>O</b>pen<b>l</b>y</div>
+    <div style="font-size:10px;font-weight:500;letter-spacing:3px;text-transform:none;opacity:0.35;margin-top:4px;"><b>O</b>pen<b>P</b>rop<b>L</b>ock</div>
+    <div class="onboard__icon">▣</div>
+    <div class="onboard__title">No house.<br>No middleman.<br>No loophole.</div>
+    <div class="onboard__body">
+        Self-settle and keep everything — <strong>0% fee</strong>. Disagree? An arbiter decides for 10%. Powered by Minima — the blockchain that runs on your phone.
+    </div>
+    <div class="onboard__dots"><div class="onboard__dot on"></div><div class="onboard__dot"></div><div class="onboard__dot"></div></div>
+    <button class="onboard__btn">Next</button>
+</div>
+
+<!-- ============================================================
+     ONBOARDING 2
+     ============================================================ -->
+<div class="divider">Onboarding — Slide 2</div>
+
+<div class="onboard onboard--2">
+    <div class="onboard__glow"></div>
+    <div class="onboard__brand"><b>O</b>pen<b>l</b>y</div>
+    <div style="font-size:10px;font-weight:500;letter-spacing:3px;text-transform:none;opacity:0.35;margin-top:4px;"><b>O</b>pen<b>P</b>rop<b>L</b>ock</div>
+    <div class="onboard__icon">⚖</div>
+    <div class="onboard__title">Skin in the game.</div>
+    <div class="onboard__body">
+        Both sides stake 125% of the bet. The extra 25% is <strong>honesty insurance</strong> — held in escrow to encourage truthful declarations. Bluffing costs you.<br><br>
+        Choose your own arbiter who decides if you disagree. Invoke the arbiter and risk your honesty escrow (25%) and give up 10% of the total. <strong>Declare honestly</strong> and enjoy trustless, permissionless, fee-free, safe, fair gambling. Playing by your rules — enforced by smart contract immutable code.
+    </div>
+    <div class="onboard__dots"><div class="onboard__dot"></div><div class="onboard__dot on"></div><div class="onboard__dot"></div></div>
+    <button class="onboard__btn">Next</button>
+</div>
+
+<!-- ============================================================
+     ONBOARDING 3
+     ============================================================ -->
+<div class="divider">Onboarding — Slide 3</div>
+
+<div class="onboard onboard--1">
+    <div class="onboard__glow"></div>
+    <div class="onboard__brand"><b>O</b>pen<b>l</b>y</div>
+    <div style="font-size:10px;font-weight:500;letter-spacing:3px;text-transform:none;opacity:0.35;margin-top:4px;"><b>O</b>pen<b>P</b>rop<b>L</b>ock</div>
+    <div class="onboard__icon">◎</div>
+    <div class="onboard__title">Propose anything.<br>Bet anyone.<br>Trust no one.</div>
+    <div class="onboard__body">
+        <strong>Trust not required.</strong> The smart contract holds everything until reality decides. No platform takes a cut. No operator can freeze your funds. No counterparty can walk away.
+    </div>
+    <div class="onboard__dots"><div class="onboard__dot"></div><div class="onboard__dot"></div><div class="onboard__dot on"></div></div>
+    <button class="onboard__btn">Start betting</button>
+</div>
+
+<!-- ============================================================
+     MARKETS
+     ============================================================ -->
+<div class="divider">Markets</div>
+<div class="note">Propositions with TRUE/FALSE odds bar. Market format: "TRUE X — FALSE Y | Size Z". Persistent log at bottom.</div>
+
+<div class="topbar">
+    <div class="topbar__brand"><b>O</b>pen<b>l</b>y</div>
+    <div class="topbar__right">
+        <div class="topbar__bal">4,054.75 MINIMA</div>
+        <div class="topbar__sub">#2,043,240</div>
+    </div>
+</div>
+
+<!-- Persistent log — sits ABOVE main content, below topbar. Always visible, 4 lines, scrollable -->
+<div class="logpanel">
+    <div class="logpanel__title">Activity</div>
+    <div class="logrow logrow--ok"><span class="logrow__time">12:52</span><span class="logrow__msg">Settlement accepted: TRUE. You WIN — +5.00 MINIMA confirming on-chain.</span></div>
+    <div class="logrow logrow--ok"><span class="logrow__time">12:48</span><span class="logrow__msg">Proposal received: TRUE — "BTC above 80k by Friday" — Agree or Disagree</span></div>
+    <div class="logrow"><span class="logrow__time">12:45</span><span class="logrow__msg">Chat from alice: "I've declared TRUE"</span></div>
+    <div class="logrow logrow--ok"><span class="logrow__time">12:30</span><span class="logrow__msg">Bet matched — pot: 15.00 MINIMA. Confirming on-chain (~1 min).</span></div>
+    <div class="logrow"><span class="logrow__time">12:28</span><span class="logrow__msg">Counter posted — 5.00 MINIMA on FALSE. Confirming on-chain (~1 min).</span></div>
+    <div class="logrow logrow--warn"><span class="logrow__time">12:25</span><span class="logrow__msg">Be patient — on-chain confirmation takes about 1 minute.</span></div>
+    <div class="logrow logrow--ok"><span class="logrow__time">12:20</span><span class="logrow__msg">Proposition posted — TRUE 10.00, wants 5.00. Confirming on-chain.</span></div>
+    <div class="logrow"><span class="logrow__time">12:19</span><span class="logrow__msg">Openly v2.2.0 ready. Contract registered. 64 wallet keys loaded.</span></div>
+</div>
+
+<div class="page">
+    <h2>Markets</h2>
+
+    <!-- Card: Both sides, user has position -->
+    <div class="mcard">
+        <div class="mcard__head">
+            <div class="mcard__prop">BTC above 80k by Friday</div>
+            <div class="mcard__meta">
+                <span>TRUE 20 — FALSE 5</span>
+                <span>Size: 10</span>
+                <span>Spread: 20-5</span>
+            </div>
+        </div>
+        <div class="obar">
+            <div class="obar__t" style="flex:20">TRUE 20.00</div>
+            <div class="obar__f" style="flex:5">FALSE 5.00</div>
+        </div>
+        <div class="mcard__pos">
+            <div class="mcard__dot mcard__dot--t"></div>
+            <span>You: TRUE 10.00 — win 15.00 if right</span>
+        </div>
+        <div class="mcard__actions">
+            <button class="btn btn--ghost btn--sm">Cancel</button>
+            <button class="btn btn--f btn--sm btn--flex">Counter FALSE</button>
+        </div>
+    </div>
+
+    <!-- Card: Only TRUE side -->
+    <div class="mcard">
+        <div class="mcard__head">
+            <div class="mcard__prop">Arsenal win the league 2026</div>
+            <div class="mcard__meta">
+                <span>TRUE 15 — FALSE —</span>
+                <span>Size: 15</span>
+                <span>1 bet</span>
+            </div>
+        </div>
+        <div class="obar">
+            <div class="obar__t" style="flex:15">TRUE 15.00</div>
+            <div class="obar__empty">Needs FALSE</div>
+        </div>
+        <div class="mcard__actions">
+            <button class="btn btn--f btn--flex">Counter FALSE</button>
+        </div>
+    </div>
+
+    <!-- Card: Tight spread, no position -->
+    <div class="mcard">
+        <div class="mcard__head">
+            <div class="mcard__prop">ETH above 4k by end of Q2</div>
+            <div class="mcard__meta">
+                <span>TRUE 8 — FALSE 7</span>
+                <span>Size: 10</span>
+                <span>Spread: 8-7</span>
+            </div>
+        </div>
+        <div class="obar">
+            <div class="obar__t" style="flex:8">TRUE 8.00</div>
+            <div class="obar__f" style="flex:7">FALSE 7.00</div>
+        </div>
+        <div class="mcard__actions">
+            <button class="btn btn--t btn--sm btn--flex">Counter TRUE</button>
+            <button class="btn btn--f btn--sm btn--flex">Counter FALSE</button>
+        </div>
+    </div>
+</div>
+
+<!-- Bottom nav -->
+<div class="bnav">
+    <button class="bnav__tab on">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        Markets
+    </button>
+    <button class="bnav__tab">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
+        Post
+    </button>
+    <button class="bnav__tab">
+        <svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+        My Bets
+    </button>
+    <button class="bnav__tab">
+        <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        Log
+    </button>
+    <button class="bnav__tab">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+        More
+    </button>
+</div>
+
+<!-- ============================================================
+     POST FORM
+     ============================================================ -->
+<div class="divider">Post Bet</div>
+<div class="note">Label is "Proposition". TRUE/FALSE toggle. Live cash flow preview. Arbiter fields in collapsible section.</div>
+
+<div class="page">
+    <div class="postform">
+        <div class="postform__title">Post a proposition</div>
+
+        <div class="fg">
+            <label>Proposition</label>
+            <input placeholder="e.g. BTC above 80k by Friday" value="England win the Ashes 2026">
+        </div>
+
+        <div class="fg">
+            <label>Your side</label>
+            <div class="side-tog">
+                <div class="side-tog__btn on--t">TRUE</div>
+                <div class="side-tog__btn">FALSE</div>
+            </div>
+        </div>
+
+        <div class="fg--row">
+            <div class="fg">
+                <label>Your bet</label>
+                <input type="number" value="10">
+            </div>
+            <div class="fg">
+                <label>They must bet</label>
+                <input type="number" value="5">
+            </div>
+        </div>
+
+        <div class="preview">
+            <div class="preview__row"><span>You stake (TRUE)</span><strong>10.00 MINIMA</strong></div>
+            <div class="preview__row"><span>They must stake</span><strong>5.00 MINIMA</strong></div>
+            <div class="preview__row preview__row--big"><span>If TRUE</span><strong class="preview__t">+5.00 MINIMA</strong></div>
+            <div class="preview__row"><span>If FALSE</span><strong class="preview__f">-10.00 MINIMA</strong></div>
+            <div class="preview__row" style="font-size:11px;color:var(--muted)"><span>Locked (inc. 25% escrow)</span><span>12.50 MINIMA</span></div>
+        </div>
+
+        <div class="advanced">
+            <div class="advanced__toggle">▾ Arbiter &amp; settings</div>
+            <div class="fg fg--mono">
+                <label>Arbiter public key</label>
+                <input placeholder="0x...">
+            </div>
+            <div class="fg fg--mono">
+                <label>Arbiter address</label>
+                <input placeholder="0x...">
+            </div>
+            <div class="fg fg--mono">
+                <label>Arbiter Maxima key</label>
+                <input placeholder="Mx...">
+            </div>
+            <div class="fg">
+                <label>Timeout</label>
+                <select style="width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:10px;font-family:inherit;font-size:14px;">
+                    <option>~21 hours</option>
+                    <option selected>~3 days</option>
+                    <option>~6 days</option>
+                </select>
+            </div>
+        </div>
+
+        <button class="btn btn--accent btn--big" style="margin-top:16px">Post proposition</button>
+    </div>
+</div>
+
+<!-- ============================================================
+     COUNTER SHEET
+     ============================================================ -->
+<div class="divider">Counter / Take Bet</div>
+<div class="note">Bottom sheet. Big number. Slider from counter to full ask. Button text changes at full ask.</div>
+
+<div class="sheet">
+    <div class="sheet__pill"></div>
+    <div class="sheet__title">Counter: BTC above 80k by Friday</div>
+    <div class="sheet__market">Market: TRUE 20.00 — FALSE 5.00 &nbsp;|&nbsp; Size: 10.00</div>
+
+    <div class="bignumber">
+        <span class="bignumber__val">7</span>
+        <span class="bignumber__unit">MINIMA</span>
+    </div>
+
+    <input type="range" min="5" max="20" value="7">
+    <div class="slider-labels">
+        <span>5.00 (counter)</span>
+        <span>20.00 (take bet)</span>
+    </div>
+
+    <div class="preview">
+        <div class="preview__row"><span>You stake (FALSE)</span><strong>7.00 MINIMA</strong></div>
+        <div class="preview__row"><span>Against</span><strong>10.00 MINIMA</strong></div>
+        <div class="preview__row preview__row--big"><span>If FALSE</span><strong class="preview__t">+10.00 MINIMA</strong></div>
+        <div class="preview__row"><span>If TRUE</span><strong class="preview__f">-7.00 MINIMA</strong></div>
+        <div class="preview__row" style="font-size:11px;color:var(--muted)"><span>Locked (inc. escrow)</span><span>8.75 MINIMA</span></div>
+        <div class="preview__row" style="font-size:11px;color:var(--muted)"><span>Counter-offer — they can accept or counter back</span></div>
+    </div>
+
+    <button class="btn btn--accent btn--big">Counter — 7.00 MINIMA</button>
+    <div style="text-align:center;margin-top:10px"><button class="btn btn--ghost btn--sm">Cancel</button></div>
+</div>
+
+<!-- ============================================================
+     MY BETS — LIVE
+     ============================================================ -->
+<div class="divider">My Bets — Live with proposal + chat</div>
+<div class="note">Settlement: "Is [prop] TRUE or FALSE?" Proposal card. Inline chat. Patience messaging.</div>
+
+<div class="page">
+    <h2>My Bets</h2>
+
+    <div class="live">
+        <div class="live__tag live__tag--on"><div class="live__pulse"></div>Live</div>
+        <div class="live__prop">BTC above 80k by Friday</div>
+        <div class="live__rows">
+            <div class="live__row"><dt>You said</dt><dd style="color:var(--true)">TRUE · 10.00 MINIMA</dd></div>
+            <div class="live__row"><dt>They said</dt><dd style="color:var(--false)">FALSE · 5.00 MINIMA</dd></div>
+            <div class="live__row"><dt>If TRUE</dt><dd style="color:var(--true)">+5.00 MINIMA</dd></div>
+            <div class="live__row"><dt>If FALSE</dt><dd style="color:var(--false)">-10.00 MINIMA</dd></div>
+        </div>
+
+        <!-- Proposal -->
+        <div class="proposal">
+            <div class="proposal__label">Proposal received</div>
+            <div class="proposal__verdict">Counterparty says: TRUE</div>
+            <div class="proposal__fee">Agree = 0% fee · Disagree = arbiter decides (10%)</div>
+            <div class="proposal__btns">
+                <button class="btn btn--t btn--flex">Agree</button>
+                <button class="btn btn--f btn--flex">Disagree</button>
+            </div>
+        </div>
+
+        <!-- Settlement -->
+        <div class="settle">
+            <div class="settle__q">Is <em>"BTC above 80k by Friday"</em> TRUE or FALSE?</div>
+            <div class="settle__sub">Both agree: 0% fee. Disagree: arbiter decides (10%).</div>
+            <div class="settle__btns">
+                <button class="btn btn--t btn--flex">TRUE</button>
+                <button class="btn btn--f btn--flex">FALSE</button>
+                <button class="btn btn--ghost btn--sm">Void</button>
+            </div>
+        </div>
+
+        <!-- Chat -->
+        <div class="chatbox">
+            <div class="chatbox__label">Chat</div>
+            <div class="chatbox__msgs">
+                <div class="bubble__name">alice</div>
+                <div class="bubble bubble--them">I've declared TRUE — BTC hit 81.2k at 19:45 UTC</div>
+                <div style="text-align:right"><div class="bubble__name" style="text-align:right">You</div>
+                <div class="bubble bubble--me">Checking now, one sec</div></div>
+            </div>
+            <div class="chatbox__input">
+                <input class="chatbox__field" placeholder="Message...">
+                <button class="chatbox__send">›</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Open bet -->
+    <div class="live">
+        <div class="live__tag live__tag--open">Open — waiting for taker</div>
+        <div class="live__prop">England win the Ashes 2026</div>
+        <div class="live__rows">
+            <div class="live__row"><dt>You said</dt><dd style="color:var(--true)">TRUE · 10.00 MINIMA</dd></div>
+            <div class="live__row"><dt>Want from taker</dt><dd>5.00 MINIMA</dd></div>
+        </div>
+        <div style="padding:10px 18px 16px"><button class="btn btn--ghost btn--sm">Cancel</button></div>
+    </div>
+
+    <!-- Cancelling bet -->
+    <div class="live" style="opacity:0.4;pointer-events:none;">
+        <div class="live__tag live__tag--cancel">Cancelling... (~1 min)</div>
+        <div class="live__prop" style="color:var(--muted)">Old counter bet</div>
+        <div class="live__rows">
+            <div class="live__row"><dt>Status</dt><dd style="color:var(--muted)">Confirming on-chain</dd></div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================
+     ARBITER
+     ============================================================ -->
+<div class="divider">Arbiter</div>
+
+<div class="page">
+    <h2>Arbiter</h2>
+    <div class="arb">
+        <div class="arb__tag">Awaiting your decision</div>
+        <div class="arb__prop">BTC above 80k by Friday</div>
+        <div class="arb__grid">
+            <div class="arb__side">
+                <div class="arb__side-label">TRUE side</div>
+                <div class="arb__side-val" style="color:var(--true)">20.00</div>
+            </div>
+            <div class="arb__side">
+                <div class="arb__side-label">FALSE side</div>
+                <div class="arb__side-val" style="color:var(--false)">5.00</div>
+            </div>
+        </div>
+        <div class="arb__fee">Your fee: 2.50 MINIMA</div>
+        <div class="arb__btns">
+            <button class="btn btn--t btn--flex" style="padding:16px;font-size:15px">TRUE</button>
+            <button class="btn btn--f btn--flex" style="padding:16px;font-size:15px">FALSE</button>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================
+     LOG TAB
+     ============================================================ -->
+<div class="divider">Log (main tab)</div>
+<div class="note">Persistent, scrollable, timestamped. Always visible as its own tab. This is the user's source of truth.</div>
+
+<div class="page">
+    <h2>Activity Log</h2>
+    <div style="background:var(--card);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow);">
+        <div class="logpanel" style="max-height:none;padding:16px;">
+            <div class="logrow logrow--ok"><span class="logrow__time">12:52</span><span class="logrow__msg">Settlement accepted: TRUE. You WIN — +5.00 MINIMA confirming on-chain.</span></div>
+            <div class="logrow"><span class="logrow__time">12:51</span><span class="logrow__msg">Co-signing settlement...</span></div>
+            <div class="logrow logrow--ok"><span class="logrow__time">12:48</span><span class="logrow__msg">Proposal received: TRUE — "BTC above 80k by Friday"</span></div>
+            <div class="logrow"><span class="logrow__time">12:45</span><span class="logrow__msg">Chat from alice: "I've declared TRUE"</span></div>
+            <div class="logrow logrow--ok"><span class="logrow__time">12:30</span><span class="logrow__msg">Bet matched — pot: 15.00 MINIMA. Confirming on-chain (~1 min).</span></div>
+            <div class="logrow"><span class="logrow__time">12:28</span><span class="logrow__msg">Counter posted — 5.00 MINIMA on FALSE. Confirming on-chain (~1 min).</span></div>
+            <div class="logrow logrow--warn"><span class="logrow__time">12:25</span><span class="logrow__msg">Be patient — on-chain confirmation takes about 1 minute.</span></div>
+            <div class="logrow logrow--ok"><span class="logrow__time">12:20</span><span class="logrow__msg">Proposition posted — TRUE 10.00, wants 5.00. Confirming on-chain.</span></div>
+            <div class="logrow"><span class="logrow__time">12:19</span><span class="logrow__msg">Openly v2.2.0 ready. Contract registered. 64 wallet keys loaded.</span></div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================
+     DESKTOP DASHBOARD
+     ============================================================ -->
+<div class="divider">Desktop — 3-column dashboard (1200px+)</div>
+<div class="note">At 1200px+, Markets + My Bets + Log are visible simultaneously. This is a real dashboard, not a stretched phone layout.</div>
+
+<div style="max-width:1200px;margin:0 auto;">
+<div class="topbar" style="max-width:1200px;">
+    <div class="topbar__brand"><b>O</b>pen<b>l</b>y</div>
+    <div class="topbar__right">
+        <div class="topbar__bal">4,054.75 MINIMA</div>
+        <div class="topbar__sub">#2,043,240</div>
+    </div>
+</div>
+<div class="dashboard dashboard--3">
+    <!-- Col 1: Markets -->
+    <div class="dash__col">
+        <h3>Markets</h3>
+        <div class="mcard">
+            <div class="mcard__head"><div class="mcard__prop">BTC above 80k by Friday</div><div class="mcard__meta"><span>TRUE 20 — FALSE 5</span><span>Size: 10</span></div></div>
+            <div class="obar"><div class="obar__t" style="flex:20">TRUE 20</div><div class="obar__f" style="flex:5">FALSE 5</div></div>
+            <div class="mcard__pos"><div class="mcard__dot mcard__dot--t"></div><span>You: TRUE 10 — win 15 if right</span></div>
+            <div class="mcard__actions"><button class="btn btn--ghost btn--sm">Cancel</button><button class="btn btn--f btn--sm btn--flex">Counter FALSE</button></div>
+        </div>
+        <div class="mcard">
+            <div class="mcard__head"><div class="mcard__prop">Arsenal win the league</div><div class="mcard__meta"><span>TRUE 15 — FALSE —</span></div></div>
+            <div class="obar"><div class="obar__t" style="flex:15">TRUE 15</div><div class="obar__empty">Needs FALSE</div></div>
+            <div class="mcard__actions"><button class="btn btn--f btn--sm btn--flex">Counter FALSE</button></div>
+        </div>
+    </div>
+
+    <!-- Col 2: My Bets -->
+    <div class="dash__col">
+        <h3>My Bets</h3>
+        <div class="live">
+            <div class="live__tag live__tag--on" style="padding:8px 14px;font-size:9px"><div class="live__pulse"></div>Live</div>
+            <div class="live__prop" style="font-size:14px;padding:10px 14px 2px">BTC above 80k by Friday</div>
+            <div class="live__rows" style="padding:2px 14px 10px">
+                <div class="live__row"><dt>You</dt><dd style="color:var(--true)">TRUE · 10.00</dd></div>
+                <div class="live__row"><dt>If TRUE</dt><dd style="color:var(--true)">+5.00</dd></div>
+            </div>
+            <div class="settle" style="padding:12px 14px">
+                <div class="settle__q" style="font-size:12px">Is <em>"BTC above 80k"</em> TRUE or FALSE?</div>
+                <div class="settle__btns" style="margin-top:8px"><button class="btn btn--t btn--sm btn--flex">TRUE</button><button class="btn btn--f btn--sm btn--flex">FALSE</button></div>
+            </div>
+        </div>
+        <div class="live">
+            <div class="live__tag live__tag--open" style="padding:8px 14px;font-size:9px">Open</div>
+            <div class="live__prop" style="font-size:14px;padding:10px 14px 2px">England win the Ashes</div>
+            <div class="live__rows" style="padding:2px 14px 10px">
+                <div class="live__row"><dt>You</dt><dd style="color:var(--true)">TRUE · 10.00</dd></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Wide rectangle: Activity log spanning both columns -->
+    <div class="dash__col dash__col--log">
+        <h3>Activity</h3>
+        <div style="background:var(--card);border-radius:var(--rs);padding:14px;box-shadow:var(--shadow);display:grid;grid-template-columns:1fr 1fr;gap:0 24px;max-height:180px;overflow-y:auto;">
+            <div>
+                <div class="logrow logrow--ok"><span class="logrow__time">12:52</span><span class="logrow__msg">Settlement accepted: TRUE. You WIN — +5.00 MINIMA</span></div>
+                <div class="logrow logrow--ok"><span class="logrow__time">12:48</span><span class="logrow__msg">Proposal received: TRUE — "BTC above 80k by Friday"</span></div>
+                <div class="logrow"><span class="logrow__time">12:45</span><span class="logrow__msg">Chat from alice: "I've declared TRUE"</span></div>
+                <div class="logrow logrow--ok"><span class="logrow__time">12:30</span><span class="logrow__msg">Bet matched — pot: 15.00 MINIMA</span></div>
+            </div>
+            <div>
+                <div class="logrow"><span class="logrow__time">12:28</span><span class="logrow__msg">Counter posted — 5.00 MINIMA on FALSE</span></div>
+                <div class="logrow logrow--warn"><span class="logrow__time">12:25</span><span class="logrow__msg">Be patient — on-chain confirmation ~1 min</span></div>
+                <div class="logrow logrow--ok"><span class="logrow__time">12:20</span><span class="logrow__msg">Proposition posted — TRUE 10.00, wants 5.00</span></div>
+                <div class="logrow"><span class="logrow__time">12:19</span><span class="logrow__msg">Openly v2.2.0 ready. 64 keys loaded.</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<div style="height:100px"></div>
+</body>
+</html>

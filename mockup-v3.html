@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wager — Design v3</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+    --bg: #F5F3EE;
+    --card: #FFFFFF;
+    --border: #E5E2DB;
+    --text: #111111;
+    --dim: #555550;
+    --muted: #999590;
+    --yes: #00A651;
+    --yes-soft: #DBFBE8;
+    --no: #E6303A;
+    --no-soft: #FFE0E2;
+    --glow-yes: rgba(0,166,81,0.15);
+    --glow-no: rgba(230,48,58,0.15);
+    --purple: #6C3AED;
+    --purple-soft: #F0EBFF;
+    --gold: #D4A012;
+    --gold-soft: #FFF8E5;
+    --shadow: 0 2px 8px rgba(0,0,0,0.06);
+    --shadow-lg: 0 8px 30px rgba(0,0,0,0.1);
+    --r: 20px;
+    --rs: 12px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Manrope',sans-serif;background:var(--bg);color:var(--text);max-width:414px;margin:0 auto;min-height:100vh;overflow-x:hidden;}
+
+/* Notes */
+.note{background:#FFF8E5;border-left:4px solid var(--gold);padding:12px;font-size:11px;color:#7A6520;margin:12px 16px;border-radius:0 var(--rs) var(--rs) 0;}
+.divider{background:linear-gradient(135deg,#1a1a2e,#16213e);color:#eee;text-align:center;padding:16px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:4px;margin-top:60px;}
+.divider:first-child{margin-top:0;}
+
+/* ============================================================
+   ONBOARDING — cinematic, one idea per screen
+   ============================================================ */
+.hero {
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    justify-content: flex-end;
+    padding: 40px 28px 48px;
+    position: relative;
+    overflow: hidden;
+}
+.hero--1 { background: linear-gradient(170deg, #0D0D1A 0%, #1A1040 50%, #2D1B69 100%); color: white; }
+.hero--2 { background: linear-gradient(170deg, #0A2A1A 0%, #0D4A2D 50%, #1A6B45 100%); color: white; }
+.hero--3 { background: linear-gradient(170deg, #1A0A0A 0%, #4A1A1A 50%, #6B2D2D 100%); color: white; }
+
+.hero__glow {
+    position: absolute;
+    width: 300px; height: 300px;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.3;
+}
+.hero--1 .hero__glow { background: #6C3AED; top: 10%; right: -20%; }
+.hero--2 .hero__glow { background: #00A651; top: 20%; left: -20%; }
+.hero--3 .hero__glow { background: #E6303A; bottom: 30%; right: -10%; }
+
+.hero__emoji {
+    font-size: 80px;
+    margin-bottom: 24px;
+    animation: float 3s ease-in-out infinite;
+}
+@keyframes float {
+    0%,100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+.hero__title {
+    font-size: 36px;
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -1px;
+    margin-bottom: 12px;
+}
+.hero__body {
+    font-size: 17px;
+    line-height: 1.6;
+    opacity: 0.8;
+    margin-bottom: 36px;
+}
+.hero__body strong { opacity: 1; }
+
+.dots { display: flex; gap: 6px; margin-bottom: 20px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.3); }
+.dot.on { background: white; width: 28px; border-radius: 4px; }
+
+.cta {
+    display: block; width: 100%;
+    padding: 18px;
+    border-radius: 16px;
+    font-family: inherit; font-size: 17px; font-weight: 800;
+    border: none; cursor: pointer;
+    text-align: center;
+    letter-spacing: -0.3px;
+}
+.cta--white { background: white; color: #111; }
+.cta--purple { background: var(--purple); color: white; }
+.cta--yes { background: var(--yes); color: white; }
+.cta--no { background: var(--no); color: white; }
+.cta--ghost { background: rgba(255,255,255,0.1); color: white; border: 2px solid rgba(255,255,255,0.2); }
+.cta--sm { padding: 12px 20px; font-size: 14px; border-radius: 12px; width: auto; display: inline-flex; }
+
+/* ============================================================
+   TOP BAR — glassmorphism
+   ============================================================ */
+.topbar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 20px;
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    position: sticky; top: 0; z-index: 100;
+}
+.topbar__brand { font-weight: 800; font-size: 22px; letter-spacing: -1px; }
+.topbar__right { text-align: right; }
+.topbar__bal { font-size: 14px; font-weight: 800; }
+.topbar__sub { font-size: 11px; color: var(--muted); }
+
+/* ============================================================
+   BOTTOM NAV — frosted glass
+   ============================================================ */
+.bnav {
+    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 100%; max-width: 414px;
+    display: flex;
+    background: rgba(255,255,255,0.9);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border);
+    padding: 8px 0 max(env(safe-area-inset-bottom),10px);
+    z-index: 100;
+}
+.bnav__tab {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 6px 0; background: none; border: none;
+    font-family: inherit; font-size: 10px; font-weight: 700;
+    color: var(--muted); cursor: pointer;
+}
+.bnav__tab.on { color: var(--purple); }
+.bnav__icon { font-size: 22px; }
+.bnav__badge {
+    position: absolute; top: -2px; right: -6px;
+    background: var(--no); color: white;
+    font-size: 9px; font-weight: 800;
+    padding: 1px 5px; border-radius: 10px;
+}
+
+/* ============================================================
+   QUESTION CARD — the star of the show
+   ============================================================ */
+.q {
+    background: var(--card);
+    border-radius: var(--r);
+    box-shadow: var(--shadow);
+    margin: 0 16px 14px;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.q:active { transform: scale(0.98); }
+
+.q__head { padding: 18px 18px 10px; }
+.q__question {
+    font-size: 17px;
+    font-weight: 800;
+    line-height: 1.35;
+    letter-spacing: -0.3px;
+}
+.q__meta {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 6px;
+    display: flex;
+    gap: 12px;
+}
+
+/* Odds visualization — playful and clear */
+.q__odds {
+    display: flex;
+    margin: 0 18px;
+    height: 44px;
+    border-radius: 22px;
+    overflow: hidden;
+    position: relative;
+}
+.q__yes-bar {
+    background: var(--yes);
+    display: flex; align-items: center;
+    padding: 0 14px;
+    color: white;
+    font-weight: 800;
+    font-size: 14px;
+    transition: flex 0.4s ease;
+}
+.q__no-bar {
+    background: var(--no);
+    display: flex; align-items: center; justify-content: flex-end;
+    padding: 0 14px;
+    color: white;
+    font-weight: 800;
+    font-size: 14px;
+    transition: flex 0.4s ease;
+}
+.q__open-bar {
+    flex: 1;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--muted); font-size: 12px; font-weight: 700;
+    border-top: 2px dashed var(--border);
+    border-bottom: 2px dashed var(--border);
+}
+
+/* Yours tag */
+.q__yours {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 10px 18px 0;
+    font-size: 12px;
+    font-weight: 700;
+}
+.q__yours-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+}
+.q__yours-dot--yes { background: var(--yes); box-shadow: 0 0 6px var(--glow-yes); }
+.q__yours-dot--no { background: var(--no); box-shadow: 0 0 6px var(--glow-no); }
+
+/* Action row */
+.q__actions {
+    display: flex; gap: 10px;
+    padding: 14px 18px 18px;
+}
+.q__btn {
+    flex: 1;
+    padding: 14px;
+    border-radius: 14px;
+    border: none;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: transform 0.1s;
+    letter-spacing: -0.3px;
+}
+.q__btn:active { transform: scale(0.95); }
+.q__btn--yes { background: var(--yes); color: white; }
+.q__btn--no { background: var(--no); color: white; }
+.q__btn--view { background: var(--bg); color: var(--dim); }
+
+/* ============================================================
+   BET SHEET — the big moment
+   ============================================================ */
+.betsheet {
+    background: var(--card);
+    border-radius: 28px 28px 0 0;
+    padding: 24px 20px 40px;
+    box-shadow: var(--shadow-lg);
+    margin: 20px 16px 0;
+}
+.betsheet__pill {
+    width: 40px; height: 5px;
+    background: var(--border); border-radius: 3px;
+    margin: 0 auto 24px;
+}
+.betsheet__side {
+    display: inline-block;
+    padding: 6px 16px;
+    border-radius: 50px;
+    font-size: 13px; font-weight: 800;
+    margin-bottom: 8px;
+}
+.betsheet__side--yes { background: var(--yes-soft); color: var(--yes); }
+.betsheet__side--no { background: var(--no-soft); color: var(--no); }
+.betsheet__q {
+    font-size: 18px; font-weight: 800;
+    line-height: 1.3;
+    margin-bottom: 28px;
+}
+
+/* The BIG number */
+.bignumber {
+    text-align: center;
+    padding: 20px 0;
+}
+.bignumber__label {
+    font-size: 13px; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 1px;
+    margin-bottom: 8px;
+}
+.bignumber__val {
+    font-size: 64px;
+    font-weight: 800;
+    letter-spacing: -3px;
+    line-height: 1;
+}
+.bignumber__unit {
+    font-size: 18px;
+    color: var(--muted);
+    font-weight: 600;
+    margin-left: 4px;
+}
+
+/* Slider */
+.slider-track {
+    width: 100%;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--border);
+    position: relative;
+    margin: 20px 0;
+}
+.slider-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--yes), #00D46A);
+    width: 60%;
+}
+.slider-fill--no {
+    background: linear-gradient(90deg, var(--no), #FF6B6B);
+}
+.slider-thumb {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: white;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+    position: absolute;
+    top: -12px;
+    left: 56%;
+    border: 3px solid var(--yes);
+}
+.slider-ends {
+    display: flex; justify-content: space-between;
+    font-size: 12px; color: var(--muted); font-weight: 600;
+    margin-top: 8px;
+}
+
+/* Payout preview — animated feel */
+.preview {
+    background: var(--bg);
+    border-radius: var(--r);
+    padding: 18px;
+    margin: 24px 0;
+}
+.preview__row {
+    display: flex; justify-content: space-between;
+    padding: 8px 0;
+    font-size: 15px;
+}
+.preview__row--big {
+    font-size: 18px;
+    font-weight: 800;
+    padding: 12px 0 8px;
+    border-top: 2px solid var(--border);
+    margin-top: 6px;
+}
+.preview__win { color: var(--yes); }
+.preview__lose { color: var(--no); }
+.preview__subtle { font-size: 12px; color: var(--muted); padding: 4px 0 0; }
+
+/* ============================================================
+   LIVE BET CARD — My Bets view
+   ============================================================ */
+.live {
+    background: var(--card);
+    border-radius: var(--r);
+    box-shadow: var(--shadow);
+    margin: 0 16px 14px;
+    overflow: hidden;
+}
+.live__tag {
+    padding: 10px 18px;
+    font-size: 11px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 1.5px;
+    display: flex; align-items: center; gap: 8px;
+}
+.live__tag--active { background: var(--purple-soft); color: var(--purple); }
+.live__tag--won { background: var(--yes-soft); color: var(--yes); }
+.live__tag--lost { background: var(--no-soft); color: var(--no); }
+.live__pulse {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--purple);
+    animation: pulse 2s ease infinite;
+}
+@keyframes pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(108,58,237,0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(108,58,237,0); }
+}
+.live__q { padding: 14px 18px 6px; font-size: 17px; font-weight: 800; }
+.live__stakes { padding: 4px 18px 14px; }
+.live__row {
+    display: flex; justify-content: space-between;
+    font-size: 14px; padding: 4px 0;
+}
+.live__row dt { color: var(--dim); }
+.live__row dd { font-weight: 700; }
+
+/* "What happened?" panel */
+.decide {
+    padding: 18px;
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+}
+.decide__title {
+    font-size: 18px; font-weight: 800;
+    margin-bottom: 6px;
+}
+.decide__sub {
+    font-size: 13px; color: var(--dim);
+    margin-bottom: 14px;
+}
+.decide__btns { display: flex; gap: 10px; }
+.decide__btns .q__btn { flex: 1; }
+
+/* Incoming proposal — unmissable */
+.proposal {
+    margin: 14px 18px;
+    padding: 18px;
+    background: linear-gradient(135deg, var(--purple-soft), #E8DFFF);
+    border-radius: var(--r);
+    border: 2px solid var(--purple);
+    position: relative;
+}
+.proposal::before {
+    content: "📩";
+    position: absolute; top: -12px; right: 14px;
+    font-size: 24px;
+}
+.proposal__from {
+    font-size: 12px; font-weight: 700; color: var(--purple);
+}
+.proposal__verdict {
+    font-size: 22px; font-weight: 800;
+    margin: 4px 0 6px;
+}
+.proposal__fee {
+    font-size: 12px; color: var(--dim);
+    margin-bottom: 14px;
+}
+.proposal__btns { display: flex; gap: 10px; }
+.proposal__btns .q__btn { flex: 1; }
+
+/* Chat */
+.chatbox {
+    border-top: 1px solid var(--border);
+    padding: 14px 18px;
+}
+.chatbox__title {
+    font-size: 11px; font-weight: 800; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 1px;
+    margin-bottom: 10px;
+}
+.chatbox__messages {
+    max-height: 140px;
+    overflow-y: auto;
+}
+.msg {
+    max-width: 80%;
+    padding: 8px 14px;
+    border-radius: 16px;
+    font-size: 14px;
+    margin-bottom: 6px;
+    line-height: 1.4;
+}
+.msg--them {
+    background: var(--bg);
+    border-bottom-left-radius: 4px;
+}
+.msg--me {
+    background: var(--purple);
+    color: white;
+    margin-left: auto;
+    border-bottom-right-radius: 4px;
+}
+.msg__name { font-size: 10px; font-weight: 700; color: var(--muted); margin-bottom: 2px; }
+.chatbox__input {
+    display: flex; gap: 8px; margin-top: 10px;
+}
+.chatbox__field {
+    flex: 1;
+    padding: 10px 16px;
+    border: 2px solid var(--border);
+    border-radius: 24px;
+    font-family: inherit; font-size: 14px;
+    outline: none;
+}
+.chatbox__field:focus { border-color: var(--purple); }
+.chatbox__send {
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    background: var(--purple); color: white;
+    border: none; font-size: 18px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+}
+
+/* ============================================================
+   ARBITER
+   ============================================================ */
+.arbiter {
+    background: var(--card);
+    border-radius: var(--r);
+    box-shadow: var(--shadow);
+    margin: 0 16px 14px;
+    overflow: hidden;
+    border: 2px solid var(--gold);
+}
+.arbiter__tag {
+    padding: 10px 18px;
+    background: var(--gold-soft);
+    font-size: 11px; font-weight: 800; color: var(--gold);
+    text-transform: uppercase; letter-spacing: 1.5px;
+}
+.arbiter__q { padding: 16px 18px 8px; font-size: 17px; font-weight: 800; }
+.arbiter__grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    padding: 8px 18px;
+}
+.arbiter__side {
+    background: var(--bg);
+    border-radius: var(--rs);
+    padding: 14px;
+    text-align: center;
+}
+.arbiter__side-label { font-size: 11px; color: var(--muted); font-weight: 700; }
+.arbiter__side-val { font-size: 22px; font-weight: 800; margin-top: 2px; }
+.arbiter__fee {
+    text-align: center;
+    padding: 12px;
+    font-size: 15px; font-weight: 800;
+    color: var(--gold);
+}
+.arbiter__btns {
+    display: flex; gap: 10px;
+    padding: 4px 18px 20px;
+}
+.arbiter__btns .q__btn { flex: 1; padding: 16px; font-size: 16px; }
+
+/* Toast */
+.toast {
+    position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
+    width: calc(100% - 32px); max-width: 382px;
+    padding: 16px 18px;
+    border-radius: 16px;
+    font-size: 14px; font-weight: 700;
+    box-shadow: var(--shadow-lg);
+    z-index: 200;
+    display: flex; align-items: center; gap: 12px;
+    animation: slideIn 0.4s cubic-bezier(0.16,1,0.3,1);
+}
+@keyframes slideIn {
+    from { opacity:0; transform:translateX(-50%) translateY(-20px); }
+    to { opacity:1; transform:translateX(-50%) translateY(0); }
+}
+.toast--ok { background: var(--yes-soft); color: var(--yes); border: 1px solid rgba(0,166,81,0.2); }
+.toast--alert { background: var(--purple-soft); color: var(--purple); border: 1px solid rgba(108,58,237,0.2); }
+.toast__emoji { font-size: 22px; }
+
+.page { padding: 16px 0 100px; }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     ONBOARDING 1 — The Hook
+     ============================================================ -->
+<div class="divider">Onboarding 1 — The Hook</div>
+
+<div class="hero hero--1">
+    <div class="hero__glow"></div>
+    <div class="hero__emoji">🎯</div>
+    <div class="hero__title">Think you're<br>right?</div>
+    <div class="hero__body">
+        Make a prediction.<br>Back it with real money.<br>
+        <strong>Prove everyone wrong.</strong>
+    </div>
+    <div class="dots"><div class="dot on"></div><div class="dot"></div><div class="dot"></div></div>
+    <button class="cta cta--white">Next</button>
+</div>
+
+<!-- ============================================================
+     ONBOARDING 2 — How It Works
+     ============================================================ -->
+<div class="divider">Onboarding 2 — The Rules</div>
+
+<div class="hero hero--2">
+    <div class="hero__glow"></div>
+    <div class="hero__emoji">⚡</div>
+    <div class="hero__title">Two people.<br>One truth.</div>
+    <div class="hero__body">
+        You say <strong>YES</strong>. They say <strong>NO</strong>.<br>
+        Both lock funds in a smart contract.<br>
+        Agree on what happened? <strong>0% fee.</strong><br>
+        Disagree? An arbiter decides. <strong>10% fee.</strong>
+    </div>
+    <div class="dots"><div class="dot"></div><div class="dot on"></div><div class="dot"></div></div>
+    <button class="cta cta--white">Next</button>
+</div>
+
+<!-- ============================================================
+     ONBOARDING 3 — Trust
+     ============================================================ -->
+<div class="divider">Onboarding 3 — Trust</div>
+
+<div class="hero hero--3">
+    <div class="hero__glow"></div>
+    <div class="hero__emoji">🔒</div>
+    <div class="hero__title">Nobody can<br>cheat.</div>
+    <div class="hero__body">
+        Not you. Not them. Not us.<br>
+        <strong>Smart contracts enforce the rules.</strong><br>
+        Your money moves only when the bet is settled.
+    </div>
+    <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot on"></div></div>
+    <button class="cta cta--white">Let's go</button>
+</div>
+
+<!-- ============================================================
+     MARKETS
+     ============================================================ -->
+<div class="divider">Markets</div>
+<div class="note">
+    Every bet is a YES/NO question. The bar shows where the money is.
+    Tap YES or NO to bet. That's it. Zero learning curve.
+</div>
+
+<div class="topbar">
+    <div class="topbar__brand">Wager</div>
+    <div class="topbar__right">
+        <div class="topbar__bal">4,054 M</div>
+        <div class="topbar__sub">#2,043,240</div>
+    </div>
+</div>
+
+<div class="toast toast--alert">
+    <span class="toast__emoji">📩</span>
+    <span>Your counterparty says <strong>YES</strong> — tap to respond</span>
+</div>
+
+<div class="page">
+    <!-- Card: both sides filled -->
+    <div class="q">
+        <div class="q__head">
+            <div class="q__question">Will BTC be above 80k by Friday?</div>
+            <div class="q__meta">
+                <span>Pot: 15M</span>
+                <span>2 bettors</span>
+                <span>35m ago</span>
+            </div>
+        </div>
+        <div class="q__odds">
+            <div class="q__yes-bar" style="flex:5">YES 5M</div>
+            <div class="q__no-bar" style="flex:10">NO 10M</div>
+        </div>
+        <div class="q__actions">
+            <button class="q__btn q__btn--yes">Bet YES</button>
+            <button class="q__btn q__btn--no">Bet NO</button>
+        </div>
+    </div>
+
+    <!-- Card: one side only -->
+    <div class="q">
+        <div class="q__head">
+            <div class="q__question">Will ETH flip BNB market cap in Q2?</div>
+            <div class="q__meta"><span>3M on NO</span><span>needs a YES bettor</span></div>
+        </div>
+        <div class="q__odds">
+            <div class="q__open-bar">Be the first YES</div>
+            <div class="q__no-bar" style="flex:3">NO 3M</div>
+        </div>
+        <div class="q__yours">
+            <div class="q__yours-dot q__yours-dot--no"></div>
+            <span>You bet NO &middot; win 6M if right</span>
+        </div>
+        <div class="q__actions">
+            <button class="q__btn q__btn--yes">Bet YES</button>
+        </div>
+    </div>
+
+    <!-- Card: user has position -->
+    <div class="q">
+        <div class="q__head">
+            <div class="q__question">Rain in London Saturday?</div>
+            <div class="q__meta"><span>Even odds</span><span>Pot: 4M</span></div>
+        </div>
+        <div class="q__odds">
+            <div class="q__yes-bar" style="flex:1">YES 2M</div>
+            <div class="q__no-bar" style="flex:1">NO 2M</div>
+        </div>
+        <div class="q__yours">
+            <div class="q__yours-dot q__yours-dot--yes"></div>
+            <span>You bet YES 2M &middot; win 4M if right</span>
+        </div>
+        <div class="q__actions">
+            <button class="q__btn q__btn--view">View your bet</button>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================
+     BET YES SHEET
+     ============================================================ -->
+<div class="divider">Bet YES — How Much?</div>
+<div class="note">
+    One number. One slider. Everything else is calculated.
+    The slider goes from minimum to the full ask (takes the bet directly).
+    The green confirmation button changes text as you slide.
+</div>
+
+<div class="betsheet">
+    <div class="betsheet__pill"></div>
+    <div class="betsheet__side betsheet__side--yes">YES</div>
+    <div class="betsheet__q">Will BTC be above 80k by Friday?</div>
+
+    <div class="bignumber">
+        <div class="bignumber__label">Your bet</div>
+        <div>
+            <span class="bignumber__val">8</span>
+            <span class="bignumber__unit">MINIMA</span>
+        </div>
+    </div>
+
+    <div class="slider-track">
+        <div class="slider-fill" style="width:60%"></div>
+        <div class="slider-thumb" style="left:56%"></div>
+    </div>
+    <div class="slider-ends">
+        <span>1 M (counter offer)</span>
+        <span>10 M (take their bet)</span>
+    </div>
+
+    <div class="preview">
+        <div class="preview__row">
+            <span>You're betting</span>
+            <strong>8 MINIMA</strong>
+        </div>
+        <div class="preview__row">
+            <span>Against their</span>
+            <strong>5 MINIMA</strong>
+        </div>
+        <div class="preview__row preview__row--big">
+            <span>If right</span>
+            <strong class="preview__win">+5 MINIMA</strong>
+        </div>
+        <div class="preview__row">
+            <span>If wrong</span>
+            <strong class="preview__lose">-8 MINIMA</strong>
+        </div>
+        <div class="preview__subtle">Escrow: 2M held — returned if you both agree on result</div>
+    </div>
+
+    <button class="cta cta--yes">Confirm — Bet 8M on YES</button>
+    <div style="text-align:center;margin-top:12px;">
+        <button class="cta cta--ghost cta--sm" style="background:var(--bg);color:var(--dim);border-color:var(--border);">Cancel</button>
+    </div>
+</div>
+
+<!-- ============================================================
+     LIVE BET — My Bets
+     ============================================================ -->
+<div class="divider">My Bets — Live</div>
+<div class="note">
+    "What happened?" — plain English settlement.
+    Proposal comes in as an unmissable purple card with 📩.
+    Chat is always visible with proper scrolling.
+</div>
+
+<div class="page">
+    <div class="live">
+        <div class="live__tag live__tag--active">
+            <div class="live__pulse"></div>
+            Live bet
+        </div>
+        <div class="live__q">Will BTC be above 80k by Friday?</div>
+
+        <div class="live__stakes">
+            <div class="live__row"><dt>You said</dt><dd style="color:var(--yes)">YES &middot; 5M</dd></div>
+            <div class="live__row"><dt>They said</dt><dd style="color:var(--no)">NO &middot; 10M</dd></div>
+            <div class="live__row"><dt>If you're right</dt><dd style="color:var(--yes)">+10 MINIMA</dd></div>
+            <div class="live__row"><dt>If you're wrong</dt><dd style="color:var(--no)">-5 MINIMA</dd></div>
+        </div>
+
+        <!-- Incoming proposal -->
+        <div class="proposal">
+            <div class="proposal__from">Your counterparty says:</div>
+            <div class="proposal__verdict">"YES — it happened"</div>
+            <div class="proposal__fee">Agree = 0% fee &middot; Disagree = arbiter decides (10%)</div>
+            <div class="proposal__btns">
+                <button class="q__btn q__btn--yes">Agree</button>
+                <button class="q__btn q__btn--no">Disagree</button>
+            </div>
+        </div>
+
+        <!-- Settlement -->
+        <div class="decide">
+            <div class="decide__title">What happened?</div>
+            <div class="decide__sub">If you both agree: free. If not: arbiter decides for 10%.</div>
+            <div class="decide__btns">
+                <button class="q__btn q__btn--yes">It happened</button>
+                <button class="q__btn q__btn--no">It didn't</button>
+            </div>
+        </div>
+
+        <!-- Chat -->
+        <div class="chatbox">
+            <div class="chatbox__title">Chat</div>
+            <div class="chatbox__messages">
+                <div class="msg__name">eurobuddha</div>
+                <div class="msg msg--them">I have declared TRUE</div>
+                <div style="text-align:right">
+                    <div class="msg__name" style="text-align:right">You</div>
+                    <div class="msg msg--me">Checking now</div>
+                </div>
+                <div class="msg__name">eurobuddha</div>
+                <div class="msg msg--them">BTC hit 81.2k at 19:45 UTC</div>
+            </div>
+            <div class="chatbox__input">
+                <input class="chatbox__field" placeholder="Message...">
+                <button class="chatbox__send">&#9654;</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Won -->
+    <div class="live">
+        <div class="live__tag live__tag--won">Won &middot; +4 MINIMA</div>
+        <div class="live__q">Rain in London Saturday?</div>
+        <div class="live__stakes">
+            <div class="live__row"><dt>You said</dt><dd>YES</dd></div>
+            <div class="live__row"><dt>Result</dt><dd style="color:var(--yes)">You won 4M</dd></div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================
+     ARBITER
+     ============================================================ -->
+<div class="divider">Arbiter — Resolve</div>
+
+<div class="page">
+    <div class="arbiter">
+        <div class="arbiter__tag">⚖️ Awaiting your decision</div>
+        <div class="arbiter__q">Will BTC be above 80k by Friday?</div>
+        <div class="arbiter__grid">
+            <div class="arbiter__side">
+                <div class="arbiter__side-label">YES side</div>
+                <div class="arbiter__side-val" style="color:var(--yes)">5M</div>
+            </div>
+            <div class="arbiter__side">
+                <div class="arbiter__side-label">NO side</div>
+                <div class="arbiter__side-val" style="color:var(--no)">10M</div>
+            </div>
+        </div>
+        <div class="arbiter__fee">Your fee: 1.50 MINIMA</div>
+        <div class="arbiter__btns">
+            <button class="q__btn q__btn--yes">YES happened</button>
+            <button class="q__btn q__btn--no">It didn't</button>
+        </div>
+    </div>
+</div>
+
+<!-- Bottom nav -->
+<div class="bnav">
+    <button class="bnav__tab on"><span class="bnav__icon">📊</span>Markets</button>
+    <button class="bnav__tab"><span class="bnav__icon">➕</span>Post</button>
+    <button class="bnav__tab" style="position:relative"><span class="bnav__icon">🎯</span>My Bets<span class="bnav__badge">1</span></button>
+    <button class="bnav__tab"><span class="bnav__icon">⋯</span>More</button>
+</div>
+
+</body>
+</html>

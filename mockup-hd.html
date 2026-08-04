@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Openly — HD Reality Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Manrope',sans-serif;font-size:13px;line-height:1.45;-webkit-font-smoothing:antialiased;}
+
+.section{max-width:440px;margin:0 auto;min-height:100vh;overflow:hidden;position:relative;}
+.label{text-align:center;padding:16px;font-size:11px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#888;background:#111;}
+
+/* ================================================================
+   LIGHT MODE — Warm Luxe
+   Creamy parchment, deep charcoal accents, Spotify green,
+   rich shadows, glass effects, subtle texture
+   ================================================================ */
+.light{background:#F8F5EF;color:#1A1814;}
+.light .topbar{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:10px 18px;
+    background:linear-gradient(180deg,rgba(255,255,255,0.95),rgba(250,247,242,0.9));
+    backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+    border-bottom:1px solid rgba(0,0,0,0.06);
+    box-shadow:0 1px 0 rgba(255,255,255,0.8),0 4px 12px rgba(0,0,0,0.04);
+}
+.light .brand{font-weight:800;font-size:18px;letter-spacing:-0.5px;}
+.light .nav{display:flex;gap:2px;}
+.light .nav button{
+    background:none;border:none;padding:7px 9px;border-radius:10px;cursor:pointer;
+    color:#B0ADA6;transition:all 0.2s;
+}
+.light .nav button.on{
+    color:#1A1814;
+    background:linear-gradient(180deg,#FFFFFF,#F5F2EC);
+    box-shadow:0 1px 3px rgba(0,0,0,0.08),0 0 0 1px rgba(0,0,0,0.04);
+}
+.light .nav button svg{width:18px;height:18px;stroke-width:1.8;fill:none;stroke:currentColor;display:block;}
+.light .bal{font-size:12px;font-weight:800;color:#1A1814;}
+.light .blk{font-size:9px;color:#B0ADA6;}
+
+/* Activity — etched into surface */
+.light .log{
+    background:linear-gradient(180deg,#F0EDE6,#EBE8E1);
+    border-bottom:1px solid rgba(0,0,0,0.06);
+    box-shadow:inset 0 2px 4px rgba(0,0,0,0.04),inset 0 -1px 0 rgba(255,255,255,0.5);
+    padding:7px 16px 8px;
+}
+.light .log-title{font-size:7px;font-weight:800;color:#B0ADA6;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;}
+.light .log-row{display:flex;gap:6px;padding:2px 0;font-size:10px;line-height:1.3;}
+.light .log-time{color:#B0ADA6;font-weight:600;min-width:32px;}
+.light .log-msg{color:#6A6660;}
+.light .log-ok .log-msg{color:#15803D;font-weight:600;}
+
+/* Market card — floating, tactile */
+.light .card{
+    margin:0 14px 10px;border-radius:16px;overflow:hidden;
+    background:linear-gradient(180deg,#FFFFFF 0%,#FDFCFA 100%);
+    border:1px solid rgba(0,0,0,0.04);
+    box-shadow:
+        0 0 0 1px rgba(255,255,255,0.8) inset,
+        0 1px 2px rgba(0,0,0,0.04),
+        0 4px 12px rgba(0,0,0,0.06),
+        0 8px 24px rgba(0,0,0,0.04);
+    transition:transform 0.15s,box-shadow 0.15s;
+}
+.light .card:hover{transform:translateY(-1px);box-shadow:0 0 0 1px rgba(255,255,255,0.8) inset,0 2px 4px rgba(0,0,0,0.06),0 8px 24px rgba(0,0,0,0.08),0 16px 48px rgba(0,0,0,0.04);}
+.light .card-head{padding:14px 16px 6px;}
+.light .card-prop{font-size:15px;font-weight:800;letter-spacing:-0.3px;line-height:1.25;}
+.light .card-meta{font-size:10px;color:#B0ADA6;margin-top:4px;display:flex;gap:8px;}
+
+/* Odds bar — glossy 3D */
+.light .obar{display:flex;margin:8px 14px;height:38px;border-radius:19px;overflow:hidden;box-shadow:inset 0 1px 3px rgba(0,0,0,0.08),0 2px 4px rgba(0,0,0,0.04);}
+.light .obar-t{
+    background:linear-gradient(180deg,#22C55E 0%,#1DB954 30%,#16A34A 100%);
+    color:white;font-weight:800;font-size:11px;display:flex;align-items:center;padding:0 14px;
+    text-shadow:0 1px 2px rgba(0,0,0,0.2);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.25);
+    min-width:50px;
+}
+.light .obar-f{
+    background:linear-gradient(180deg,#EF4444 0%,#DC2626 30%,#B91C1C 100%);
+    color:white;font-weight:800;font-size:11px;display:flex;align-items:center;justify-content:flex-end;padding:0 14px;
+    text-shadow:0 1px 2px rgba(0,0,0,0.2);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.2);
+    min-width:50px;
+}
+.light .obar-e{flex:1;background:linear-gradient(180deg,#F5F2EC,#EDEAE4);display:flex;align-items:center;justify-content:center;font-size:9px;color:#B0ADA6;font-weight:700;}
+
+/* Position */
+.light .pos{font-size:10px;font-weight:600;padding:6px 16px 0;display:flex;align-items:center;gap:4px;}
+.light .pos-dot{width:7px;height:7px;border-radius:50%;box-shadow:0 0 8px currentColor;}
+.light .pos-dot-t{background:#1DB954;color:rgba(29,185,84,0.4);}
+.light .pos-dot-f{background:#DC2626;color:rgba(220,38,38,0.4);}
+
+/* Buttons — pressed metal */
+.light .btns{display:flex;gap:6px;padding:10px 14px 14px;}
+.light .btn{
+    padding:9px 14px;border-radius:10px;font-family:inherit;font-size:12px;font-weight:700;
+    border:none;cursor:pointer;
+    box-shadow:0 1px 2px rgba(0,0,0,0.08),0 2px 6px rgba(0,0,0,0.04);
+    transition:all 0.1s;flex:1;text-align:center;
+}
+.light .btn:active{transform:translateY(1px);box-shadow:0 0 0 rgba(0,0,0,0);}
+.light .btn-t{background:linear-gradient(180deg,#22C55E,#16A34A);color:white;text-shadow:0 1px 1px rgba(0,0,0,0.15);}
+.light .btn-t:hover{box-shadow:0 0 16px rgba(29,185,84,0.25),0 2px 6px rgba(0,0,0,0.08);}
+.light .btn-f{background:linear-gradient(180deg,#EF4444,#B91C1C);color:white;text-shadow:0 1px 1px rgba(0,0,0,0.15);}
+.light .btn-f:hover{box-shadow:0 0 16px rgba(220,38,38,0.25),0 2px 6px rgba(0,0,0,0.08);}
+.light .btn-g{background:linear-gradient(180deg,#FFFFFF,#F5F2EC);color:#6A6660;border:1px solid rgba(0,0,0,0.08);}
+.light .btn-a{background:linear-gradient(180deg,#2D2A24,#1A1814);color:#E8E5DF;text-shadow:0 1px 1px rgba(0,0,0,0.3);}
+.light .btn-a:hover{box-shadow:0 0 16px rgba(26,24,20,0.2),0 2px 6px rgba(0,0,0,0.1);}
+
+/* Live bet — side accent, depth */
+.light .live{
+    margin:0 14px 10px;border-radius:16px;overflow:hidden;
+    background:linear-gradient(180deg,#FFFFFF,#FDFCFA);
+    border:1px solid rgba(0,0,0,0.04);
+    border-left:4px solid #1A1814;
+    box-shadow:0 4px 12px rgba(0,0,0,0.06),0 8px 24px rgba(0,0,0,0.04);
+}
+.light .live-tag{
+    padding:8px 14px;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;
+    color:#1A1814;
+    background:linear-gradient(90deg,#F0EDE6,transparent);
+    display:flex;align-items:center;gap:5px;
+}
+.light .pulse{width:6px;height:6px;border-radius:50%;background:#1DB954;animation:gp 2s ease infinite;}
+@keyframes gp{0%,100%{box-shadow:0 0 0 0 rgba(29,185,84,0.4);}50%{box-shadow:0 0 0 6px rgba(29,185,84,0);}}
+
+/* Chat — warm charcoal bubbles */
+.light .chat{border-top:1px solid rgba(0,0,0,0.06);padding:10px 14px;background:linear-gradient(180deg,#F5F2EC,#F0EDE6);}
+.light .chat-title{font-size:7px;font-weight:800;color:#B0ADA6;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
+.light .bub{max-width:80%;padding:7px 11px;border-radius:14px;font-size:12px;margin-bottom:3px;line-height:1.35;}
+.light .bub-t{background:white;box-shadow:0 1px 3px rgba(0,0,0,0.06);border-bottom-left-radius:3px;color:#4A4640;}
+.light .bub-m{
+    background:linear-gradient(135deg,#2D2A24,#1A1814);color:#E8E5DF;
+    margin-left:auto;border-bottom-right-radius:3px;
+    box-shadow:0 2px 6px rgba(0,0,0,0.12);
+}
+.light .bub-n{font-size:8px;font-weight:700;color:#B0ADA6;margin-bottom:1px;}
+.light .chat-input{display:flex;gap:5px;margin-top:8px;}
+.light .chat-field{flex:1;padding:8px 12px;border:1.5px solid rgba(0,0,0,0.08);border-radius:18px;font-family:inherit;font-size:12px;outline:none;background:white;box-shadow:inset 0 1px 2px rgba(0,0,0,0.04);}
+.light .chat-field:focus{border-color:#1A1814;box-shadow:0 0 0 3px rgba(26,24,20,0.08);}
+.light .chat-send{width:32px;height:32px;border-radius:50%;background:linear-gradient(180deg,#2D2A24,#1A1814);color:#E8E5DF;border:none;font-size:13px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.12);display:flex;align-items:center;justify-content:center;}
+
+/* Proposal — floating glass */
+.light .proposal{
+    margin:8px 14px;padding:14px;border-radius:14px;
+    background:linear-gradient(135deg,rgba(255,255,255,0.9),rgba(250,247,242,0.95));
+    border:2px solid #1A1814;
+    box-shadow:0 4px 16px rgba(26,24,20,0.1),0 0 0 1px rgba(255,255,255,0.5) inset;
+}
+.light .pr-from{font-size:8px;font-weight:800;color:#1A1814;text-transform:uppercase;letter-spacing:0.5px;}
+.light .pr-text{font-size:13px;font-weight:800;margin:3px 0;}
+.light .pr-detail{font-size:10px;color:#6A6660;margin-bottom:8px;line-height:1.35;}
+
+/* Win banner — celebration */
+.light .win{
+    margin:0 14px 10px;padding:20px;text-align:center;border-radius:16px;
+    background:linear-gradient(135deg,#DCFCE7 0%,#BBF7D0 50%,#86EFAC 100%);
+    border:2px solid #1DB954;
+    box-shadow:0 0 24px rgba(29,185,84,0.15),0 4px 16px rgba(0,0,0,0.06);
+}
+.light .win-title{font-size:24px;font-weight:800;color:#15803D;text-shadow:0 1px 0 rgba(255,255,255,0.5);}
+.light .win-amt{font-size:18px;font-weight:800;color:#1A1814;margin:4px 0;}
+.light .win-detail{font-size:11px;color:#4A4640;}
+.light .win-sub{font-size:10px;color:#6A6660;margin-top:3px;}
+
+/* Settle — recessed */
+.light .settle{
+    margin:6px 14px 10px;padding:10px;border-radius:12px;
+    background:linear-gradient(180deg,#F5F2EC,#EDEAE4);
+    box-shadow:inset 0 1px 3px rgba(0,0,0,0.06);
+    border:1px solid rgba(0,0,0,0.04);
+}
+.light .stq{font-size:11px;font-weight:700;margin-bottom:5px;}
+.light .stq em{font-style:normal;color:#1A1814;font-weight:800;}
+
+.light h2{font-size:17px;font-weight:800;letter-spacing:-0.3px;margin:0 16px 10px;color:#1A1814;}
+
+/* ================================================================
+   DARK MODE — Midnight Pro
+   Deep navy, electric blue accent, neon green/red,
+   glowing edges, depth through light
+   ================================================================ */
+.dark{background:#0C0F1A;color:#E0DED8;}
+.dark .topbar{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:10px 18px;
+    background:linear-gradient(180deg,rgba(18,22,38,0.95),rgba(12,15,26,0.9));
+    backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+    border-bottom:1px solid rgba(255,255,255,0.04);
+    box-shadow:0 1px 0 rgba(255,255,255,0.02),0 4px 16px rgba(0,0,0,0.3);
+}
+.dark .brand{font-weight:800;font-size:18px;letter-spacing:-0.5px;color:#E0DED8;}
+.dark .nav{display:flex;gap:2px;}
+.dark .nav button{background:none;border:none;padding:7px 9px;border-radius:10px;cursor:pointer;color:#4A5068;transition:all 0.2s;}
+.dark .nav button.on{
+    color:#4D9EFF;
+    background:linear-gradient(180deg,rgba(77,158,255,0.12),rgba(77,158,255,0.06));
+    box-shadow:0 0 12px rgba(77,158,255,0.08),0 0 0 1px rgba(77,158,255,0.15);
+}
+.dark .nav button svg{width:18px;height:18px;stroke-width:1.8;fill:none;stroke:currentColor;display:block;}
+.dark .bal{font-size:12px;font-weight:800;color:#E0DED8;}
+.dark .blk{font-size:9px;color:#4A5068;}
+
+/* Activity — deep recess */
+.dark .log{
+    background:linear-gradient(180deg,#080B14,#0A0D18);
+    border-bottom:1px solid rgba(255,255,255,0.03);
+    box-shadow:inset 0 2px 6px rgba(0,0,0,0.4);
+    padding:7px 16px 8px;
+}
+.dark .log-title{font-size:7px;font-weight:800;color:#4A5068;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;}
+.dark .log-row{display:flex;gap:6px;padding:2px 0;font-size:10px;line-height:1.3;}
+.dark .log-time{color:#4A5068;font-weight:600;min-width:32px;}
+.dark .log-msg{color:#8890A0;}
+.dark .log-ok .log-msg{color:#00D67E;font-weight:600;}
+
+/* Card — floating in space */
+.dark .card{
+    margin:0 14px 10px;border-radius:16px;overflow:hidden;
+    background:linear-gradient(180deg,#161B2E 0%,#121728 100%);
+    border:1px solid rgba(255,255,255,0.04);
+    box-shadow:
+        0 0 0 1px rgba(255,255,255,0.02) inset,
+        0 1px 0 rgba(255,255,255,0.03) inset,
+        0 4px 12px rgba(0,0,0,0.25),
+        0 8px 32px rgba(0,0,0,0.2);
+    transition:transform 0.15s,box-shadow 0.15s;
+}
+.dark .card:hover{transform:translateY(-1px);box-shadow:0 0 0 1px rgba(77,158,255,0.1),0 4px 16px rgba(0,0,0,0.3),0 12px 40px rgba(0,0,0,0.25);}
+.dark .card-head{padding:14px 16px 6px;}
+.dark .card-prop{font-size:15px;font-weight:800;letter-spacing:-0.3px;line-height:1.25;color:#E0DED8;}
+.dark .card-meta{font-size:10px;color:#4A5068;margin-top:4px;display:flex;gap:8px;}
+
+/* Odds bar — neon glow */
+.dark .obar{display:flex;margin:8px 14px;height:38px;border-radius:19px;overflow:hidden;box-shadow:inset 0 1px 3px rgba(0,0,0,0.3),0 0 12px rgba(0,0,0,0.2);}
+.dark .obar-t{
+    background:linear-gradient(180deg,#00FF8C 0%,#00D67E 30%,#00B86B 100%);
+    color:#0C0F1A;font-weight:800;font-size:11px;display:flex;align-items:center;padding:0 14px;
+    box-shadow:0 0 16px rgba(0,214,126,0.2),inset 0 1px 0 rgba(255,255,255,0.2);
+    min-width:50px;
+}
+.dark .obar-f{
+    background:linear-gradient(180deg,#FF5A67 0%,#FF4757 30%,#E6303A 100%);
+    color:white;font-weight:800;font-size:11px;display:flex;align-items:center;justify-content:flex-end;padding:0 14px;
+    box-shadow:0 0 16px rgba(255,71,87,0.2),inset 0 1px 0 rgba(255,255,255,0.15);
+    min-width:50px;
+}
+.dark .obar-e{flex:1;background:linear-gradient(180deg,#1A1F32,#161B2E);display:flex;align-items:center;justify-content:center;font-size:9px;color:#4A5068;font-weight:700;}
+
+/* Position */
+.dark .pos{font-size:10px;font-weight:600;padding:6px 16px 0;display:flex;align-items:center;gap:4px;color:#8890A0;}
+.dark .pos-dot-t{background:#00D67E;color:rgba(0,214,126,0.4);}
+.dark .pos-dot-f{background:#FF4757;color:rgba(255,71,87,0.4);}
+
+/* Buttons — glowing */
+.dark .btns{display:flex;gap:6px;padding:10px 14px 14px;}
+.dark .btn{
+    padding:9px 14px;border-radius:10px;font-family:inherit;font-size:12px;font-weight:700;
+    border:none;cursor:pointer;
+    transition:all 0.15s;flex:1;text-align:center;
+}
+.dark .btn:active{transform:translateY(1px);}
+.dark .btn-t{background:linear-gradient(180deg,#00D67E,#00B86B);color:#0C0F1A;font-weight:800;box-shadow:0 0 12px rgba(0,214,126,0.15),0 2px 6px rgba(0,0,0,0.2);}
+.dark .btn-t:hover{box-shadow:0 0 24px rgba(0,214,126,0.3),0 2px 8px rgba(0,0,0,0.3);}
+.dark .btn-f{background:linear-gradient(180deg,#FF4757,#E6303A);color:white;box-shadow:0 0 12px rgba(255,71,87,0.15),0 2px 6px rgba(0,0,0,0.2);}
+.dark .btn-f:hover{box-shadow:0 0 24px rgba(255,71,87,0.3),0 2px 8px rgba(0,0,0,0.3);}
+.dark .btn-g{background:linear-gradient(180deg,#1A1F32,#161B2E);color:#8890A0;border:1px solid rgba(255,255,255,0.06);}
+.dark .btn-a{background:linear-gradient(180deg,#4D9EFF,#0066FF);color:white;box-shadow:0 0 12px rgba(77,158,255,0.15),0 2px 6px rgba(0,0,0,0.2);}
+.dark .btn-a:hover{box-shadow:0 0 24px rgba(77,158,255,0.3),0 2px 8px rgba(0,0,0,0.3);}
+
+/* Live bet */
+.dark .live{
+    margin:0 14px 10px;border-radius:16px;overflow:hidden;
+    background:linear-gradient(180deg,#161B2E,#121728);
+    border:1px solid rgba(255,255,255,0.04);
+    border-left:4px solid #4D9EFF;
+    box-shadow:0 4px 16px rgba(0,0,0,0.25),0 0 8px rgba(77,158,255,0.05);
+}
+.dark .live-tag{
+    padding:8px 14px;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;
+    color:#4D9EFF;
+    background:linear-gradient(90deg,rgba(77,158,255,0.08),transparent);
+    display:flex;align-items:center;gap:5px;
+}
+.dark .pulse{width:6px;height:6px;border-radius:50%;background:#4D9EFF;animation:bp 2s ease infinite;}
+@keyframes bp{0%,100%{box-shadow:0 0 0 0 rgba(77,158,255,0.4);}50%{box-shadow:0 0 0 6px rgba(77,158,255,0);}}
+
+/* Chat — blue accent */
+.dark .chat{border-top:1px solid rgba(255,255,255,0.04);padding:10px 14px;background:linear-gradient(180deg,#0E1220,#0C0F1A);}
+.dark .chat-title{font-size:7px;font-weight:800;color:#4A5068;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
+.dark .bub-t{background:#1A1F32;color:#8890A0;box-shadow:0 1px 3px rgba(0,0,0,0.2);border-bottom-left-radius:3px;}
+.dark .bub-m{
+    background:linear-gradient(135deg,#4D9EFF,#0066FF);color:white;
+    margin-left:auto;border-bottom-right-radius:3px;
+    box-shadow:0 2px 8px rgba(77,158,255,0.2);
+}
+.dark .chat-field{flex:1;padding:8px 12px;border:1.5px solid rgba(255,255,255,0.06);border-radius:18px;font-family:inherit;font-size:12px;outline:none;background:#161B2E;color:#E0DED8;}
+.dark .chat-field:focus{border-color:#4D9EFF;box-shadow:0 0 0 3px rgba(77,158,255,0.1);}
+.dark .chat-send{width:32px;height:32px;border-radius:50%;background:linear-gradient(180deg,#4D9EFF,#0066FF);color:white;border:none;font-size:13px;cursor:pointer;box-shadow:0 0 12px rgba(77,158,255,0.15);display:flex;align-items:center;justify-content:center;}
+
+/* Proposal */
+.dark .proposal{
+    margin:8px 14px;padding:14px;border-radius:14px;
+    background:linear-gradient(135deg,rgba(77,158,255,0.08),rgba(77,158,255,0.04));
+    border:2px solid #4D9EFF;
+    box-shadow:0 0 20px rgba(77,158,255,0.08),0 4px 16px rgba(0,0,0,0.2);
+}
+.dark .pr-from{font-size:8px;font-weight:800;color:#4D9EFF;text-transform:uppercase;letter-spacing:0.5px;}
+.dark .pr-text{font-size:13px;font-weight:800;margin:3px 0;color:#E0DED8;}
+.dark .pr-detail{font-size:10px;color:#8890A0;margin-bottom:8px;line-height:1.35;}
+
+/* Win — neon celebration */
+.dark .win{
+    margin:0 14px 10px;padding:20px;text-align:center;border-radius:16px;
+    background:linear-gradient(135deg,rgba(0,214,126,0.1) 0%,rgba(0,214,126,0.05) 100%);
+    border:2px solid #00D67E;
+    box-shadow:0 0 32px rgba(0,214,126,0.12),0 4px 16px rgba(0,0,0,0.2);
+}
+.dark .win-title{font-size:24px;font-weight:800;color:#00D67E;text-shadow:0 0 20px rgba(0,214,126,0.3);}
+.dark .win-amt{font-size:18px;font-weight:800;color:#E0DED8;margin:4px 0;}
+.dark .win-detail{font-size:11px;color:#8890A0;}
+
+/* Settle */
+.dark .settle{
+    margin:6px 14px 10px;padding:10px;border-radius:12px;
+    background:linear-gradient(180deg,#0E1220,#0C0F1A);
+    box-shadow:inset 0 1px 3px rgba(0,0,0,0.3);
+    border:1px solid rgba(255,255,255,0.03);
+}
+.dark .stq{font-size:11px;font-weight:700;margin-bottom:5px;color:#8890A0;}
+.dark .stq em{font-style:normal;color:#4D9EFF;font-weight:800;}
+
+.dark h2{font-size:17px;font-weight:800;letter-spacing:-0.3px;margin:0 16px 10px;color:#E0DED8;}
+
+/* Shared */
+.rows{padding:2px 14px 10px;}
+.row{display:flex;justify-content:space-between;font-size:12px;padding:2px 0;}
+.row dt{opacity:0.5;}
+.row dd{font-weight:700;}
+.t{color:#1DB954;}.dark .t{color:#00D67E;}
+.f{color:#DC2626;}.dark .f{color:#FF4757;}
+</style>
+</head>
+<body>
+
+<!-- LIGHT MODE -->
+<div class="label">Light Mode — Warm Luxe</div>
+<div class="section light">
+    <div class="topbar">
+        <div class="brand"><b>O</b>pen<b>l</b>y</div>
+        <div class="nav">
+            <button class="on"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></button>
+            <button><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg></button>
+            <button><svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg></button>
+            <button><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+            <button><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg></button>
+        </div>
+        <div style="text-align:right"><div class="bal">4,049.75 MINIMA</div><div class="blk">#2,043,735</div></div>
+    </div>
+    <div class="log">
+        <div class="log-title">Activity</div>
+        <div class="log-row log-ok"><span class="log-time">19:03</span><span class="log-msg">YOU WON! +10.00 MINIMA — "BTC breaks 73000"</span></div>
+        <div class="log-row"><span class="log-time">19:02</span><span class="log-msg">Settlement accepted. 0% fee.</span></div>
+        <div class="log-row"><span class="log-time">19:00</span><span class="log-msg">Proposal: FALSE — "ETH above 4k"</span></div>
+        <div class="log-row"><span class="log-time">18:56</span><span class="log-msg">Sit tight — 1-3 blocks to confirm.</span></div>
+    </div>
+
+    <div style="padding:12px 0 0">
+    <div class="win">
+        <div class="win-title">YOU WON!</div>
+        <div class="win-amt">+10.00 MINIMA</div>
+        <div class="win-detail">"BTC breaks 73000" — settled TRUE</div>
+        <div class="win-sub">Fee: 0% · Escrow: returned · <a style="color:#1A1814;font-weight:700;cursor:pointer">Dismiss</a></div>
+    </div>
+
+    <h2>Markets</h2>
+    <div class="card">
+        <div class="card-head"><div class="card-prop">BTC breaks 73000 on MEXC spot</div><div class="card-meta"><span>TRUE 20 — FALSE 5</span><span>in 10</span><span>2 bets</span></div></div>
+        <div class="obar"><div class="obar-t" style="flex:20">TRUE 20</div><div class="obar-f" style="flex:5">FALSE 5</div></div>
+        <div class="pos"><div class="pos-dot pos-dot-t"></div>You: TRUE 10 — profit 10 if right</div>
+        <div class="btns"><button class="btn btn-g">Cancel</button><button class="btn btn-f">Counter FALSE</button></div>
+    </div>
+    <div class="card">
+        <div class="card-head"><div class="card-prop">Arsenal win the league 2026</div><div class="card-meta"><span>TRUE 15 — FALSE —</span><span>in 15</span></div></div>
+        <div class="obar"><div class="obar-t" style="flex:15">TRUE 15</div><div class="obar-e">Needs FALSE</div></div>
+        <div class="btns"><button class="btn btn-f">Counter FALSE</button></div>
+    </div>
+
+    <h2>My Bets</h2>
+    <div class="live">
+        <div class="live-tag"><div class="pulse"></div> Live bet</div>
+        <div class="card-head"><div class="card-prop">ETH above 4k by end of Q2</div></div>
+        <div class="rows">
+            <div class="row"><dt>You said</dt><dd class="t">TRUE · 10.00</dd></div>
+            <div class="row"><dt>They said</dt><dd class="f">FALSE · 5.00</dd></div>
+            <div class="row"><dt>If TRUE</dt><dd class="t">+5.00</dd></div>
+            <div class="row"><dt>If FALSE</dt><dd class="f">-10.00</dd></div>
+        </div>
+        <div class="proposal">
+            <div class="pr-from">Counterparty says:</div>
+            <div class="pr-text">"ETH above 4k" is FALSE</div>
+            <div class="pr-detail">Agree? Disagree invokes arbiter — escrow forfeit, 10% fee.</div>
+            <div class="btns" style="padding:0"><button class="btn btn-t">Agree</button><button class="btn btn-f">Disagree</button></div>
+        </div>
+        <div class="settle">
+            <div class="stq">Is <em>"ETH above 4k"</em> TRUE or FALSE?</div>
+            <div class="btns" style="padding:0"><button class="btn btn-t">TRUE</button><button class="btn btn-f">FALSE</button><button class="btn btn-g">Void</button></div>
+        </div>
+        <div class="chat">
+            <div class="chat-title">Chat</div>
+            <div class="bub-n" style="font-size:8px;color:#B0ADA6;font-weight:700">alice</div>
+            <div class="bub bub-t">ETH peaked at 3847 — close but no</div>
+            <div class="bub-n" style="font-size:8px;color:#B0ADA6;font-weight:700;text-align:right">You</div>
+            <div class="bub bub-m">Fair enough, agreeing FALSE</div>
+            <div class="chat-input"><input class="chat-field" placeholder="Message..."><button class="chat-send">›</button></div>
+        </div>
+    </div>
+    <div style="margin:0 14px 20px"><button class="btn btn-a" style="width:100%;padding:13px;font-size:14px;border-radius:14px">Post Proposition</button></div>
+    </div>
+</div>
+
+<!-- DARK MODE -->
+<div class="label">Dark Mode — Midnight Pro</div>
+<div class="section dark">
+    <div class="topbar">
+        <div class="brand"><b>O</b>pen<b>l</b>y</div>
+        <div class="nav">
+            <button class="on"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></button>
+            <button><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg></button>
+            <button><svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg></button>
+            <button><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+            <button><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg></button>
+        </div>
+        <div style="text-align:right"><div class="bal">4,049.75 MINIMA</div><div class="blk">#2,043,735</div></div>
+    </div>
+    <div class="log">
+        <div class="log-title">Activity</div>
+        <div class="log-row log-ok"><span class="log-time">19:03</span><span class="log-msg">YOU WON! +10.00 MINIMA — "BTC breaks 73000"</span></div>
+        <div class="log-row"><span class="log-time">19:02</span><span class="log-msg">Settlement accepted. 0% fee.</span></div>
+        <div class="log-row"><span class="log-time">19:00</span><span class="log-msg">Proposal: FALSE — "ETH above 4k"</span></div>
+        <div class="log-row"><span class="log-time">18:56</span><span class="log-msg">Sit tight — 1-3 blocks to confirm.</span></div>
+    </div>
+
+    <div style="padding:12px 0 0">
+    <div class="win">
+        <div class="win-title">YOU WON!</div>
+        <div class="win-amt">+10.00 MINIMA</div>
+        <div class="win-detail">"BTC breaks 73000" — settled TRUE</div>
+    </div>
+
+    <h2>Markets</h2>
+    <div class="card">
+        <div class="card-head"><div class="card-prop">BTC breaks 73000 on MEXC spot</div><div class="card-meta"><span>TRUE 20 — FALSE 5</span><span>in 10</span><span>2 bets</span></div></div>
+        <div class="obar"><div class="obar-t" style="flex:20">TRUE 20</div><div class="obar-f" style="flex:5">FALSE 5</div></div>
+        <div class="pos"><div class="pos-dot pos-dot-t"></div>You: TRUE 10 — profit 10 if right</div>
+        <div class="btns"><button class="btn btn-g">Cancel</button><button class="btn btn-f">Counter FALSE</button></div>
+    </div>
+    <div class="card">
+        <div class="card-head"><div class="card-prop">Arsenal win the league 2026</div><div class="card-meta"><span>TRUE 15 — FALSE —</span><span>in 15</span></div></div>
+        <div class="obar"><div class="obar-t" style="flex:15">TRUE 15</div><div class="obar-e">Needs FALSE</div></div>
+        <div class="btns"><button class="btn btn-f">Counter FALSE</button></div>
+    </div>
+
+    <h2>My Bets</h2>
+    <div class="live">
+        <div class="live-tag"><div class="pulse"></div> Live bet</div>
+        <div class="card-head"><div class="card-prop">ETH above 4k by end of Q2</div></div>
+        <div class="rows">
+            <div class="row"><dt>You said</dt><dd class="t">TRUE · 10.00</dd></div>
+            <div class="row"><dt>They said</dt><dd class="f">FALSE · 5.00</dd></div>
+            <div class="row"><dt>If TRUE</dt><dd class="t">+5.00</dd></div>
+            <div class="row"><dt>If FALSE</dt><dd class="f">-10.00</dd></div>
+        </div>
+        <div class="proposal">
+            <div class="pr-from">Counterparty says:</div>
+            <div class="pr-text">"ETH above 4k" is FALSE</div>
+            <div class="pr-detail">Agree? Disagree invokes arbiter — escrow forfeit, 10% fee.</div>
+            <div class="btns" style="padding:0"><button class="btn btn-t">Agree</button><button class="btn btn-f">Disagree</button></div>
+        </div>
+        <div class="settle">
+            <div class="stq">Is <em>"ETH above 4k"</em> TRUE or FALSE?</div>
+            <div class="btns" style="padding:0"><button class="btn btn-t">TRUE</button><button class="btn btn-f">FALSE</button><button class="btn btn-g">Void</button></div>
+        </div>
+        <div class="chat">
+            <div class="chat-title">Chat</div>
+            <div class="bub-n" style="font-size:8px;color:#4A5068;font-weight:700">alice</div>
+            <div class="bub bub-t">ETH peaked at 3847 — close but no</div>
+            <div class="bub-n" style="font-size:8px;color:#4A5068;font-weight:700;text-align:right">You</div>
+            <div class="bub bub-m">Fair enough, agreeing FALSE</div>
+            <div class="chat-input"><input class="chat-field" placeholder="Message..."><button class="chat-send">›</button></div>
+        </div>
+    </div>
+    <div style="margin:0 14px 20px"><button class="btn btn-a" style="width:100%;padding:13px;font-size:14px;border-radius:14px">Post Proposition</button></div>
+    </div>
+</div>
+
+</body>
+</html>
